@@ -57,13 +57,13 @@ CREATE TABLE IF NOT EXISTS kontrak (
 
     CONSTRAINT fk_kontrak_supplier
         FOREIGN KEY (supplier_id)
-        REFERENCES suppliers(id)
+        REFERENCES suppliers(supplier_id)
         ON DELETE SET NULL
         ON UPDATE CASCADE,
 
     CONSTRAINT fk_kontrak_product
         FOREIGN KEY (product_id)
-        REFERENCES products(id)
+        REFERENCES products(product_id)
         ON DELETE SET NULL
         ON UPDATE CASCADE
 );

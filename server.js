@@ -1,6 +1,7 @@
 const express = require("express");
 const runMigrations = require("./Database/migrate");
 const { importExcel } = require("./Controller/data_analyst/excel/mapping");
+const { importProduct } = require("./Controller/data_analyst/excel/mapping_product");
 require("dotenv").config();
 
 const app = express();
@@ -24,7 +25,8 @@ const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
-    await importExcel();
+    
+    await importProduct();
   } catch (err) {
     console.error("Gagal start server:", err.message);
     process.exit(1);

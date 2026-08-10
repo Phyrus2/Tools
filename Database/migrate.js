@@ -53,13 +53,23 @@ async function runMigrations() {
     let ranCount = 0;
 
     for (const file of files) {
-      if (executedNames.includes(file)) {
-        console.log(`⏭️  Skip (sudah dijalankan): ${file}`);
-        continue;
-      }
-
       const filePath = path.join(MIGRATIONS_DIR, file);
       const sql = fs.readFileSync(filePath, 'utf8');
+
+      if (executedNames.includes(file)) {
+        // Migration was already recorded. Still attempt to run the SQL
+        // to ensure objects that may have been dropped are recreated.
+        // We don't insert a migration record again.
+        try {
+          console.log(`🔁 Ensure applied: ${file}`);
+          await pool.query(sql);
+          console.log(`✅ Ensured: ${file}`);
+        } catch (err) {
+          // Log and continue; don't treat as fatal so other migrations can run
+          console.warn(`⚠️  Ensure failed for ${file}: ${err.message}`);
+        }
+        continue;
+      }
 
       console.log(`▶️  Menjalankan: ${file}`);
       await pool.query(sql);

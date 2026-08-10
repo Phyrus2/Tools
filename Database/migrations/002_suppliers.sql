@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS suppliers (
-    id INT PRIMARY KEY,
+    supplier_id INT PRIMARY KEY,
 
     company_name VARCHAR(255) NOT NULL,
 
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
     location VARCHAR(255),
 
-    category_supplier VARCHAR(255),
+    category_supplier JSON NOT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 

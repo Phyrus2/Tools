@@ -1,5 +1,6 @@
 CREATE TABLE IF NOT EXISTS products (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+
+    product_id int PRIMARY KEY,
 
     supplier_id INT NOT NULL,
 
@@ -14,6 +15,6 @@ CREATE TABLE IF NOT EXISTS products (
 
     CONSTRAINT fk_supplier
     FOREIGN KEY (supplier_id)
-    REFERENCES suppliers(id)
+    REFERENCES suppliers(supplier_id)
     ON DELETE CASCADE
 );

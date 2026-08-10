@@ -30,12 +30,12 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     CONSTRAINT fk_booked_supplier
     FOREIGN KEY (supplier_id)
-    REFERENCES suppliers(id)
+    REFERENCES suppliers(supplier_id)
     ON DELETE CASCADE,
 
     CONSTRAINT fk_booked_product
     FOREIGN KEY (product_id)
-    REFERENCES products(id)
+    REFERENCES products(product_id)
     ON DELETE CASCADE,
 
     INDEX idx_dossier_id (dossier_id),
