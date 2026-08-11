@@ -126,6 +126,16 @@ async function importProduct() {
     return;
   }
 
+  const productIds = dataToInsert.map((row) => row[0]);
+  const [existingProducts] = await pool.query(
+    `SELECT product_id, name FROM products WHERE product_id IN (?)`,
+    [productIds]
+  );
+  const existingProductIds = new Set(existingProducts.map((p) => p.product_id));
+  const updatedRows = dataToInsert
+    .filter((row) => existingProductIds.has(row[0]))
+    .map((row) => ({ product_id: row[0], name: row[2] }));
+
   const [result] = await pool.query(
     "INSERT INTO products (product_id, supplier_id, name, type) VALUES ? ON DUPLICATE KEY UPDATE supplier_id = VALUES(supplier_id), name = VALUES(name), type = VALUES(type)",
     [dataToInsert]
@@ -135,9 +145,11 @@ async function importProduct() {
   console.log("Total baris di file :", rows.length);
   console.log("Berhasil diinsert   :", result.affectedRows);
   console.log("Dilewati            :", skippedRows.length);
+  if (updatedRows.length) {
+    console.log("Produk yang diupdate:");
+    console.table(updatedRows);
+  }
   if (skippedRows.length) console.table(skippedRows);
-
-  process.exit(0);
 }
 
 module.exports = {

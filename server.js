@@ -2,6 +2,7 @@ const express = require("express");
 const runMigrations = require("./Database/migrate");
 const { importExcel } = require("./Controller/data_analyst/excel/mapping");
 const { importProduct } = require("./Controller/data_analyst/excel/mapping_product");
+const { importBookedProduct } = require("./Controller/data_analyst/excel/mapping_booked_product");
 require("dotenv").config();
 
 const app = express();
@@ -22,11 +23,20 @@ const PORT = process.env.PORT || 3000;
 (async () => {
   try {
     await runMigrations();
+    console.log("✅ Migrasi selesai");
+
+    await importExcel();
+    console.log("✅ Import excel selesai");
+
+    await importProduct();
+    console.log("✅ Import product selesai");
+
+    await importBookedProduct();
+    console.log("✅ Import booked product selesai");
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
     });
-    
-    await importProduct();
   } catch (err) {
     console.error("Gagal start server:", err.message);
     process.exit(1);

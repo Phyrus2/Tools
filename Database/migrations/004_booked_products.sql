@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     status VARCHAR(255),
 
+    code VARCHAR(100),
+
     duration INT,
 
     travel_date DATE,
@@ -22,6 +24,13 @@ CREATE TABLE IF NOT EXISTS booked_products (
     operational VARCHAR(255),
 
     quantity INT,
+
+    unit varchar(50),
+
+    price DECIMAL(10, 2),
+
+    -- Simpan seluruh kolom Excel (raw row) di sini sebagai JSON
+    extra_data JSON DEFAULT NULL,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
