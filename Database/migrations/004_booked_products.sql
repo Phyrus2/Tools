@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS booked_products (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id INT PRIMARY KEY,
 
     dossier_id VARCHAR(100) NOT NULL,
 
@@ -29,8 +29,11 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     price DECIMAL(10, 2),
 
-    -- Simpan seluruh kolom Excel (raw row) di sini sebagai JSON
-    extra_data JSON DEFAULT NULL,
+    description TEXT,
+
+    info TEXT,
+
+    instructions TEXT,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
