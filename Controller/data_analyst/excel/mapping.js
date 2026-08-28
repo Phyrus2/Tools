@@ -8,7 +8,7 @@ const ALLOWED_COLUMNS = ["id", "company_name", "town", "region", "location"];
 
 // Nilai category_supplier di-set manual, tidak ada di excel
 // Use a plain string here; we'll store arrays of categories in the DB
-const DEFAULT_CATEGORY_SUPPLIER = "VISA"; // <-- ganti sesuai kebutuhan
+const DEFAULT_CATEGORY_SUPPLIER = "FLIGHT"; // <-- ganti sesuai kebutuhan
 
 const HEADER_ALIASES = {
   id: "id",
@@ -42,7 +42,7 @@ function mapRowToColumns(row) {
 
 async function importExcel() {
   // file berada di folder yang sama dengan mapping.js
-  const filePath = path.join(__dirname, "visa.xls");
+  const filePath = path.join(__dirname, "flight.xls");
 
   const workbook = xlsx.readFile(filePath);
   const sheet = workbook.Sheets[workbook.SheetNames[0]];

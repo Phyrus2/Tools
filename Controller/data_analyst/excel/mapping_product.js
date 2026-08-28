@@ -55,7 +55,7 @@ function rowContainsUnused(row) {
 
 async function importProduct() {
   // file berada di folder yang sama dengan file mapping ini
-  const filePath = path.join(__dirname, "product_accommodation.xlsx");
+  const filePath = path.join(__dirname, "product_sharing_bed.xlsx");
 
   // 1. Ambil semua supplier dari database untuk lookup nama -> id
   const [suppliers] = await pool.query(

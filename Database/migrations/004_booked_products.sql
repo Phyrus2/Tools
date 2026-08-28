@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     product_id INT NOT NULL,
 
+    product_name VARCHAR(255),
+
     status VARCHAR(255),
 
     code VARCHAR(100),
@@ -34,6 +36,10 @@ CREATE TABLE IF NOT EXISTS booked_products (
     info TEXT,
 
     instructions TEXT,
+
+    transport_pickup JSON,
+
+    transport_dropoff JSON,
 
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
