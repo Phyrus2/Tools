@@ -1,6 +1,6 @@
 const xlsx = require("xlsx");
 const path = require("path");
-const pool = require("../../../Database/connection");
+const pool = require("../../../../Database/connection");
 require("dotenv").config();
 
 /**
