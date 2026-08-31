@@ -1,7 +1,6 @@
 const express = require("express");
 const runMigrations = require("./Database/migrate");
 require("dotenv").config();
-const multer = require("multer");
 const cors = require("cors");
 
 
@@ -26,7 +25,7 @@ app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 //SUPPLIER
-app.post("/supplier/import", supplier.importExcel);
+app.post("/supplier/import", supplier.importSupplier);
 
 
 (async () => {

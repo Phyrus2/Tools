@@ -1,6 +1,6 @@
 const xlsx = require("xlsx");
 const fs = require("fs");
-const pool = require("../../../Database/connection");
+const pool = require("../../../../Database/connection");
 const multer = require("multer");
 
 // =====================================================
@@ -139,6 +139,8 @@ function categoriesEqual(a, b) {
 // =====================================================
 
 async function importSupplier(req, res) {
+  console.log("Import supplier request received.");
+  
   let filePath = null;
 
   try {
@@ -510,7 +512,11 @@ async function importSupplier(req, res) {
 
 module.exports = {
   importSupplier: [
+    (req, res, next) => {
+      console.log("1. Request menyentuh route supplier");
+      next();
+    },
     upload.single("file"),
-    importSupplier,
-  ],
+    importSupplier
+  ]
 };

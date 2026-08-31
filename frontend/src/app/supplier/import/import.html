@@ -1,0 +1,557 @@
+<div class="import-container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Supplier Import</h1>
+    <p>Upload Excel file and select supplier type.</p>
+  </div>
+
+
+  <!-- IMPORT FORM -->
+  <div class="import-card">
+
+    <!-- SUPPLIER TYPE -->
+    <div class="form-group">
+
+      <label>Supplier Type</label>
+
+      <select [(ngModel)]="category">
+
+        <option value="">
+          Select supplier type
+        </option>
+
+        <option value="FLIGHT">
+          FLIGHT
+        </option>
+
+        <option value="ACCOMMODATION">
+          ACCOMMODATION
+        </option>
+
+        <option value="ACTIVITIES">
+          ACTIVITIES
+        </option>
+
+        <option value="LIVEABOARD">
+          LIVEABOARD
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <!-- FILE -->
+    <div class="form-group">
+
+      <label>Excel File</label>
+
+      <input
+        type="file"
+        accept=".xls,.xlsx"
+        (change)="onFileSelected($event)"
+      />
+
+      <small *ngIf="selectedFile">
+        Selected:
+        <strong>{{ selectedFile.name }}</strong>
+      </small>
+
+    </div>
+
+
+    <!-- ERROR -->
+    <div
+      class="alert alert-error"
+      *ngIf="errorMessage"
+    >
+
+      ❌ {{ errorMessage }}
+
+    </div>
+
+
+    <!-- BUTTON -->
+    <button
+      type="button"
+      (click)="importSupplier()"
+      [disabled]="loading"
+    >
+
+      <span *ngIf="!loading">
+        Import Supplier
+      </span>
+
+      <span *ngIf="loading">
+        Processing...
+      </span>
+
+    </button>
+
+  </div>
+
+
+  <!-- ================================================= -->
+  <!-- RESULT -->
+  <!-- ================================================= -->
+
+  <div
+    class="result"
+    *ngIf="result"
+  >
+
+
+    <!-- SUCCESS -->
+    <div
+      class="alert alert-success"
+      *ngIf="result.success"
+    >
+
+      <strong>✅ Import Successful</strong>
+
+      <div>
+        {{ result.message }}
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- SUMMARY -->
+    <!-- ================================================= -->
+
+    <div class="summary">
+
+      <div class="summary-card">
+
+        <span>Total Rows</span>
+
+        <strong>
+          {{ result.summary.totalRows }}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-card new">
+
+        <span>New Suppliers</span>
+
+        <strong>
+          {{ result.summary.inserted }}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-card updated">
+
+        <span>Updated</span>
+
+        <strong>
+          {{ result.summary.updated }}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-card unchanged">
+
+        <span>Unchanged</span>
+
+        <strong>
+          {{ result.summary.unchanged }}
+        </strong>
+
+      </div>
+
+
+      <div class="summary-card skipped">
+
+        <span>Skipped</span>
+
+        <strong>
+          {{ result.summary.skipped }}
+        </strong>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- NEW SUPPLIERS -->
+    <!-- ================================================= -->
+
+    <div
+      class="result-section"
+      *ngIf="
+        result.insertedRows &&
+        result.insertedRows.length > 0
+      "
+    >
+
+      <div class="section-header">
+
+        <h2>
+          🆕 New Suppliers
+        </h2>
+
+        <span class="count">
+          {{ result.insertedRows.length }}
+        </span>
+
+      </div>
+
+
+      <div class="table-wrapper">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Excel Row</th>
+              <th>Supplier ID</th>
+              <th>Company</th>
+              <th>Town</th>
+              <th>Region</th>
+              <th>Location</th>
+              <th>Category</th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            <tr
+              *ngFor="
+                let supplier
+                of result.insertedRows
+              "
+            >
+
+              <td>
+                {{ supplier.row }}
+              </td>
+
+              <td>
+                {{ supplier.supplier_id }}
+              </td>
+
+              <td>
+                <strong>
+                  {{ supplier.company_name }}
+                </strong>
+              </td>
+
+              <td>
+                {{ supplier.town || '-' }}
+              </td>
+
+              <td>
+                {{ supplier.region || '-' }}
+              </td>
+
+              <td>
+                {{ supplier.location || '-' }}
+              </td>
+
+              <td>
+
+                <span
+                  class="badge"
+                  *ngFor="
+                    let category
+                    of supplier.category_supplier
+                  "
+                >
+
+                  {{ category }}
+
+                </span>
+
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- UPDATED SUPPLIERS -->
+    <!-- ================================================= -->
+
+    <div
+      class="result-section"
+      *ngIf="
+        result.updatedRows &&
+        result.updatedRows.length > 0
+      "
+    >
+
+      <div class="section-header">
+
+        <h2>
+          🔄 Updated Suppliers
+        </h2>
+
+        <span class="count updated-count">
+          {{ result.updatedRows.length }}
+        </span>
+
+      </div>
+
+
+      <!-- EACH UPDATED SUPPLIER -->
+
+      <div
+        class="update-card"
+        *ngFor="
+          let supplier
+          of result.updatedRows
+        "
+      >
+
+        <!-- SUPPLIER HEADER -->
+
+        <div class="update-header">
+
+          <div>
+
+            <strong>
+              {{ supplier.company_name }}
+            </strong>
+
+            <span>
+              Supplier ID:
+              {{ supplier.supplier_id }}
+            </span>
+
+          </div>
+
+          <span>
+            Excel Row {{ supplier.row }}
+          </span>
+
+        </div>
+
+
+        <!-- CHANGES -->
+
+        <div class="changes">
+
+          <div
+            class="change-row"
+            *ngFor="
+              let change
+              of supplier.changes
+            "
+          >
+
+            <div class="change-field">
+
+              {{ change.field }}
+
+            </div>
+
+
+            <div class="change-old">
+
+              <span class="change-label">
+                Before
+              </span>
+
+              <div class="value old-value">
+
+                {{ displayValue(change.old) }}
+
+              </div>
+
+            </div>
+
+
+            <div class="arrow">
+              →
+            </div>
+
+
+            <div class="change-new">
+
+              <span class="change-label">
+                After
+              </span>
+
+              <div class="value new-value">
+
+                {{ displayValue(change.new) }}
+
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- UNCHANGED -->
+    <!-- ================================================= -->
+
+    <div
+      class="result-section"
+      *ngIf="
+        result.unchangedRows &&
+        result.unchangedRows.length > 0
+      "
+    >
+
+      <div class="section-header">
+
+        <h2>
+          ⚪ Unchanged Suppliers
+        </h2>
+
+        <span class="count">
+          {{ result.unchangedRows.length }}
+        </span>
+
+      </div>
+
+
+      <div class="table-wrapper">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Excel Row</th>
+              <th>Supplier ID</th>
+              <th>Company</th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            <tr
+              *ngFor="
+                let supplier
+                of result.unchangedRows
+              "
+            >
+
+              <td>
+                {{ supplier.row }}
+              </td>
+
+              <td>
+                {{ supplier.supplier_id }}
+              </td>
+
+              <td>
+                {{ supplier.company_name }}
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- SKIPPED -->
+    <!-- ================================================= -->
+
+    <div
+      class="result-section"
+      *ngIf="
+        result.skippedRows &&
+        result.skippedRows.length > 0
+      "
+    >
+
+      <div class="section-header">
+
+        <h2>
+          ⚠️ Skipped Rows
+        </h2>
+
+        <span class="count skipped-count">
+          {{ result.skippedRows.length }}
+        </span>
+
+      </div>
+
+
+      <div class="table-wrapper">
+
+        <table>
+
+          <thead>
+
+            <tr>
+
+              <th>Excel Row</th>
+              <th>Reason</th>
+
+            </tr>
+
+          </thead>
+
+
+          <tbody>
+
+            <tr
+              *ngFor="
+                let row
+                of result.skippedRows
+              "
+            >
+
+              <td>
+                {{ row.row }}
+              </td>
+
+              <td>
+                {{ row.reason }}
+              </td>
+
+            </tr>
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </div>
+
+
+  </div>
+
+</div>
