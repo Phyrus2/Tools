@@ -128,7 +128,7 @@
               <td>{{ b.product_id }}</td>
               <td><strong>{{ b.product_name }}</strong></td>
               <td>{{ displayValue(b.status) }}</td>
-              <td>{{ displayValue(b.travel_date) }}</td>
+              <td>{{ formatDate(b.travel_date) }}</td>
               <td>{{ displayValue(b.price) }}</td>
             </tr>
           </tbody>
@@ -182,7 +182,7 @@
               <td>{{ b.product_id }}</td>
               <td><strong>{{ b.product_name }}</strong></td>
               <td>{{ displayValue(b.status) }}</td>
-              <td>{{ displayValue(b.travel_date) }}</td>
+              <td>{{ formatDate(b.travel_date) }}</td>
               <td>{{ displayValue(b.price) }}</td>
             </tr>
           </tbody>
