@@ -1,9 +1,21 @@
 const xlsx = require("xlsx");
-const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const pool = require("../../../../Database/connection");
 require("dotenv").config();
 
-// Kolom yang dipakai dari excel product
+// =====================================================
+// MULTER
+// =====================================================
+
+const upload = multer({
+  dest: "uploads/",
+});
+
+// =====================================================
+// KOLOM EXCEL YANG DIGUNAKAN
+// =====================================================
+
 const ALLOWED_COLUMNS = ["id", "product", "supplier", "type"];
 
 const HEADER_ALIASES = {
@@ -13,6 +25,10 @@ const HEADER_ALIASES = {
   type: "type",
 };
 
+// =====================================================
+// NORMALIZE HEADER
+// =====================================================
+
 function normalizeHeader(header) {
   return String(header)
     .trim()
@@ -20,7 +36,11 @@ function normalizeHeader(header) {
     .replace(/[\s_]+/g, "");
 }
 
+// =====================================================
+// NORMALIZE NAME
 // Dipakai juga untuk mencocokkan nama supplier excel <-> nama supplier database
+// =====================================================
+
 function normalizeName(value) {
   return String(value || "")
     .normalize("NFKD")
@@ -35,6 +55,10 @@ function normalizeName(value) {
     .replace(/\s+/g, " ");
 }
 
+// =====================================================
+// MAPPING ROW EXCEL
+// =====================================================
+
 function mapRowToColumns(row) {
   const mapped = {};
   for (const [header, value] of Object.entries(row)) {
@@ -47,111 +71,251 @@ function mapRowToColumns(row) {
   return mapped;
 }
 
+// =====================================================
+// CEK BARIS "UNUSED"
+// =====================================================
+
 function rowContainsUnused(row) {
   return Object.values(row).some(
-    (value) => value !== null && String(value).toLowerCase().includes("unused")
+    (value) =>
+      value !== null && String(value).toLowerCase().includes("unused"),
   );
 }
 
-async function importProduct() {
-  // file berada di folder yang sama dengan file mapping ini
-  const filePath = path.join(__dirname, "product_sharing_bed.xlsx");
+// =====================================================
+// IMPORT PRODUCT (HTTP HANDLER)
+// =====================================================
 
-  // 1. Ambil semua supplier dari database untuk lookup nama -> id
-  const [suppliers] = await pool.query(
-    "SELECT supplier_id, company_name FROM suppliers"
-  );
-  const supplierMap = new Map();
-  suppliers.forEach((s) => {
-    supplierMap.set(normalizeName(s.company_name), s.supplier_id);
-  });
+async function importProduct(req, res) {
+  console.log("Import product request received.");
 
-  // 2. Baca excel
-  const workbook = xlsx.readFile(filePath);
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = xlsx.utils.sheet_to_json(sheet, { defval: null });
+  let filePath = null;
 
-  if (rows.length === 0) {
-    console.log("File excel kosong.");
-    return;
-  }
+  try {
+    // =================================================
+    // AMBIL FILE DARI FRONTEND
+    // =================================================
 
-  const dataToInsert = [];
-  const skippedRows = [];
-
-  rows.forEach((row, index) => {
-    const excelRow = index + 2; // +2 karena baris 1 = header
-
-    // Skip baris yang mengandung kata "unused"
-    if (rowContainsUnused(row)) {
-      skippedRows.push({ row: excelRow, reason: "mengandung kata unused" });
-      return;
-    }
-
-    const mapped = mapRowToColumns(row);
-
-    if (!mapped.id) {
-      skippedRows.push({ row: excelRow, reason: "id kosong" });
-      return;
-    }
-    if (!mapped.product) {
-      skippedRows.push({ row: excelRow, reason: "product (name) kosong" });
-      return;
-    }
-    if (!mapped.supplier) {
-      skippedRows.push({ row: excelRow, reason: "supplier kosong" });
-      return;
-    }
-
-    const supplierId = supplierMap.get(normalizeName(mapped.supplier));
-    if (!supplierId) {
-      skippedRows.push({
-        row: excelRow,
-        reason: `supplier "${mapped.supplier}" tidak ditemukan di database`,
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "File Excel wajib diupload.",
       });
-      return;
     }
 
-    dataToInsert.push([
-      mapped.id,        // product_id
-      supplierId,        // supplier_id (hasil lookup, bukan dari excel)
-      mapped.product,    // name
-      mapped.type || null, // type
+    filePath = req.file.path;
+
+    // =================================================
+    // 1. AMBIL SEMUA SUPPLIER UNTUK LOOKUP NAMA -> ID
+    // =================================================
+
+    const [suppliers] = await pool.query(
+      "SELECT supplier_id, company_name FROM suppliers",
+    );
+
+    const supplierMap = new Map();
+    suppliers.forEach((s) => {
+      supplierMap.set(normalizeName(s.company_name), s.supplier_id);
+    });
+
+    // =================================================
+    // 2. BACA EXCEL
+    // =================================================
+
+    const workbook = xlsx.readFile(filePath);
+
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error("Excel tidak memiliki sheet.");
+    }
+
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    const rows = xlsx.utils.sheet_to_json(sheet, { defval: null });
+
+    if (rows.length === 0) {
+      throw new Error("File Excel kosong.");
+    }
+
+    // =================================================
+    // 3. VALIDASI & MAPPING PER BARIS (di memory, tanpa query)
+    // =================================================
+
+    const dataToInsert = [];
+    const skippedRows = [];
+
+    rows.forEach((row, index) => {
+      const excelRow = index + 2; // +2 karena baris 1 = header
+
+      // Skip baris yang mengandung kata "unused"
+      if (rowContainsUnused(row)) {
+        skippedRows.push({ row: excelRow, reason: "mengandung kata unused" });
+        return;
+      }
+
+      const mapped = mapRowToColumns(row);
+
+      if (!mapped.id) {
+        skippedRows.push({ row: excelRow, reason: "id kosong" });
+        return;
+      }
+      if (!mapped.product) {
+        skippedRows.push({ row: excelRow, reason: "product (name) kosong" });
+        return;
+      }
+      if (!mapped.supplier) {
+        skippedRows.push({ row: excelRow, reason: "supplier kosong" });
+        return;
+      }
+
+      const supplierId = supplierMap.get(normalizeName(mapped.supplier));
+      if (!supplierId) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `supplier "${mapped.supplier}" tidak ditemukan di database`,
+        });
+        return;
+      }
+
+      dataToInsert.push({
+        row: excelRow,
+        product_id: mapped.id,
+        supplier_id: supplierId,
+        name: mapped.product,
+        type: mapped.type || null,
+      });
+    });
+
+    if (dataToInsert.length === 0) {
+      return res.status(200).json({
+        success: true,
+        message: "Tidak ada baris valid untuk diimpor.",
+        summary: {
+          totalRows: rows.length,
+          inserted: 0,
+          updated: 0,
+          skipped: skippedRows.length,
+        },
+        insertedRows: [],
+        updatedRows: [],
+        skippedRows,
+      });
+    }
+
+    // =================================================
+    // 4. CEK PRODUCT YANG SUDAH ADA (1x bulk query)
+    // =================================================
+
+    const productIds = dataToInsert.map((r) => r.product_id);
+
+    const [existingProducts] = await pool.query(
+      `SELECT product_id, name FROM products WHERE product_id IN (?)`,
+      [productIds],
+    );
+
+    const existingProductIds = new Set(
+      existingProducts.map((p) => p.product_id),
+    );
+
+    const insertedRows = dataToInsert.filter(
+      (r) => !existingProductIds.has(r.product_id),
+    );
+
+    const updatedRows = dataToInsert.filter((r) =>
+      existingProductIds.has(r.product_id),
+    );
+
+    // =================================================
+    // 5. BULK INSERT / UPDATE (1x query untuk semua baris)
+    // =================================================
+
+    const values = dataToInsert.map((r) => [
+      r.product_id,
+      r.supplier_id,
+      r.name,
+      r.type,
     ]);
-  });
 
-  if (dataToInsert.length === 0) {
-    console.log("Tidak ada baris valid untuk diimpor.");
-    console.table(skippedRows);
-    return;
+    await pool.query(
+      `
+      INSERT INTO products (product_id, supplier_id, name, type)
+      VALUES ?
+      ON DUPLICATE KEY UPDATE
+        supplier_id = VALUES(supplier_id),
+        name = VALUES(name),
+        type = VALUES(type)
+      `,
+      [values],
+    );
+
+    // =================================================
+    // HAPUS TEMPORARY FILE
+    // =================================================
+
+    if (filePath) {
+      fs.unlink(filePath, () => {});
+      filePath = null;
+    }
+
+    // =================================================
+    // RESPONSE
+    // =================================================
+
+    console.log("Import product selesai.");
+    console.log("Total baris di file :", rows.length);
+    console.log("Berhasil diinsert   :", insertedRows.length);
+    console.log("Diupdate            :", updatedRows.length);
+    console.log("Dilewati            :", skippedRows.length);
+
+    return res.status(200).json({
+      success: true,
+      message: "Import product berhasil.",
+
+      summary: {
+        totalRows: rows.length,
+        inserted: insertedRows.length,
+        updated: updatedRows.length,
+        skipped: skippedRows.length,
+      },
+
+      insertedRows: insertedRows.map((r) => ({
+        row: r.row,
+        product_id: r.product_id,
+        supplier_id: r.supplier_id,
+        name: r.name,
+        type: r.type,
+      })),
+
+      updatedRows: updatedRows.map((r) => ({
+        row: r.row,
+        product_id: r.product_id,
+        supplier_id: r.supplier_id,
+        name: r.name,
+        type: r.type,
+      })),
+
+      skippedRows,
+    });
+  } catch (error) {
+    console.error("Import product error:", error);
+
+    if (filePath) {
+      fs.unlink(filePath, () => {});
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Gagal melakukan import product.",
+    });
   }
-
-  const productIds = dataToInsert.map((row) => row[0]);
-  const [existingProducts] = await pool.query(
-    `SELECT product_id, name FROM products WHERE product_id IN (?)`,
-    [productIds]
-  );
-  const existingProductIds = new Set(existingProducts.map((p) => p.product_id));
-  const updatedRows = dataToInsert
-    .filter((row) => existingProductIds.has(row[0]))
-    .map((row) => ({ product_id: row[0], name: row[2] }));
-
-  const [result] = await pool.query(
-    "INSERT INTO products (product_id, supplier_id, name, type) VALUES ? ON DUPLICATE KEY UPDATE supplier_id = VALUES(supplier_id), name = VALUES(name), type = VALUES(type)",
-    [dataToInsert]
-  );
-
-  console.log("Import product selesai.");
-  console.log("Total baris di file :", rows.length);
-  console.log("Berhasil diinsert   :", result.affectedRows);
-  console.log("Dilewati            :", skippedRows.length);
-  if (updatedRows.length) {
-    console.log("Produk yang diupdate:");
-    console.table(updatedRows);
-  }
-  if (skippedRows.length) console.table(skippedRows);
 }
 
 module.exports = {
-  importProduct,
+  importProduct: [
+    (req, res, next) => {
+      console.log("Request menyentuh route product import");
+      next();
+    },
+    upload.single("file"),
+    importProduct,
+  ],
 };

@@ -10,7 +10,7 @@ const supplier = require("./Controller/data_analyst/excel/Supplier/upload_suppli
 
 
 // // PRODUCT API
-// const { importProduct } = require("./Controller/data_analyst/excel/mapping_product");
+const product = require("./Controller/data_analyst/excel/Product/upload_product");
 
 
 
@@ -26,6 +26,9 @@ const PORT = process.env.PORT || 3000;
 
 //SUPPLIER
 app.post("/supplier/import", supplier.importSupplier);
+
+//PRODUCT
+app.post("/product/import", product.importProduct);
 
 
 (async () => {

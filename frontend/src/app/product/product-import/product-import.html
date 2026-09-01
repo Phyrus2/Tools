@@ -1,0 +1,218 @@
+<div class="import-container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <h1>Product Import</h1>
+    <p>Upload Excel file containing product data.</p>
+  </div>
+
+
+  <!-- IMPORT FORM -->
+  <div class="import-card">
+
+    <!-- FILE -->
+    <div class="form-group">
+
+      <label>Excel File</label>
+
+      <input
+        type="file"
+        accept=".xls,.xlsx"
+        (change)="onFileSelected($event)"
+      />
+
+      <small *ngIf="selectedFile">
+        Selected:
+        <strong>{{ selectedFile.name }}</strong>
+      </small>
+
+    </div>
+
+
+    <!-- ERROR -->
+    <div
+      class="alert alert-error"
+      *ngIf="errorMessage"
+    >
+      ❌ {{ errorMessage }}
+    </div>
+
+
+    <!-- BUTTON -->
+    <button
+      type="button"
+      (click)="importProduct()"
+      [disabled]="loading"
+    >
+      <span *ngIf="!loading">Import Product</span>
+      <span *ngIf="loading">Processing...</span>
+    </button>
+
+  </div>
+
+
+  <!-- ================================================= -->
+  <!-- RESULT -->
+  <!-- ================================================= -->
+
+  <div class="result" *ngIf="result">
+
+    <!-- SUCCESS -->
+    <div class="alert alert-success" *ngIf="result.success">
+      <strong>✅ Import Successful</strong>
+      <div>{{ result.message }}</div>
+    </div>
+
+
+    <!-- SUMMARY -->
+    <div class="summary">
+
+      <div class="summary-card">
+        <span>Total Rows</span>
+        <strong>{{ result.summary.totalRows }}</strong>
+      </div>
+
+      <div class="summary-card new">
+        <span>New Products</span>
+        <strong>{{ result.summary.inserted }}</strong>
+      </div>
+
+      <div class="summary-card updated">
+        <span>Updated</span>
+        <strong>{{ result.summary.updated }}</strong>
+      </div>
+
+      <div class="summary-card skipped">
+        <span>Skipped</span>
+        <strong>{{ result.summary.skipped }}</strong>
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- NEW PRODUCTS -->
+    <!-- ================================================= -->
+
+    <div class="result-section" *ngIf="inserted.total > 0">
+
+      <div class="section-header">
+        <h2>🆕 New Products</h2>
+        <span class="count">{{ inserted.total }}</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Excel Row</th>
+              <th>Product ID</th>
+              <th>Name</th>
+              <th>Supplier ID</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of inserted.pageItems; trackBy: trackByRow">
+              <td>{{ p.row }}</td>
+              <td>{{ p.product_id }}</td>
+              <td><strong>{{ p.name }}</strong></td>
+              <td>{{ p.supplier_id }}</td>
+              <td>{{ p.type || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="inserted.totalPages > 1">
+        <button type="button" (click)="inserted.prev()" [disabled]="inserted.page === 1">‹ Prev</button>
+        <span>Page {{ inserted.page }} / {{ inserted.totalPages }}</span>
+        <button type="button" (click)="inserted.next()" [disabled]="inserted.page === inserted.totalPages">Next ›</button>
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- UPDATED PRODUCTS -->
+    <!-- ================================================= -->
+
+    <div class="result-section" *ngIf="updated.total > 0">
+
+      <div class="section-header">
+        <h2>🔄 Updated Products</h2>
+        <span class="count updated-count">{{ updated.total }}</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Excel Row</th>
+              <th>Product ID</th>
+              <th>Name</th>
+              <th>Supplier ID</th>
+              <th>Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let p of updated.pageItems; trackBy: trackByRow">
+              <td>{{ p.row }}</td>
+              <td>{{ p.product_id }}</td>
+              <td><strong>{{ p.name }}</strong></td>
+              <td>{{ p.supplier_id }}</td>
+              <td>{{ p.type || '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="updated.totalPages > 1">
+        <button type="button" (click)="updated.prev()" [disabled]="updated.page === 1">‹ Prev</button>
+        <span>Page {{ updated.page }} / {{ updated.totalPages }}</span>
+        <button type="button" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next ›</button>
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- SKIPPED -->
+    <!-- ================================================= -->
+
+    <div class="result-section" *ngIf="skipped.total > 0">
+
+      <div class="section-header">
+        <h2>⚠️ Skipped Rows</h2>
+        <span class="count skipped-count">{{ skipped.total }}</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Excel Row</th>
+              <th>Reason</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of skipped.pageItems; trackBy: trackByRow">
+              <td>{{ row.row }}</td>
+              <td>{{ row.reason }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="skipped.totalPages > 1">
+        <button type="button" (click)="skipped.prev()" [disabled]="skipped.page === 1">‹ Prev</button>
+        <span>Page {{ skipped.page }} / {{ skipped.totalPages }}</span>
+        <button type="button" (click)="skipped.next()" [disabled]="skipped.page === skipped.totalPages">Next ›</button>
+      </div>
+
+    </div>
+
+
+  </div>
+
+</div>
