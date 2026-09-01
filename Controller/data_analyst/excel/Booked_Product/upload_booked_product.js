@@ -1,7 +1,16 @@
 const xlsx = require("xlsx");
-const path = require("path");
+const fs = require("fs");
+const multer = require("multer");
 const pool = require("../../../../Database/connection");
 require("dotenv").config();
+
+// =====================================================
+// MULTER
+// =====================================================
+
+const upload = multer({
+  dest: "uploads/",
+});
 
 /**
  * ============================================================
@@ -465,187 +474,214 @@ function normalizeTransport(value) {
 
 /**
  * ============================================================
- * IMPORT BOOKED PRODUCT
+ * IMPORT BOOKED PRODUCT (HTTP HANDLER)
  * ============================================================
  */
 
-async function importBookedProduct() {
-  const filePath = path.join(__dirname, "booked_product.xlsx");
+async function importBookedProduct(req, res) {
+  console.log("Import booked product request received.");
 
-  /**
-   * ==========================================================
-   * 1. AMBIL SUPPLIER ID DARI DATABASE
-   * ==========================================================
-   */
+  let filePath = null;
 
-  const [suppliers] = await pool.query(`
-      SELECT supplier_id
-      FROM suppliers
-    `);
+  try {
+    // =================================================
+    // AMBIL FILE DARI FRONTEND
+    // =================================================
 
-  const validSupplierIds = new Set(
-    suppliers.map((supplier) => String(supplier.supplier_id)),
-  );
-
-  /**
-   * ==========================================================
-   * 2. AMBIL PRODUCT ID DARI DATABASE
-   * ==========================================================
-   */
-
-  const [products] = await pool.query(`
-      SELECT product_id
-      FROM products
-    `);
-
-  const validProductIds = new Set(
-    products.map((product) => String(product.product_id)),
-  );
-
-  /**
-   * ==========================================================
-   * 3. BACA EXCEL
-   * ==========================================================
-   *
-   * Header berada di ROW 2.
-   * Data mulai ROW 3.
-   */
-
-  const workbook = xlsx.readFile(filePath);
-
-  const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-  const rows = xlsx.utils.sheet_to_json(sheet, {
-    defval: null,
-
-    // Row index 1 = Excel Row 2
-    range: 1,
-  });
-
-  if (rows.length === 0) {
-    console.log("File Excel kosong.");
-
-    return;
-  }
-
-  const dataToInsert = [];
-  const skippedRows = [];
-
-  /**
-   * ==========================================================
-   * 4. MAPPING & VALIDASI
-   * ==========================================================
-   */
-
-  rows.forEach((row, index) => {
-    /**
-     * Karena header berada di row 2,
-     * data pertama berada di row 3.
-     */
-
-    const excelRow = index + 3;
-
-    /**
-     * ------------------------------------------------------
-     * SKIP UNUSED
-     * ------------------------------------------------------
-     */
-
-    if (rowContainsUnused(row)) {
-      skippedRows.push({
-        row: excelRow,
-        reason: "mengandung kata unused",
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: "File Excel wajib diupload.",
       });
-
-      return;
     }
 
+    filePath = req.file.path;
+
     /**
-     * ------------------------------------------------------
-     * MAP
-     * ------------------------------------------------------
+     * ==========================================================
+     * 1. AMBIL SUPPLIER ID DARI DATABASE
+     * ==========================================================
      */
 
-    const mapped = mapRowToColumns(row);
+    const [suppliers] = await pool.query(`
+        SELECT supplier_id
+        FROM suppliers
+      `);
+
+    const validSupplierIds = new Set(
+      suppliers.map((supplier) => String(supplier.supplier_id)),
+    );
 
     /**
-     * ------------------------------------------------------
-     * VALIDASI SUPPLIER ID
-     * ------------------------------------------------------
+     * ==========================================================
+     * 2. AMBIL PRODUCT ID DARI DATABASE
+     * ==========================================================
      */
 
-    if (!mapped.supplier_id) {
-      skippedRows.push({
-        row: excelRow,
-        reason: "supplier_id kosong",
-      });
+    const [products] = await pool.query(`
+        SELECT product_id
+        FROM products
+      `);
 
-      return;
-    }
-
-    if (!validSupplierIds.has(String(mapped.supplier_id))) {
-      skippedRows.push({
-        row: excelRow,
-        reason: `supplier_id "${mapped.supplier_id}" tidak ditemukan di database`,
-      });
-
-      return;
-    }
+    const validProductIds = new Set(
+      products.map((product) => String(product.product_id)),
+    );
 
     /**
-     * ------------------------------------------------------
-     * VALIDASI PRODUCT ID
-     * ------------------------------------------------------
-     */
-
-    if (!mapped.product_id) {
-      skippedRows.push({
-        row: excelRow,
-        reason: "product_id kosong",
-      });
-
-      return;
-    }
-
-    if (!validProductIds.has(String(mapped.product_id))) {
-      skippedRows.push({
-        row: excelRow,
-        reason: `product_id "${mapped.product_id}" tidak ditemukan di database`,
-      });
-
-      return;
-    }
-
-    /**
-     * ------------------------------------------------------
-     * VALIDASI PRODUCT NAME
-     * ------------------------------------------------------
+     * ==========================================================
+     * 3. BACA EXCEL
+     * ==========================================================
      *
-     * Product name WAJIB ada.
-     *
-     * Tetapi TIDAK dibandingkan dengan
-     * products.name.
+     * Header berada di ROW 2.
+     * Data mulai ROW 3.
      */
 
-    if (!mapped.product_name) {
-      skippedRows.push({
-        row: excelRow,
-        reason: "product_name kosong",
-      });
+    const workbook = xlsx.readFile(filePath);
 
-      return;
+    if (!workbook.SheetNames || workbook.SheetNames.length === 0) {
+      throw new Error("Excel tidak memiliki sheet.");
     }
 
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+
+    const rows = xlsx.utils.sheet_to_json(sheet, {
+      defval: null,
+
+      // Row index 1 = Excel Row 2
+      range: 1,
+    });
+
+    if (rows.length === 0) {
+      throw new Error("File Excel kosong.");
+    }
+
+    const dataToInsert = [];
+    const skippedRows = [];
+
     /**
-     * ------------------------------------------------------
-     * BOOKED PRODUCT ID
-     * ------------------------------------------------------
+     * ==========================================================
+     * 4. MAPPING & VALIDASI
+     * ==========================================================
      */
 
-    let bookedProductId = null;
+    rows.forEach((row, index) => {
+      /**
+       * Karena header berada di row 2,
+       * data pertama berada di row 3.
+       */
 
-    if (mapped.id) {
-      bookedProductId = normalizeInteger(mapped.id);
+      const excelRow = index + 3;
+
+      /**
+       * ------------------------------------------------------
+       * SKIP UNUSED
+       * ------------------------------------------------------
+       */
+
+      if (rowContainsUnused(row)) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "mengandung kata unused",
+        });
+
+        return;
+      }
+
+      /**
+       * ------------------------------------------------------
+       * MAP
+       * ------------------------------------------------------
+       */
+
+      const mapped = mapRowToColumns(row);
+
+      /**
+       * ------------------------------------------------------
+       * VALIDASI SUPPLIER ID
+       * ------------------------------------------------------
+       */
+
+      if (!mapped.supplier_id) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "supplier_id kosong",
+        });
+
+        return;
+      }
+
+      if (!validSupplierIds.has(String(mapped.supplier_id))) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `supplier_id "${mapped.supplier_id}" tidak ditemukan di database`,
+        });
+
+        return;
+      }
+
+      /**
+       * ------------------------------------------------------
+       * VALIDASI PRODUCT ID
+       * ------------------------------------------------------
+       */
+
+      if (!mapped.product_id) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "product_id kosong",
+        });
+
+        return;
+      }
+
+      if (!validProductIds.has(String(mapped.product_id))) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `product_id "${mapped.product_id}" tidak ditemukan di database`,
+        });
+
+        return;
+      }
+
+      /**
+       * ------------------------------------------------------
+       * VALIDASI PRODUCT NAME
+       * ------------------------------------------------------
+       *
+       * Product name WAJIB ada.
+       *
+       * Tetapi TIDAK dibandingkan dengan
+       * products.name.
+       *
+       * (Validasi Sold Product ID/id dilakukan
+       * setelah blok ini — juga WAJIB ada.)
+       */
+
+      if (!mapped.product_name) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "product_name kosong",
+        });
+
+        return;
+      }
+
+      /**
+       * ------------------------------------------------------
+       * BOOKED PRODUCT ID (WAJIB)
+       * ------------------------------------------------------
+       */
+
+      if (!mapped.id) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "Sold Product ID kosong",
+        });
+
+        return;
+      }
+
+      const bookedProductId = normalizeInteger(mapped.id);
 
       if (bookedProductId === null) {
         skippedRows.push({
@@ -655,271 +691,351 @@ async function importBookedProduct() {
 
         return;
       }
-    }
 
-    /**
-     * ------------------------------------------------------
-     * DATE
-     * ------------------------------------------------------
-     */
+      /**
+       * ------------------------------------------------------
+       * DATE
+       * ------------------------------------------------------
+       */
 
-    const travelDate = normalizeDate(mapped.travel_date);
+      const travelDate = normalizeDate(mapped.travel_date);
 
-    const endDate = normalizeDate(mapped.end_date);
+      const endDate = normalizeDate(mapped.end_date);
 
-    /**
-     * Kalau Excel punya nilai travel_date
-     * tetapi gagal dikonversi → skip.
-     */
+      /**
+       * Kalau Excel punya nilai travel_date
+       * tetapi gagal dikonversi → skip.
+       */
 
-    if (mapped.travel_date && !travelDate) {
-      skippedRows.push({
+      if (mapped.travel_date && !travelDate) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `travel_date tidak valid: "${mapped.travel_date}"`,
+        });
+
+        return;
+      }
+
+      /**
+       * Kalau Excel punya nilai end_date
+       * tetapi gagal dikonversi → skip.
+       */
+
+      if (mapped.end_date && !endDate) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `end_date tidak valid: "${mapped.end_date}"`,
+        });
+
+        return;
+      }
+
+      /**
+       * ------------------------------------------------------
+       * PUSH DATA
+       * ------------------------------------------------------
+       */
+
+      const normalizedPrice = normalizePrice(mapped.price);
+
+      if (
+        normalizedPrice !== null &&
+        (!Number.isFinite(normalizedPrice) ||
+          normalizedPrice > 99999999.99 ||
+          normalizedPrice < -99999999.99)
+      ) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `price di luar range DECIMAL(10,2): "${mapped.price}" -> ${normalizedPrice}`,
+        });
+
+        return;
+      }
+
+      dataToInsert.push({
         row: excelRow,
-        reason: `travel_date tidak valid: "${mapped.travel_date}"`,
+        booked_product_id: bookedProductId,
+        dossier_id: mapped.dossier_id || null,
+        dossier_name: mapped.dossier_name || null,
+        supplier_id: normalizeInteger(mapped.supplier_id),
+        product_id: normalizeInteger(mapped.product_id),
+        product_name: mapped.product_name,
+        status: mapped.status || null,
+        code: mapped.code || null,
+        duration: normalizeDuration(mapped.duration),
+        travel_date: travelDate,
+        end_date: endDate,
+        sales: mapped.sales || null,
+        operational: mapped.operational || null,
+        quantity: normalizeInteger(mapped.quantity),
+        unit: mapped.unit || null,
+        price: normalizedPrice,
+        description: mapped.description || null,
+        info: mapped.info || null,
+        instructions: mapped.instructions || null,
+        transport_pickup: normalizeTransport(mapped.transport_pickup),
+        transport_dropoff: normalizeTransport(mapped.transport_dropoff),
       });
+    });
 
-      return;
+    /**
+     * ==========================================================
+     * 5. TIDAK ADA DATA VALID
+     * ==========================================================
+     */
+
+    if (dataToInsert.length === 0) {
+      if (filePath) {
+        fs.unlink(filePath, () => {});
+        filePath = null;
+      }
+
+      return res.status(200).json({
+        success: true,
+        message: "Tidak ada data valid untuk diimport.",
+        summary: {
+          totalRows: rows.length,
+          inserted: 0,
+          updated: 0,
+          skipped: skippedRows.length,
+        },
+        insertedRows: [],
+        updatedRows: [],
+        skippedRows,
+      });
     }
 
     /**
-     * Kalau Excel punya nilai end_date
-     * tetapi gagal dikonversi → skip.
+     * ==========================================================
+     * 6. CEK BOOKED PRODUCT YANG SUDAH ADA (1x bulk query)
+     * ==========================================================
+     *
+     * Sold Product ID wajib ada di setiap baris valid,
+     * jadi setiap baris pasti punya booked_product_id.
      */
 
-    if (mapped.end_date && !endDate) {
-      skippedRows.push({
-        row: excelRow,
-        reason: `end_date tidak valid: "${mapped.end_date}"`,
-      });
+    const idsToCheck = dataToInsert.map((r) => r.booked_product_id);
 
-      return;
-    }
+    const [existingBooked] = await pool.query(
+      `SELECT id FROM booked_products WHERE id IN (?)`,
+      [idsToCheck],
+    );
+
+    const existingIds = new Set(existingBooked.map((b) => b.id));
+
+    const insertedRows = dataToInsert.filter(
+      (r) => !existingIds.has(r.booked_product_id),
+    );
+
+    const updatedRows = dataToInsert.filter((r) =>
+      existingIds.has(r.booked_product_id),
+    );
 
     /**
-     * ------------------------------------------------------
-     * PUSH DATA
-     * ------------------------------------------------------
+     * ==========================================================
+     * 7. INSERT / UPDATE (1x bulk query untuk semua baris)
+     * ==========================================================
      */
 
-    const normalizedPrice = normalizePrice(mapped.price);
-
-    if (
-      normalizedPrice !== null &&
-      (!Number.isFinite(normalizedPrice) ||
-        normalizedPrice > 99999999.99 ||
-        normalizedPrice < -99999999.99)
-    ) {
-      skippedRows.push({
-        row: excelRow,
-        reason: `price di luar range DECIMAL(10,2): "${mapped.price}" -> ${normalizedPrice}`,
-      });
-
-      return;
-    }
-
-    dataToInsert.push([
-      bookedProductId,
-
-      // Doss Nr → dossier_id
-      mapped.dossier_id || null,
-
-      mapped.dossier_name || null,
-
-      // Supplier ID dari Excel
-      normalizeInteger(mapped.supplier_id),
-
-      // Product ID dari Excel
-      normalizeInteger(mapped.product_id),
-
-      // Product name LANGSUNG dari Excel
-      mapped.product_name,
-
-      mapped.status || null,
-
-      mapped.code || null,
-
-      normalizeDuration(mapped.duration),
-
-      // Travel Date
-      travelDate,
-
-      // End Date
-      endDate,
-
-      mapped.sales || null,
-
-      mapped.operational || null,
-
-      normalizeInteger(mapped.quantity),
-
-      mapped.unit || null,
-
-      normalizedPrice,
-
-      mapped.description || null,
-
-      mapped.info || null,
-
-      mapped.instructions || null,
-
-      normalizeTransport(mapped.transport_pickup),
-      normalizeTransport(mapped.transport_dropoff),
+    const values = dataToInsert.map((r) => [
+      r.booked_product_id,
+      r.dossier_id,
+      r.dossier_name,
+      r.supplier_id,
+      r.product_id,
+      r.product_name,
+      r.status,
+      r.code,
+      r.duration,
+      r.travel_date,
+      r.end_date,
+      r.sales,
+      r.operational,
+      r.quantity,
+      r.unit,
+      r.price,
+      r.description,
+      r.info,
+      r.instructions,
+      r.transport_pickup,
+      r.transport_dropoff,
     ]);
-  });
 
-  /**
-   * ==========================================================
-   * 5. TIDAK ADA DATA VALID
-   * ==========================================================
-   */
+    const [result] = await pool.query(
+      `
+        INSERT INTO booked_products (
+          id,
+          dossier_id,
+          dossier_name,
+          supplier_id,
+          product_id,
+          product_name,
+          status,
+          code,
+          duration,
+          travel_date,
+          end_date,
+          sales,
+          operational,
+          quantity,
+          unit,
+          price,
+          description,
+          info,
+          instructions,
+          transport_pickup,
+          transport_dropoff
+        )
+        VALUES ?
 
-  if (dataToInsert.length === 0) {
-    console.log("Tidak ada data valid untuk diimport.");
+        ON DUPLICATE KEY UPDATE
 
-    if (skippedRows.length) {
-      console.table(skippedRows);
+          dossier_id =
+            VALUES(dossier_id),
+
+          dossier_name =
+            VALUES(dossier_name),
+
+          supplier_id =
+            VALUES(supplier_id),
+
+          product_id =
+            VALUES(product_id),
+
+          /**
+           * Product name tetap mengikuti
+           * nama dari Excel.
+           */
+
+          product_name =
+            VALUES(product_name),
+
+          status =
+            VALUES(status),
+
+          code =
+            VALUES(code),
+
+          duration =
+            VALUES(duration),
+
+          travel_date =
+            VALUES(travel_date),
+
+          end_date =
+            VALUES(end_date),
+
+          sales =
+            VALUES(sales),
+
+          operational =
+            VALUES(operational),
+
+          quantity =
+            VALUES(quantity),
+
+          unit =
+            VALUES(unit),
+
+          price =
+            VALUES(price),
+
+          description =
+            VALUES(description),
+
+          info =
+            VALUES(info),
+
+          instructions =
+            VALUES(instructions),
+
+          transport_pickup =
+            VALUES(transport_pickup),
+
+          transport_dropoff =
+            VALUES(transport_dropoff)
+        `,
+      [values],
+    );
+
+    /**
+     * ==========================================================
+     * HAPUS TEMPORARY FILE
+     * ==========================================================
+     */
+
+    if (filePath) {
+      fs.unlink(filePath, () => {});
+      filePath = null;
     }
 
-    return;
-  }
+    /**
+     * ==========================================================
+     * RESPONSE
+     * ==========================================================
+     */
 
-  /**
-   * ==========================================================
-   * 6. INSERT / UPDATE
-   * ==========================================================
-   */
-
-  const [result] = await pool.query(
-    `
-      INSERT INTO booked_products (
-        id,
-        dossier_id,
-        dossier_name,
-        supplier_id,
-        product_id,
-        product_name,
-        status,
-        code,
-        duration,
-        travel_date,
-        end_date,
-        sales,
-        operational,
-        quantity,
-        unit,
-        price,
-        description,
-        info,
-        instructions,
-        transport_pickup,
-        transport_dropoff
-      )
-      VALUES ?
-
-      ON DUPLICATE KEY UPDATE
-
-        dossier_id =
-          VALUES(dossier_id),
-
-        dossier_name =
-          VALUES(dossier_name),
-
-        supplier_id =
-          VALUES(supplier_id),
-
-        product_id =
-          VALUES(product_id),
-
-        /**
-         * Product name tetap mengikuti
-         * nama dari Excel.
-         */
-
-        product_name =
-          VALUES(product_name),
-
-        status =
-          VALUES(status),
-
-        code =
-          VALUES(code),
-
-        duration =
-          VALUES(duration),
-
-        travel_date =
-          VALUES(travel_date),
-
-        end_date =
-          VALUES(end_date),
-
-        sales =
-          VALUES(sales),
-
-        operational =
-          VALUES(operational),
-
-        quantity =
-          VALUES(quantity),
-
-        unit =
-          VALUES(unit),
-
-        price =
-          VALUES(price),
-
-        description =
-          VALUES(description),
-
-        info =
-          VALUES(info),
-
-        instructions =
-          VALUES(instructions),
-
-        transport_pickup =
-          VALUES(transport_pickup),
-
-        transport_dropoff =
-          VALUES(transport_dropoff)
-      `,
-    [dataToInsert],
-  );
-
-  /**
-   * ==========================================================
-   * 7. REPORT
-   * ==========================================================
-   */
-
-  console.log("");
-
-  console.log("======================================");
-
-  console.log("     IMPORT BOOKED PRODUCT SELESAI");
-
-  console.log("======================================");
-
-  console.log("Total baris Excel :", rows.length);
-
-  console.log("Data valid        :", dataToInsert.length);
-
-  console.log("Affected rows     :", result.affectedRows);
-
-  console.log("Dilewati          :", skippedRows.length);
-
-  /**
-   * ==========================================================
-   * DATA SKIPPED
-   * ==========================================================
-   */
-
-  if (skippedRows.length > 0) {
     console.log("");
+    console.log("======================================");
+    console.log("     IMPORT BOOKED PRODUCT SELESAI");
+    console.log("======================================");
+    console.log("Total baris Excel :", rows.length);
+    console.log("Data valid        :", dataToInsert.length);
+    console.log("Affected rows     :", result.affectedRows);
+    console.log("Inserted (approx) :", insertedRows.length);
+    console.log("Updated (approx)  :", updatedRows.length);
+    console.log("Dilewati          :", skippedRows.length);
 
-    console.log("DATA YANG DILEWATI:");
+    return res.status(200).json({
+      success: true,
+      message: "Import booked product berhasil.",
 
-    console.table(skippedRows);
+      summary: {
+        totalRows: rows.length,
+        inserted: insertedRows.length,
+        updated: updatedRows.length,
+        skipped: skippedRows.length,
+      },
+
+      insertedRows: insertedRows.map((r) => ({
+        row: r.row,
+        id: r.booked_product_id,
+        dossier_id: r.dossier_id,
+        dossier_name: r.dossier_name,
+        supplier_id: r.supplier_id,
+        product_id: r.product_id,
+        product_name: r.product_name,
+        status: r.status,
+        travel_date: r.travel_date,
+        price: r.price,
+      })),
+
+      updatedRows: updatedRows.map((r) => ({
+        row: r.row,
+        id: r.booked_product_id,
+        dossier_id: r.dossier_id,
+        dossier_name: r.dossier_name,
+        supplier_id: r.supplier_id,
+        product_id: r.product_id,
+        product_name: r.product_name,
+        status: r.status,
+        travel_date: r.travel_date,
+        price: r.price,
+      })),
+
+      skippedRows,
+    });
+  } catch (error) {
+    console.error("Import booked product error:", error);
+
+    if (filePath) {
+      fs.unlink(filePath, () => {});
+    }
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Gagal melakukan import booked product.",
+    });
   }
 }
 
@@ -930,5 +1046,12 @@ async function importBookedProduct() {
  */
 
 module.exports = {
-  importBookedProduct,
+  importBookedProduct: [
+    (req, res, next) => {
+      console.log("Request menyentuh route booked product import");
+      next();
+    },
+    upload.single("file"),
+    importBookedProduct,
+  ],
 };

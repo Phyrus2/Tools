@@ -15,7 +15,7 @@ const product = require("./Controller/data_analyst/excel/Product/upload_product"
 
 
 // // BOOKED PRODUCT API
-// const { importBookedProduct } = require("./Controller/data_analyst/excel/mapping_booked_product");
+const booked_product = require("./Controller/data_analyst/excel/Booked_Product/upload_booked_product");
 
 
 const app = express();
@@ -30,6 +30,8 @@ app.post("/supplier/import", supplier.importSupplier);
 //PRODUCT
 app.post("/product/import", product.importProduct);
 
+//BOOKED PRODUCT
+app.post("/booked-product/import", booked_product.importBookedProduct);
 
 (async () => {
   try {
