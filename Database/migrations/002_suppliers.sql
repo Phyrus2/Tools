@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
     company_name VARCHAR(255) NOT NULL,
 
+    address VARCHAR(255),
+
     town VARCHAR(255),
 
     region VARCHAR(255),

@@ -17,6 +17,8 @@ const product = require("./Controller/data_analyst/excel/Product/upload_product"
 // // BOOKED PRODUCT API
 const booked_product = require("./Controller/data_analyst/excel/Booked_Product/upload_booked_product");
 
+// // SEARCH BOOKED PRODUCT API
+const search = require("./Controller/search_booking/search");
 
 const app = express();
 app.use(cors());
@@ -32,6 +34,9 @@ app.post("/product/import", product.importProduct);
 
 //BOOKED PRODUCT
 app.post("/booked-product/import", booked_product.importBookedProduct);
+
+//SEARCH BOOKED PRODUCT
+app.get("/booked-product/search", search.searchBookedProduct);
 
 (async () => {
   try {

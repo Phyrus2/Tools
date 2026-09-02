@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
  
 export interface BookedProductRow {
-   row: number;
+  row: number;
   id: number;
   dossier_id: string | null;
   dossier_name: string | null;

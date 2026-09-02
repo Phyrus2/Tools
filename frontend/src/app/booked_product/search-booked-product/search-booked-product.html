@@ -1,0 +1,283 @@
+<section class="bp-app" [formGroup]="form">
+  <header class="bp-masthead">
+    <h1 class="bp-masthead__title">Booked Product</h1>
+    <p class="bp-masthead__subtitle">
+      Cari berdasarkan nama produk, supplier, lokasi, atau catatan booking.
+    </p>
+  </header>
+
+  <form class="bp-search-row" (ngSubmit)="onSubmit()">
+    <label class="visually-hidden" for="keyword">Kata kunci</label>
+    <div class="bp-search">
+      <svg class="bp-search__icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="9" cy="9" r="6.25" stroke="currentColor" stroke-width="1.5" />
+        <line x1="13.6" y1="13.6" x2="17.5" y2="17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <input
+        id="keyword"
+        class="bp-search__input"
+        type="text"
+        formControlName="keyword"
+        placeholder="Ketik minimal 2 karakter — mis. Bali, Sunrise Tour, PT Nusantara"
+        autocomplete="off"
+      />
+    </div>
+    <button class="bp-search__submit" type="submit">Cari</button>
+    <button
+      class="bp-search__reset"
+      type="button"
+      (click)="clearSearch()"
+      [disabled]="!hasSearched && !form.value.keyword"
+    >
+      Reset
+    </button>
+  </form>
+
+  <fieldset class="bp-filters">
+    <legend class="bp-filters__legend">Filter tanggal</legend>
+
+    <div class="bp-chips">
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="none"
+          (change)="onDateModeChange()"
+        />
+        <span>Tanpa filter</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="single"
+          (change)="onDateModeChange()"
+        />
+        <span>Tanggal tertentu</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="range"
+          (change)="onDateModeChange()"
+        />
+        <span>Rentang tanggal</span>
+      </label>
+    </div>
+
+    <div class="bp-date-fields" *ngIf="form.value.dateMode === 'single'">
+      <div class="bp-date-field">
+        <label for="date">Tanggal</label>
+        <input id="date" type="date" formControlName="date" (change)="onDateFieldChange()" />
+      </div>
+    </div>
+
+    <div class="bp-date-fields" *ngIf="form.value.dateMode === 'range'">
+      <div class="bp-date-field">
+        <label for="startDate">Dari</label>
+        <input
+          id="startDate"
+          type="date"
+          formControlName="startDate"
+          (change)="onDateFieldChange()"
+        />
+      </div>
+      <div class="bp-date-field">
+        <label for="endDate">Sampai</label>
+        <input id="endDate" type="date" formControlName="endDate" (change)="onDateFieldChange()" />
+      </div>
+    </div>
+  </fieldset>
+
+  <div class="bp-meta-line" aria-live="polite">
+    <span *ngIf="loading">Mencari&hellip;</span>
+    <span *ngIf="!loading && hasSearched && !errorMessage"> {{ total }} hasil ditemukan </span>
+  </div>
+
+  <p class="bp-alert" *ngIf="errorMessage" role="alert">
+    {{ errorMessage }}
+  </p>
+
+  <div class="bp-blank" *ngIf="!hasSearched && !loading && !errorMessage && !form.value.keyword">
+    Mulai ketik untuk mencari booked product.
+  </div>
+
+  <div
+    class="bp-blank"
+    *ngIf="!loading && hasSearched && !errorMessage && results.length === 0"
+  >
+    Tidak ada booked product yang cocok dengan pencarian ini.
+  </div>
+
+  <div class="bp-records" *ngIf="!loading && results.length > 0">
+    <table class="bp-table">
+      <thead>
+        <tr>
+          <th scope="col">Dossier &amp; produk</th>
+          <th scope="col">Supplier</th>
+          <th scope="col">Tanggal</th>
+          <th scope="col">Status</th>
+          <th scope="col">Sales</th>
+          <th scope="col">Operational</th>
+          <th scope="col">Cocok di</th>
+          <th scope="col"><span class="visually-hidden">Detail</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of results">
+          <td data-label="Dossier & produk">
+            <span class="bp-record__title">{{ item.product_name }}</span>
+            <span class="bp-record__meta" *ngIf="item.dossier_name || item.dossier_id">
+              {{ item.dossier_name || '—' }}
+              <ng-container *ngIf="item.dossier_id">&nbsp;&middot; {{ item.dossier_id }}</ng-container>
+            </span>
+          </td>
+          <td data-label="Supplier">
+            <span class="bp-record__title">{{ item.company_name }}</span>
+            <span class="bp-record__meta" *ngIf="item.town || item.region">
+              {{ item.town }}<ng-container *ngIf="item.town && item.region">, </ng-container
+              >{{ item.region }}
+            </span>
+          </td>
+          <td data-label="Tanggal">
+            <ng-container *ngIf="item.travel_date; else noDate">
+              {{ item.travel_date | date: 'dd/MM/yyyy' }}
+              <ng-container *ngIf="item.end_date && item.end_date !== item.travel_date">
+                &ndash; {{ item.end_date | date: 'dd/MM/yyyy' }}
+              </ng-container>
+            </ng-container>
+            <ng-template #noDate>—</ng-template>
+          </td>
+          <td data-label="Status">
+            <span class="bp-tag" *ngIf="item.status; else noStatus">{{ item.status }}</span>
+            <ng-template #noStatus>—</ng-template>
+          </td>
+          <td data-label="Sales">{{ item.sales || '—' }}</td>
+          <td data-label="Operational">{{ item.operational || '—' }}</td>
+          <td data-label="Cocok di">
+            <span class="bp-tag bp-tag--outline">{{ matchedFieldLabel(item.matched_field) }}</span>
+          </td>
+          <td data-label="" class="bp-record__action">
+            <button type="button" class="bp-link-btn" (click)="openDetail(item)">Detail</button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="bp-pager" *ngIf="!loading && results.length > 0">
+    <button type="button" class="bp-pager__btn" (click)="goToPage(page - 1)" [disabled]="page <= 1">
+      &lsaquo; Sebelumnya
+    </button>
+    <span class="bp-pager__status">Halaman {{ page }} dari {{ totalPages }}</span>
+    <button
+      type="button"
+      class="bp-pager__btn"
+      (click)="goToPage(page + 1)"
+      [disabled]="page >= totalPages"
+    >
+      Selanjutnya &rsaquo;
+    </button>
+  </footer>
+
+  <div class="bp-drawer-overlay" *ngIf="selectedItem" (click)="closeDetail()">
+    <aside class="bp-drawer" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="bp-drawer__header">
+        <div>
+          <span class="bp-drawer__eyebrow">Booked product</span>
+          <h2>{{ selectedItem.product_name }}</h2>
+        </div>
+        <button type="button" class="bp-drawer__close" (click)="closeDetail()" aria-label="Tutup">
+          &times;
+        </button>
+      </header>
+
+      <dl class="bp-drawer__body">
+        <div class="bp-row">
+          <dt>Dossier</dt>
+          <dd>
+            {{ selectedItem.dossier_name || '—' }}
+            <span *ngIf="selectedItem.dossier_id">({{ selectedItem.dossier_id }})</span>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Supplier</dt>
+          <dd>{{ selectedItem.company_name }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Lokasi</dt>
+          <dd>
+            {{ selectedItem.location || '—' }}
+            <ng-container *ngIf="selectedItem.town || selectedItem.region">
+              <br />
+              {{ selectedItem.town
+              }}<ng-container *ngIf="selectedItem.town && selectedItem.region">, </ng-container
+              >{{ selectedItem.region }}
+            </ng-container>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Tanggal</dt>
+          <dd>
+            <ng-container *ngIf="selectedItem.travel_date; else noDetailDate">
+              {{ selectedItem.travel_date | date: 'dd/MM/yyyy' }}
+              <ng-container
+                *ngIf="selectedItem.end_date && selectedItem.end_date !== selectedItem.travel_date"
+              >
+                &ndash; {{ selectedItem.end_date | date: 'dd/MM/yyyy' }}
+              </ng-container>
+            </ng-container>
+            <ng-template #noDetailDate>—</ng-template>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Status</dt>
+          <dd>
+            <span class="bp-tag" *ngIf="selectedItem.status; else noDetailStatus">{{ selectedItem.status }}</span>
+            <ng-template #noDetailStatus>—</ng-template>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Sales</dt>
+          <dd>{{ selectedItem.sales || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Operational</dt>
+          <dd>{{ selectedItem.operational || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Deskripsi</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.description) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Info</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.info) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Instruksi</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.instructions) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Cocok di</dt>
+          <dd>
+            <span class="bp-tag bp-tag--outline">{{ matchedFieldLabel(selectedItem.matched_field) }}</span>
+          </dd>
+        </div>
+      </dl>
+    </aside>
+  </div>
+</section>

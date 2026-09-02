@@ -15,7 +15,14 @@ const upload = multer({
 // KOLOM EXCEL YANG DIGUNAKAN
 // =====================================================
 
-const ALLOWED_COLUMNS = ["id", "company_name", "town", "region", "location"];
+const ALLOWED_COLUMNS = [
+  "id",
+  "company_name",
+  "address",
+  "town",
+  "region",
+  "location",
+];
 
 // =====================================================
 // HEADER ALIASES
@@ -28,6 +35,10 @@ const HEADER_ALIASES = {
 
   companyname: "company_name",
   company_name: "company_name",
+
+  address: "address",
+  addressstreet: "address", // hasil normalisasi dari "Address (Street)"
+  street: "address",
 
   town: "town",
   region: "region",
@@ -42,7 +53,7 @@ function normalizeHeader(header) {
   return String(header)
     .trim()
     .toLowerCase()
-    .replace(/[\s_]+/g, "");
+    .replace(/[^a-z0-9]/g, ""); // buang spasi, underscore, tanda kurung, dsb
 }
 
 // =====================================================
@@ -140,7 +151,7 @@ function categoriesEqual(a, b) {
 
 async function importSupplier(req, res) {
   console.log("Import supplier request received.");
-  
+
   let filePath = null;
 
   try {
@@ -251,6 +262,7 @@ async function importSupplier(req, res) {
           SELECT
             supplier_id,
             company_name,
+            address,
             town,
             region,
             location,
@@ -274,16 +286,18 @@ async function importSupplier(req, res) {
           (
             supplier_id,
             company_name,
+            address,
             town,
             region,
             location,
             category_supplier
           )
-          VALUES (?, ?, ?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, ?, ?, ?)
           `,
           [
             supplierId,
             mapped.company_name,
+            mapped.address,
             mapped.town,
             mapped.region,
             mapped.location,
@@ -299,6 +313,8 @@ async function importSupplier(req, res) {
           supplier_id: supplierId,
 
           company_name: mapped.company_name,
+
+          address: mapped.address,
 
           town: mapped.town,
 
@@ -343,6 +359,20 @@ async function importSupplier(req, res) {
           field: "company_name",
           old: existing.company_name,
           new: mapped.company_name,
+        });
+      }
+
+      // -----------------------------------------------
+      // ADDRESS
+      // -----------------------------------------------
+
+      if (
+        normalizeValue(existing.address) !== normalizeValue(mapped.address)
+      ) {
+        changes.push({
+          field: "address",
+          old: existing.address,
+          new: mapped.address,
         });
       }
 
@@ -425,6 +455,7 @@ async function importSupplier(req, res) {
         UPDATE suppliers
         SET
           company_name = ?,
+          address = ?,
           town = ?,
           region = ?,
           location = ?,
@@ -433,6 +464,7 @@ async function importSupplier(req, res) {
         `,
         [
           mapped.company_name,
+          mapped.address,
           mapped.town,
           mapped.region,
           mapped.location,
@@ -517,6 +549,6 @@ module.exports = {
       next();
     },
     upload.single("file"),
-    importSupplier
-  ]
+    importSupplier,
+  ],
 };
