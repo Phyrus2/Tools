@@ -7,34 +7,34 @@ class Paginator<T> {
   page = 1;
   pageSize = 50;
   private all: T[] = [];
-
+ 
   setData(items: T[]) {
     this.all = items ?? [];
     this.page = 1;
   }
-
+ 
   get total(): number {
     return this.all.length;
   }
-
+ 
   get totalPages(): number {
     return Math.max(1, Math.ceil(this.total / this.pageSize));
   }
-
+ 
   get pageItems(): T[] {
     const start = (this.page - 1) * this.pageSize;
     return this.all.slice(start, start + this.pageSize);
   }
-
+ 
   goTo(page: number) {
     if (page < 1 || page > this.totalPages) return;
     this.page = page;
   }
-
+ 
   next() {
     this.goTo(this.page + 1);
   }
-
+ 
   prev() {
     this.goTo(this.page - 1);
   }
@@ -57,6 +57,8 @@ export class BookedProductImport {
     new Paginator<BookedProductImportResult['insertedRows'][number]>();
   updated =
     new Paginator<BookedProductImportResult['updatedRows'][number]>();
+  unchanged =
+    new Paginator<BookedProductImportResult['unchangedRows'][number]>();
   skipped =
     new Paginator<BookedProductImportResult['skippedRows'][number]>();
  
@@ -108,6 +110,7 @@ export class BookedProductImport {
  
           this.inserted.setData(response.insertedRows);
           this.updated.setData(response.updatedRows);
+          this.unchanged.setData(response.unchangedRows);
           this.skipped.setData(response.skippedRows);
  
           this.cdr.markForCheck();
@@ -133,6 +136,7 @@ export class BookedProductImport {
  
     this.inserted.setData([]);
     this.updated.setData([]);
+    this.unchanged.setData([]);
     this.skipped.setData([]);
   }
  
@@ -147,7 +151,13 @@ export class BookedProductImport {
  
     return String(value);
   }
-
+ 
+  // ==========================================
+  // FORMAT DATE
+  // Backend mengirim travel_date/end_date dalam
+  // format YYYY-MM-DD. Ditampilkan sebagai DD-MM-YYYY.
+  // ==========================================
+ 
   formatDate(value: string | null | undefined): string {
     if (!value) {
       return '-';

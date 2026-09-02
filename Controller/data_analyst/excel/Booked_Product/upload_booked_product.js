@@ -411,18 +411,6 @@ function normalizeTransport(value) {
     return null;
   }
 
-  /**
-   * ==========================================================
-   * FORMAT EXCEL
-   *
-   * Date:2024-01-06
-   * Time:
-   * Locality:
-   * Location: Kajane Mua Ubud
-   * Text:
-   * ==========================================================
-   */
-
   const result = {
     date: null,
     time: null,
@@ -797,47 +785,266 @@ async function importBookedProduct(req, res) {
           totalRows: rows.length,
           inserted: 0,
           updated: 0,
+          unchanged: 0,
           skipped: skippedRows.length,
         },
         insertedRows: [],
         updatedRows: [],
+        unchangedRows: [],
         skippedRows,
       });
     }
 
     /**
      * ==========================================================
-     * 6. CEK BOOKED PRODUCT YANG SUDAH ADA (1x bulk query)
+     * 6. AMBIL DATA BOOKED PRODUCT YANG SUDAH ADA (1x bulk query)
      * ==========================================================
      *
      * Sold Product ID wajib ada di setiap baris valid,
      * jadi setiap baris pasti punya booked_product_id.
+     *
+     * Ambil SEMUA kolom (bukan cuma id) supaya bisa
+     * dibandingkan field-by-field untuk menentukan
+     * apakah baris ini benar-benar berubah atau tidak.
      */
 
     const idsToCheck = dataToInsert.map((r) => r.booked_product_id);
 
     const [existingBooked] = await pool.query(
-      `SELECT id FROM booked_products WHERE id IN (?)`,
+      `
+        SELECT
+          id,
+          dossier_id,
+          dossier_name,
+          supplier_id,
+          product_id,
+          product_name,
+          status,
+          code,
+          duration,
+          travel_date,
+          end_date,
+          sales,
+          operational,
+          quantity,
+          unit,
+          price,
+          description,
+          info,
+          instructions,
+          transport_pickup,
+          transport_dropoff
+        FROM booked_products
+        WHERE id IN (?)
+      `,
       [idsToCheck],
     );
 
-    const existingIds = new Set(existingBooked.map((b) => b.id));
+    const existingMap = new Map(existingBooked.map((b) => [b.id, b]));
 
-    const insertedRows = dataToInsert.filter(
-      (r) => !existingIds.has(r.booked_product_id),
-    );
+    // =================================================
+    // NORMALIZE UNTUK COMPARE
+    // =================================================
 
-    const updatedRows = dataToInsert.filter((r) =>
-      existingIds.has(r.booked_product_id),
-    );
+    function normalizeCompareValue(value) {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      return String(value).trim();
+    }
+
+    function normalizeCompareDate(value) {
+      if (!value) return null;
+
+      // Bisa berupa Date object dari mysql2 (kolom DATE)
+      if (value instanceof Date) {
+        const y = value.getFullYear();
+        const m = String(value.getMonth() + 1).padStart(2, "0");
+        const d = String(value.getDate()).padStart(2, "0");
+        return `${y}-${m}-${d}`;
+      }
+
+      return String(value).slice(0, 10);
+    }
+
+    // Kolom numerik (INT/DECIMAL) bisa dikembalikan mysql2 sebagai
+    // string dengan trailing zero (misal DECIMAL -> "250000.00"),
+    // sementara nilai baru dari Excel adalah JS number ("250000").
+    // Perbandingan string naive akan selalu mismatch, jadi
+    // dibandingkan sebagai angka.
+    function normalizeCompareNumber(value) {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      const num = Number(value);
+
+      if (Number.isNaN(num)) {
+        return null;
+      }
+
+      // Bulatkan ke 2 desimal untuk menghindari floating point noise
+      // (mis. 250000.000000001 vs 250000).
+      return Math.round(num * 100) / 100;
+    }
+
+    // Kolom JSON (transport_pickup/transport_dropoff) bisa
+    // dikembalikan mysql2 sebagai object (jika kolom bertipe JSON)
+    // atau string (jika kolom bertipe TEXT). Nilai baru selalu
+    // string hasil JSON.stringify(). Samakan representasinya
+    // dengan parse -> stringify ulang dengan KEY TERURUT, karena
+    // MySQL's JSON type tidak menjamin urutan key yang sama
+    // dengan urutan penulisan di kode (biasanya dikembalikan
+    // terurut alfabetis), sementara object literal di JS
+    // mempertahankan urutan insersi aslinya.
+    function normalizeCompareJson(value) {
+      if (value === null || value === undefined || value === "") {
+        return null;
+      }
+
+      let obj = value;
+
+      if (typeof value === "string") {
+        try {
+          obj = JSON.parse(value);
+        } catch (error) {
+          // Bukan JSON valid, bandingkan sebagai string apa adanya
+          return value.trim();
+        }
+      }
+
+      if (obj === null || typeof obj !== "object") {
+        return JSON.stringify(obj);
+      }
+
+      const sortedKeys = Object.keys(obj).sort();
+
+      const sortedObj = {};
+
+      for (const key of sortedKeys) {
+        sortedObj[key] = obj[key];
+      }
+
+      return JSON.stringify(sortedObj);
+    }
+
+    // Kolom yang dibandingkan untuk menentukan "changes"
+    // (tidak termasuk id, karena itu key pembanding)
+    const COMPARABLE_FIELDS = [
+      { key: "dossier_id", type: "text" },
+      { key: "dossier_name", type: "text" },
+      { key: "supplier_id", type: "number" },
+      { key: "product_id", type: "number" },
+      { key: "product_name", type: "text" },
+      { key: "status", type: "text" },
+      { key: "code", type: "text" },
+      { key: "duration", type: "number" },
+      { key: "travel_date", type: "date" },
+      { key: "end_date", type: "date" },
+      { key: "sales", type: "text" },
+      { key: "operational", type: "text" },
+      { key: "quantity", type: "number" },
+      { key: "unit", type: "text" },
+      { key: "price", type: "number" },
+      { key: "description", type: "text" },
+      { key: "info", type: "text" },
+      { key: "instructions", type: "text" },
+      { key: "transport_pickup", type: "json" },
+      { key: "transport_dropoff", type: "json" },
+    ];
+
+    function normalizeByType(value, type) {
+      switch (type) {
+        case "date":
+          return normalizeCompareDate(value);
+        case "number":
+          return normalizeCompareNumber(value);
+        case "json":
+          return normalizeCompareJson(value);
+        default:
+          return normalizeCompareValue(value);
+      }
+    }
+
+    const insertedRows = [];
+    const updatedRows = [];
+    const unchangedRows = [];
+
+    // =================================================
+    // DEBUG: tampilkan detail field yang mismatch untuk
+    // beberapa baris pertama, supaya kelihatan field mana
+    // dan tipe data apa yang bikin selalu "updated".
+    // =================================================
+    const DEBUG_COMPARE = false;
+    const DEBUG_LIMIT = 5;
+    let debugCount = 0;
+
+    for (const r of dataToInsert) {
+      const existing = existingMap.get(r.booked_product_id);
+
+      // =================================================
+      // BARIS BARU
+      // =================================================
+
+      if (!existing) {
+        insertedRows.push(r);
+        continue;
+      }
+
+      // =================================================
+      // BANDINGKAN FIELD SATU-SATU
+      // =================================================
+
+      const changes = [];
+
+      for (const field of COMPARABLE_FIELDS) {
+        const oldValue = existing[field.key];
+        const newValue = r[field.key];
+
+        const oldNorm = normalizeByType(oldValue, field.type);
+        const newNorm = normalizeByType(newValue, field.type);
+
+        if (oldNorm !== newNorm) {
+          changes.push({
+            field: field.key,
+            old: oldValue,
+            new: newValue,
+          });
+
+          if (DEBUG_COMPARE && debugCount < DEBUG_LIMIT) {
+            console.log(
+              `[DEBUG][row ${r.row}][id ${r.booked_product_id}] MISMATCH field="${field.key}" type=${field.type}\n` +
+                `    DB    : value=${JSON.stringify(oldValue)} (typeof ${typeof oldValue}) -> normalized=${JSON.stringify(oldNorm)}\n` +
+                `    EXCEL : value=${JSON.stringify(newValue)} (typeof ${typeof newValue}) -> normalized=${JSON.stringify(newNorm)}`,
+            );
+          }
+        }
+      }
+
+      if (changes.length === 0) {
+        unchangedRows.push(r);
+      } else {
+        updatedRows.push({ ...r, changes });
+
+        if (DEBUG_COMPARE && debugCount < DEBUG_LIMIT) {
+          debugCount++;
+        }
+      }
+    }
 
     /**
      * ==========================================================
-     * 7. INSERT / UPDATE (1x bulk query untuk semua baris)
+     * 7. INSERT / UPDATE (1x bulk query, tanpa baris unchanged)
      * ==========================================================
+     *
+     * Baris unchanged tidak perlu ditulis ulang ke database —
+     * datanya sudah identik, jadi write ini cuma buang I/O.
      */
 
-    const values = dataToInsert.map((r) => [
+    const rowsToWrite = [...insertedRows, ...updatedRows];
+
+    const values = rowsToWrite.map((r) => [
       r.booked_product_id,
       r.dossier_id,
       r.dossier_name,
@@ -861,8 +1068,11 @@ async function importBookedProduct(req, res) {
       r.transport_dropoff,
     ]);
 
-    const [result] = await pool.query(
-      `
+    let affectedRows = 0;
+
+    if (rowsToWrite.length > 0) {
+      const [result] = await pool.query(
+        `
         INSERT INTO booked_products (
           id,
           dossier_id,
@@ -955,8 +1165,11 @@ async function importBookedProduct(req, res) {
           transport_dropoff =
             VALUES(transport_dropoff)
         `,
-      [values],
-    );
+        [values],
+      );
+
+      affectedRows = result.affectedRows;
+    }
 
     /**
      * ==========================================================
@@ -981,9 +1194,10 @@ async function importBookedProduct(req, res) {
     console.log("======================================");
     console.log("Total baris Excel :", rows.length);
     console.log("Data valid        :", dataToInsert.length);
-    console.log("Affected rows     :", result.affectedRows);
-    console.log("Inserted (approx) :", insertedRows.length);
-    console.log("Updated (approx)  :", updatedRows.length);
+    console.log("Affected rows     :", affectedRows);
+    console.log("Inserted          :", insertedRows.length);
+    console.log("Updated           :", updatedRows.length);
+    console.log("Unchanged         :", unchangedRows.length);
     console.log("Dilewati          :", skippedRows.length);
 
     return res.status(200).json({
@@ -994,6 +1208,7 @@ async function importBookedProduct(req, res) {
         totalRows: rows.length,
         inserted: insertedRows.length,
         updated: updatedRows.length,
+        unchanged: unchangedRows.length,
         skipped: skippedRows.length,
       },
 
@@ -1021,6 +1236,15 @@ async function importBookedProduct(req, res) {
         status: r.status,
         travel_date: r.travel_date,
         price: r.price,
+        changes: r.changes,
+      })),
+
+      unchangedRows: unchangedRows.map((r) => ({
+        row: r.row,
+        id: r.booked_product_id,
+        dossier_id: r.dossier_id,
+        dossier_name: r.dossier_name,
+        product_name: r.product_name,
       })),
 
       skippedRows,

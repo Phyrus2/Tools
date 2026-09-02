@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
  
 export interface BookedProductRow {
-  row: number;
+   row: number;
   id: number;
   dossier_id: string | null;
   dossier_name: string | null;
@@ -13,6 +13,21 @@ export interface BookedProductRow {
   status: string | null;
   travel_date: string | null;
   price: number | null;
+  changes?: BookedProductChange[];
+}
+ 
+export interface BookedProductChange {
+  field: string;
+  old: any;
+  new: any;
+}
+ 
+export interface UnchangedBookedProduct {
+  row: number;
+  id: number;
+  dossier_id: string | null;
+  dossier_name: string | null;
+  product_name: string;
 }
  
 export interface SkippedBookedProduct {
@@ -28,11 +43,13 @@ export interface BookedProductImportResult {
     totalRows: number;
     inserted: number;
     updated: number;
+    unchanged: number;
     skipped: number;
   };
  
   insertedRows: BookedProductRow[];
   updatedRows: BookedProductRow[];
+  unchangedRows: UnchangedBookedProduct[];
   skippedRows: SkippedBookedProduct[];
 }
  

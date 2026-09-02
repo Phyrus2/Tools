@@ -12,6 +12,7 @@ $color-error-bg: #fef2f2;
 $color-error-border: #fecaca;
 $color-new: #2563eb;
 $color-updated: #d97706;
+$color-unchanged: #94a3b8;
 $color-skipped: #dc2626;
 
 $color-text: #1e293b;
@@ -232,6 +233,13 @@ button {
     border-top-color: $color-updated;
     strong {
       color: $color-updated;
+    }
+  }
+
+  &.unchanged {
+    border-top-color: $color-unchanged;
+    strong {
+      color: $color-unchanged;
     }
   }
 

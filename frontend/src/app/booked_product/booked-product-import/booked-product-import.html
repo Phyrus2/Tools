@@ -82,6 +82,11 @@
         <strong>{{ result.summary.updated }}</strong>
       </div>
 
+      <div class="summary-card unchanged">
+        <span>Unchanged</span>
+        <strong>{{ result.summary.unchanged }}</strong>
+      </div>
+
       <div class="summary-card skipped">
         <span>Skipped</span>
         <strong>{{ result.summary.skipped }}</strong>
@@ -193,6 +198,50 @@
         <button type="button" (click)="updated.prev()" [disabled]="updated.page === 1">‹ Prev</button>
         <span>Page {{ updated.page }} / {{ updated.totalPages }}</span>
         <button type="button" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next ›</button>
+      </div>
+
+    </div>
+
+
+    <!-- ================================================= -->
+    <!-- UNCHANGED -->
+    <!-- ================================================= -->
+
+    <div class="result-section" *ngIf="unchanged.total > 0">
+
+      <div class="section-header">
+        <h2>⚪ Unchanged Bookings</h2>
+        <span class="count">{{ unchanged.total }}</span>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Excel Row</th>
+              <th>Sold Product ID</th>
+              <th>Dossier</th>
+              <th>Product Name</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let b of unchanged.pageItems; trackBy: trackByRow">
+              <td>{{ b.row }}</td>
+              <td>{{ b.id }}</td>
+              <td>
+                {{ displayValue(b.dossier_id) }}
+                <div class="sub-text" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
+              </td>
+              <td>{{ b.product_name }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination" *ngIf="unchanged.totalPages > 1">
+        <button type="button" (click)="unchanged.prev()" [disabled]="unchanged.page === 1">‹ Prev</button>
+        <span>Page {{ unchanged.page }} / {{ unchanged.totalPages }}</span>
+        <button type="button" (click)="unchanged.next()" [disabled]="unchanged.page === unchanged.totalPages">Next ›</button>
       </div>
 
     </div>
