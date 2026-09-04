@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { Subject, Subscription } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
 
@@ -9,21 +10,26 @@ import {
   BookedProductSearchParams,
   BookedProductSearchResult,
 } from '../../services/search';
+import {
+  BookedProduct,
+  BookedProductImportStatus,
+} from '../../services/booked-product';
 
-type DateMode = 'none' | 'single' | 'range';
+type DateMode = 'none' | 'single' | 'from' | 'until' | 'range';
 
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
 
 @Component({
   selector: 'app-search-booked-product',
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   templateUrl: './search-booked-product.html',
   styleUrl: './search-booked-product.scss',
 })
 export class SearchBookedProduct implements OnInit, OnDestroy {
   private fb = inject(FormBuilder);
   private bookedProductService = inject(Search);
+  private bookedProductImportService = inject(BookedProduct);
   private cdr = inject(ChangeDetectorRef);
 
   form = this.fb.group({
@@ -44,11 +50,14 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   hasSearched = false;
 
   selectedItem: BookedProductSearchResult | null = null;
+  lastImport: BookedProductImportStatus | null = null;
 
   private readonly search$ = new Subject<void>();
   private subscription?: Subscription;
 
   ngOnInit(): void {
+    this.loadImportStatus();
+
     // Trigger pencarian otomatis saat user berhenti mengetik.
     this.subscription = this.form
       .get('keyword')!
@@ -218,8 +227,11 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       description: 'Deskripsi',
       info: 'Info',
       instructions: 'Instruksi',
+      travel_date: 'Tanggal',
+      address: 'Alamat',
       other: 'Lainnya',
     };
+    console.log('🔖 Matched Field:', field, '=>', labels[field] ?? field);
     return labels[field] ?? field;
   }
 
@@ -230,7 +242,10 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private triggerSearch(): void {
     const keyword = (this.form.value.keyword ?? '').trim();
 
-    if (keyword.length < MIN_KEYWORD_LENGTH) {
+    if (
+      (keyword.length > 0 && keyword.length < MIN_KEYWORD_LENGTH) ||
+      (keyword.length === 0 && !this.hasDateFilter())
+    ) {
       this.results = [];
       this.hasSearched = false;
       this.errorMessage = null;
@@ -243,11 +258,27 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     this.search$.next();
   }
 
+  private loadImportStatus(): void {
+    this.bookedProductImportService.getImportStatus().subscribe({
+      next: (response) => {
+        this.lastImport = response.lastImport;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.lastImport = null;
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
   private buildParams(): BookedProductSearchParams | null {
     const value = this.form.value;
     const keyword = (value.keyword ?? '').trim();
 
-    if (keyword.length < MIN_KEYWORD_LENGTH) {
+    if (
+      (keyword.length > 0 && keyword.length < MIN_KEYWORD_LENGTH) ||
+      (keyword.length === 0 && !this.hasDateFilter())
+    ) {
       return null;
     }
 
@@ -259,11 +290,25 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     if (value.dateMode === 'single' && value.date) {
       params.date = value.date;
+    } else if (value.dateMode === 'from' && value.date) {
+      params.startDate = value.date;
+    } else if (value.dateMode === 'until' && value.date) {
+      params.endDate = value.date;
     } else if (value.dateMode === 'range') {
       if (value.startDate) params.startDate = value.startDate;
       if (value.endDate) params.endDate = value.endDate;
     }
 
     return params;
+  }
+
+  private hasDateFilter(): boolean {
+    const { dateMode, date, startDate, endDate } = this.form.value;
+
+    if (dateMode === 'single' || dateMode === 'from' || dateMode === 'until') {
+      return Boolean(date);
+    }
+
+    return dateMode === 'range' && Boolean(startDate || endDate);
   }
 }

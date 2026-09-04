@@ -28,28 +28,6 @@ async function searchBookedProduct(req, res) {
     const { keyword, date, startDate, endDate } = req.query;
     console.log("Received search request:", { keyword, date, startDate, endDate });
     // =================================================
-    // VALIDASI KEYWORD
-    // =================================================
-
-    if (!keyword || !String(keyword).trim()) {
-      return res.status(400).json({
-        success: false,
-        message: "Keyword pencarian wajib diisi.",
-      });
-    }
-
-    const trimmedKeyword = String(keyword).trim();
-
-    if (trimmedKeyword.length < 2) {
-      return res.status(400).json({
-        success: false,
-        message: "Keyword minimal 2 karakter.",
-      });
-    }
-
-    const pattern = buildWordBoundaryPattern(trimmedKeyword);
-
-    // =================================================
     // VALIDASI TANGGAL (opsional, fleksibel)
     // =================================================
     //
@@ -91,6 +69,31 @@ async function searchBookedProduct(req, res) {
     }
 
     // =================================================
+    // VALIDASI KEYWORD
+    // =================================================
+
+    const trimmedKeyword = keyword ? String(keyword).trim() : "";
+    const hasKeyword = trimmedKeyword.length > 0;
+
+    if (hasKeyword && trimmedKeyword.length < 2) {
+      return res.status(400).json({
+        success: false,
+        message: "Keyword minimal 2 karakter.",
+      });
+    }
+
+    if (!hasKeyword && !hasSingleDate && !hasStartDate && !hasEndDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Isi keyword atau pilih filter tanggal.",
+      });
+    }
+
+    const pattern = hasKeyword
+      ? buildWordBoundaryPattern(trimmedKeyword)
+      : null;
+
+    // =================================================
     // PAGINATION
     // =================================================
 
@@ -119,7 +122,9 @@ async function searchBookedProduct(req, res) {
     ];
 
     // Setiap placeholder REGEXP di atas butuh pattern yang sama
-    const whereParams = Array(whereParts.length).fill(pattern);
+    const whereParams = hasKeyword
+      ? Array(whereParts.length).fill(pattern)
+      : [];
 
     // =================================================
     // FILTER TANGGAL: SINGLE DATE ATAU RANGE (OVERLAP)
@@ -138,7 +143,8 @@ async function searchBookedProduct(req, res) {
         " AND bp.travel_date <= ? AND COALESCE(bp.end_date, bp.travel_date) >= ?";
       dateParams.push(endDate, startDate);
     } else if (hasStartDate) {
-      // Booking masih berlangsung/berakhir setelah startDate
+      // Booking masih berlangsung atau dimulai pada/setelah startDate.
+      // Contoh: booking 21/12/2026–01/01/2027 tetap cocok untuk 01/01/2027.
       dateSql = " AND COALESCE(bp.end_date, bp.travel_date) >= ?";
       dateParams.push(startDate);
     } else if (hasEndDate) {
@@ -147,7 +153,9 @@ async function searchBookedProduct(req, res) {
       dateParams.push(endDate);
     }
 
-    const baseWhereSql = `(${whereParts.join(" OR ")})${dateSql}`;
+    const baseWhereSql = hasKeyword
+      ? `(${whereParts.join(" OR ")})${dateSql}`
+      : dateSql.replace(/^ AND /, "");
 
     // =================================================
     // COUNT TOTAL (untuk pagination)
@@ -170,27 +178,14 @@ async function searchBookedProduct(req, res) {
     // =================================================
 
     // matched_field butuh pattern lagi (dipakai di SELECT, bukan cuma WHERE)
-    const matchedFieldParams = [
-      pattern,
-      pattern,
-      pattern,
-      pattern,
-      pattern,
-      pattern,
-      pattern,
-    ];
+    const matchedFieldParams = hasKeyword
+      ? Array(whereParts.length).fill(pattern)
+      : [];
 
-    const [rows] = await pool.query(
-      `
-      SELECT
-        bp.*,
-        s.supplier_id,
-        s.company_name,
-        s.town,
-        s.region,
-        s.location,
-
-        CASE
+    const matchedFieldSql = hasKeyword
+      ? `CASE
+          WHEN s.company_name REGEXP ? THEN 'company_name'
+          WHEN s.address REGEXP ? THEN 'address'
           WHEN s.town REGEXP ? THEN 'town'
           WHEN s.region REGEXP ? THEN 'region'
           WHEN s.location REGEXP ? THEN 'location'
@@ -199,7 +194,21 @@ async function searchBookedProduct(req, res) {
           WHEN bp.info REGEXP ? THEN 'info'
           WHEN bp.instructions REGEXP ? THEN 'instructions'
           ELSE 'other'
-        END AS matched_field
+        END`
+      : "'travel_date'";
+
+    const [rows] = await pool.query(
+      `
+      SELECT
+        bp.*,
+        s.supplier_id,
+        s.company_name,
+        s.address,
+        s.town,
+        s.region,
+        s.location,
+
+        ${matchedFieldSql} AS matched_field
 
       FROM booked_products bp
       JOIN suppliers s ON s.supplier_id = bp.supplier_id

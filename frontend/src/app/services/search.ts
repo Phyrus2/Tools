@@ -37,6 +37,8 @@ export interface UnchangedBookedProduct {
 export interface SkippedBookedProduct {
   row: number;
   reason: string;
+  supplier_name?: string | null;
+  product_name?: string | null;
 }
  
 export interface BookedProductImportResult {
@@ -71,6 +73,7 @@ export type MatchedField =
   | 'description'
   | 'info'
   | 'instructions'
+  | 'travel_date'
   | 'other';
  
 export interface BookedProductSearchResult {
@@ -88,6 +91,7 @@ export interface BookedProductSearchResult {
   instructions: string | null;
   supplier_id: number;
   company_name: string;
+  address: string | null;
   town: string | null;
   region: string | null;
   location: string | null;
@@ -127,6 +131,9 @@ export interface BookedProductSearchErrorResponse {
  *
  * - `date` dan (`startDate`/`endDate`) saling eksklusif.
  *   Kalau `date` diisi, backend mengabaikan startDate/endDate.
+ * - `startDate` saja mencari booking yang masih berlangsung atau dimulai
+ *   pada/setelah tanggal tersebut.
+ * - `endDate` saja mencari booking pada/sebelum tanggal tersebut.
  * - Semua tanggal wajib format YYYY-MM-DD.
  */
 export interface BookedProductSearchParams {
@@ -167,7 +174,11 @@ export class Search {
   searchBookedProduct(
     params: BookedProductSearchParams,
   ): Observable<BookedProductSearchResponse> {
-    let httpParams = new HttpParams().set('keyword', params.keyword.trim());
+    let httpParams = new HttpParams();
+
+    if (params.keyword.trim()) {
+      httpParams = httpParams.set('keyword', params.keyword.trim());
+    }
  
     // date bersifat eksklusif terhadap startDate/endDate,
     // konsisten dengan validasi di backend.

@@ -55,6 +55,14 @@ function normalizeName(value) {
     .replace(/\s+/g, " ");
 }
 
+function normalizeValue(value) {
+  if (value === undefined || value === null) {
+    return null;
+  }
+
+  return String(value).trim();
+}
+
 // =====================================================
 // MAPPING ROW EXCEL
 // =====================================================
@@ -65,7 +73,9 @@ function mapRowToColumns(row) {
     const column = HEADER_ALIASES[normalizeHeader(header)];
     if (column && ALLOWED_COLUMNS.includes(column)) {
       mapped[column] =
-        value === undefined || value === "" ? null : String(value).trim();
+        value === undefined || value === null || value === ""
+          ? null
+          : String(value).trim();
     }
   }
   return mapped;
@@ -193,10 +203,12 @@ async function importProduct(req, res) {
           totalRows: rows.length,
           inserted: 0,
           updated: 0,
+          unchanged: 0,
           skipped: skippedRows.length,
         },
         insertedRows: [],
         updatedRows: [],
+        unchangedRows: [],
         skippedRows,
       });
     }
@@ -208,44 +220,65 @@ async function importProduct(req, res) {
     const productIds = dataToInsert.map((r) => r.product_id);
 
     const [existingProducts] = await pool.query(
-      `SELECT product_id, name FROM products WHERE product_id IN (?)`,
+      `SELECT product_id, supplier_id, name, type
+       FROM products
+       WHERE product_id IN (?)`,
       [productIds],
     );
 
-    const existingProductIds = new Set(
-      existingProducts.map((p) => p.product_id),
+    const existingProductMap = new Map(
+      existingProducts.map((product) => [String(product.product_id), product]),
     );
 
-    const insertedRows = dataToInsert.filter(
-      (r) => !existingProductIds.has(r.product_id),
-    );
+    const insertedRows = [];
+    const updatedRows = [];
+    const unchangedRows = [];
 
-    const updatedRows = dataToInsert.filter((r) =>
-      existingProductIds.has(r.product_id),
-    );
+    dataToInsert.forEach((row) => {
+      const existing = existingProductMap.get(String(row.product_id));
+
+      if (!existing) {
+        insertedRows.push(row);
+        return;
+      }
+
+      const hasChanges =
+        normalizeValue(existing.supplier_id) !== normalizeValue(row.supplier_id) ||
+        normalizeValue(existing.name) !== normalizeValue(row.name) ||
+        normalizeValue(existing.type) !== normalizeValue(row.type);
+
+      if (hasChanges) {
+        updatedRows.push(row);
+      } else {
+        unchangedRows.push(row);
+      }
+    });
 
     // =================================================
     // 5. BULK INSERT / UPDATE (1x query untuk semua baris)
     // =================================================
 
-    const values = dataToInsert.map((r) => [
+    const rowsToWrite = [...insertedRows, ...updatedRows];
+    const values = rowsToWrite.map((r) => [
       r.product_id,
       r.supplier_id,
       r.name,
       r.type,
     ]);
 
-    await pool.query(
-      `
-      INSERT INTO products (product_id, supplier_id, name, type)
-      VALUES ?
-      ON DUPLICATE KEY UPDATE
-        supplier_id = VALUES(supplier_id),
-        name = VALUES(name),
-        type = VALUES(type)
-      `,
-      [values],
-    );
+    if (values.length > 0) {
+      await pool.query(
+        `
+        INSERT INTO products (product_id, supplier_id, name, type)
+        VALUES ?
+        ON DUPLICATE KEY UPDATE
+          supplier_id = VALUES(supplier_id),
+          name = VALUES(name),
+          type = VALUES(type)
+        `,
+        [values],
+      );
+    }
 
     // =================================================
     // HAPUS TEMPORARY FILE
@@ -264,6 +297,7 @@ async function importProduct(req, res) {
     console.log("Total baris di file :", rows.length);
     console.log("Berhasil diinsert   :", insertedRows.length);
     console.log("Diupdate            :", updatedRows.length);
+    console.log("Tidak berubah       :", unchangedRows.length);
     console.log("Dilewati            :", skippedRows.length);
 
     return res.status(200).json({
@@ -274,6 +308,7 @@ async function importProduct(req, res) {
         totalRows: rows.length,
         inserted: insertedRows.length,
         updated: updatedRows.length,
+        unchanged: unchangedRows.length,
         skipped: skippedRows.length,
       },
 
@@ -286,6 +321,14 @@ async function importProduct(req, res) {
       })),
 
       updatedRows: updatedRows.map((r) => ({
+        row: r.row,
+        product_id: r.product_id,
+        supplier_id: r.supplier_id,
+        name: r.name,
+        type: r.type,
+      })),
+
+      unchangedRows: unchangedRows.map((r) => ({
         row: r.row,
         product_id: r.product_id,
         supplier_id: r.supplier_id,

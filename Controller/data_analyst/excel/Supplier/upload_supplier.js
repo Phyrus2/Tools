@@ -145,6 +145,186 @@ function categoriesEqual(a, b) {
   );
 }
 
+const DATABASE_BATCH_SIZE = 500;
+
+function chunk(items, size = DATABASE_BATCH_SIZE) {
+  const chunks = [];
+
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+
+  return chunks;
+}
+
+async function loadExistingSuppliers(connection, supplierIds) {
+  const suppliers = new Map();
+
+  for (const idChunk of chunk([...new Set(supplierIds)])) {
+    const [rows] = await connection.query(
+      `
+      SELECT
+        supplier_id,
+        company_name,
+        address,
+        town,
+        region,
+        location,
+        category_supplier
+      FROM suppliers
+      WHERE supplier_id IN (?)
+      `,
+      [idChunk],
+    );
+
+    for (const row of rows) {
+      suppliers.set(String(row.supplier_id), row);
+    }
+  }
+
+  return suppliers;
+}
+
+async function saveSuppliers(connection, suppliers) {
+  for (const supplierChunk of chunk(suppliers)) {
+    const values = supplierChunk.map((supplier) => [
+      supplier.supplier_id,
+      supplier.company_name,
+      supplier.address,
+      supplier.town,
+      supplier.region,
+      supplier.location,
+      JSON.stringify(normalizeCategories(parseCategories(supplier.category_supplier))),
+    ]);
+
+    await connection.query(
+      `
+      INSERT INTO suppliers
+      (
+        supplier_id,
+        company_name,
+        address,
+        town,
+        region,
+        location,
+        category_supplier
+      )
+      VALUES ?
+      ON DUPLICATE KEY UPDATE
+        company_name = VALUES(company_name),
+        address = VALUES(address),
+        town = VALUES(town),
+        region = VALUES(region),
+        location = VALUES(location),
+        category_supplier = VALUES(category_supplier)
+      `,
+      [values],
+    );
+  }
+}
+
+function recordCategoryChange(changes, supplierId, before, after) {
+  const supplierKey = String(supplierId);
+  const normalizedBefore = normalizeCategories(before);
+  const normalizedAfter = normalizeCategories(after);
+
+  if (categoriesEqual(normalizedBefore, normalizedAfter)) {
+    return;
+  }
+
+  const recorded = changes.get(supplierKey);
+
+  changes.set(supplierKey, {
+    supplier_id: supplierId,
+    categories_before: recorded?.categories_before ?? normalizedBefore,
+    categories_after: normalizedAfter,
+  });
+}
+
+async function createImportHistory(connection, details, categoryChanges) {
+  const [result] = await connection.query(
+    `
+    INSERT INTO supplier_imports
+    (
+      file_name,
+      category,
+      total_rows,
+      inserted_count,
+      updated_count,
+      unchanged_count,
+      skipped_count
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    `,
+    [
+      details.fileName,
+      details.category,
+      details.totalRows,
+      details.inserted,
+      details.updated,
+      details.unchanged,
+      details.skipped,
+    ],
+  );
+
+  const importId = result.insertId;
+  const values = [...categoryChanges.values()].map((change) => [
+    importId,
+    change.supplier_id,
+    JSON.stringify(change.categories_before),
+    JSON.stringify(change.categories_after),
+  ]);
+
+  for (const valueChunk of chunk(values)) {
+    await connection.query(
+      `
+      INSERT INTO supplier_import_category_changes
+      (import_id, supplier_id, categories_before, categories_after)
+      VALUES ?
+      `,
+      [valueChunk],
+    );
+  }
+
+  return importId;
+}
+
+async function updateSupplierCategories(connection, changes) {
+  for (const changeChunk of chunk(changes)) {
+    const cases = changeChunk.map(() => "WHEN ? THEN ?").join(" ");
+    const caseParams = changeChunk.flatMap((change) => [
+      change.supplier_id,
+      JSON.stringify(change.categories_before),
+    ]);
+    const supplierIds = changeChunk.map((change) => change.supplier_id);
+
+    await connection.query(
+      `
+      UPDATE suppliers
+      SET category_supplier = CASE supplier_id
+        ${cases}
+        ELSE category_supplier
+      END
+      WHERE supplier_id IN (?)
+      `,
+      [...caseParams, supplierIds],
+    );
+  }
+}
+
+async function markCategoryChangesUndone(connection, importId, supplierIds) {
+  for (const idChunk of chunk(supplierIds)) {
+    await connection.query(
+      `
+      UPDATE supplier_import_category_changes
+      SET undone_at = CURRENT_TIMESTAMP
+      WHERE import_id = ? AND supplier_id IN (?)
+      `,
+      [importId, idChunk],
+    );
+  }
+}
+
 // =====================================================
 // IMPORT SUPPLIER
 // =====================================================
@@ -152,7 +332,9 @@ function categoriesEqual(a, b) {
 async function importSupplier(req, res) {
   console.log("Import supplier request received.");
 
+  const startedAt = Date.now();
   let filePath = null;
+  let connection = null;
 
   try {
     // =================================================
@@ -203,6 +385,8 @@ async function importSupplier(req, res) {
       throw new Error("File Excel kosong.");
     }
 
+    console.log(`Supplier import: memproses ${rows.length} baris.`);
+
     // =================================================
     // RESULT
     // =================================================
@@ -216,14 +400,27 @@ async function importSupplier(req, res) {
     let updated = 0;
     let unchanged = 0;
 
+    const mappedRows = rows.map((row, index) => ({
+      excelRow: index + 2,
+      mapped: mapRowToColumns(row),
+    }));
+
+    const supplierIds = mappedRows
+      .map(({ mapped }) => mapped.id)
+      .filter(Boolean);
+
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const suppliersById = await loadExistingSuppliers(connection, supplierIds);
+    const dirtySupplierIds = new Set();
+    const categoryChanges = new Map();
+
     // =================================================
     // PROCESS ROW
     // =================================================
 
-    for (const [index, row] of rows.entries()) {
-      const excelRow = index + 2;
-
-      const mapped = mapRowToColumns(row);
+    for (const { excelRow, mapped } of mappedRows) {
 
       // ===============================================
       // VALIDASI COMPANY NAME
@@ -257,53 +454,28 @@ async function importSupplier(req, res) {
       // CARI SUPPLIER
       // ===============================================
 
-      const [existingRows] = await pool.query(
-        `
-          SELECT
-            supplier_id,
-            company_name,
-            address,
-            town,
-            region,
-            location,
-            category_supplier
-          FROM suppliers
-          WHERE supplier_id = ?
-          `,
-        [supplierId],
-      );
+      const supplierKey = String(supplierId);
+      const existing = suppliersById.get(supplierKey);
 
       // =================================================
       // SUPPLIER BARU
       // =================================================
 
-      if (existingRows.length === 0) {
+      if (!existing) {
         const categories = [supplierCategory];
 
-        await pool.query(
-          `
-          INSERT INTO suppliers
-          (
-            supplier_id,
-            company_name,
-            address,
-            town,
-            region,
-            location,
-            category_supplier
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-          `,
-          [
-            supplierId,
-            mapped.company_name,
-            mapped.address,
-            mapped.town,
-            mapped.region,
-            mapped.location,
-            JSON.stringify(categories),
-          ],
-        );
+        recordCategoryChange(categoryChanges, supplierId, [], categories);
+
+        suppliersById.set(supplierKey, {
+          supplier_id: supplierId,
+          company_name: mapped.company_name,
+          address: mapped.address,
+          town: mapped.town,
+          region: mapped.region,
+          location: mapped.location,
+          category_supplier: categories,
+        });
+        dirtySupplierIds.add(supplierKey);
 
         inserted++;
 
@@ -331,8 +503,6 @@ async function importSupplier(req, res) {
       // =================================================
       // SUPPLIER SUDAH ADA
       // =================================================
-
-      const existing = existingRows[0];
 
       const oldCategories = parseCategories(existing.category_supplier);
 
@@ -419,6 +589,13 @@ async function importSupplier(req, res) {
       // -----------------------------------------------
 
       if (!categoriesEqual(oldCategories, newCategories)) {
+        recordCategoryChange(
+          categoryChanges,
+          supplierId,
+          oldCategories,
+          newCategories,
+        );
+
         changes.push({
           field: "category_supplier",
 
@@ -450,28 +627,16 @@ async function importSupplier(req, res) {
       // UPDATE DATABASE
       // =================================================
 
-      await pool.query(
-        `
-        UPDATE suppliers
-        SET
-          company_name = ?,
-          address = ?,
-          town = ?,
-          region = ?,
-          location = ?,
-          category_supplier = ?
-        WHERE supplier_id = ?
-        `,
-        [
-          mapped.company_name,
-          mapped.address,
-          mapped.town,
-          mapped.region,
-          mapped.location,
-          JSON.stringify(newCategories),
-          supplierId,
-        ],
-      );
+      suppliersById.set(supplierKey, {
+        supplier_id: supplierId,
+        company_name: mapped.company_name,
+        address: mapped.address,
+        town: mapped.town,
+        region: mapped.region,
+        location: mapped.location,
+        category_supplier: newCategories,
+      });
+      dirtySupplierIds.add(supplierKey);
 
       updated++;
 
@@ -485,6 +650,34 @@ async function importSupplier(req, res) {
         changes,
       });
     }
+
+    const suppliersToSave = [...dirtySupplierIds].map((supplierId) =>
+      suppliersById.get(supplierId),
+    );
+
+    await saveSuppliers(connection, suppliersToSave);
+
+    const importId = await createImportHistory(
+      connection,
+      {
+        fileName: req.file.originalname,
+        category: supplierCategory,
+        totalRows: rows.length,
+        inserted,
+        updated,
+        unchanged,
+        skipped: skippedRows.length,
+      },
+      categoryChanges,
+    );
+
+    await connection.commit();
+
+    console.log(
+      `Supplier import selesai dalam ${Date.now() - startedAt} ms: ` +
+        `${inserted} baru, ${updated} diperbarui, ` +
+        `${unchanged} tidak berubah, ${skippedRows.length} dilewati.`,
+    );
 
     // =================================================
     // HAPUS TEMPORARY FILE
@@ -505,6 +698,10 @@ async function importSupplier(req, res) {
       message: "Import supplier berhasil.",
 
       category: supplierCategory,
+
+      importId,
+
+      canUndo: categoryChanges.size > 0,
 
       summary: {
         totalRows: rows.length,
@@ -529,6 +726,14 @@ async function importSupplier(req, res) {
   } catch (error) {
     console.error("Import supplier error:", error);
 
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error("Rollback import supplier gagal:", rollbackError);
+      }
+    }
+
     // Hapus temporary file
     if (filePath) {
       fs.unlink(filePath, () => {});
@@ -539,6 +744,166 @@ async function importSupplier(req, res) {
 
       message: error.message || "Gagal melakukan import supplier.",
     });
+  } finally {
+    connection?.release();
+  }
+}
+
+async function getLatestSupplierImport(_req, res) {
+  try {
+    const [rows] = await pool.query(`
+      SELECT
+        si.id AS importId,
+        si.file_name AS fileName,
+        si.category,
+        si.total_rows AS totalRows,
+        si.imported_at AS importedAt,
+        si.undone_at AS undoneAt,
+        COUNT(sicc.supplier_id) AS pendingChanges
+      FROM supplier_imports si
+      LEFT JOIN supplier_import_category_changes sicc
+        ON sicc.import_id = si.id
+        AND sicc.undone_at IS NULL
+      GROUP BY si.id
+      ORDER BY si.imported_at DESC, si.id DESC
+      LIMIT 1
+    `);
+
+    const latest = rows[0] ?? null;
+
+    return res.status(200).json({
+      success: true,
+      latest: latest
+        ? {
+            ...latest,
+            canUndo: !latest.undoneAt && Number(latest.pendingChanges) > 0,
+          }
+        : null,
+    });
+  } catch (error) {
+    console.error("Get latest supplier import error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Gagal mengambil riwayat import supplier.",
+    });
+  }
+}
+
+async function undoSupplierImport(req, res) {
+  const importId = Number.parseInt(req.params.importId, 10);
+
+  if (!Number.isInteger(importId) || importId < 1) {
+    return res.status(400).json({
+      success: false,
+      message: "ID import tidak valid.",
+    });
+  }
+
+  let connection = null;
+
+  try {
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    const [imports] = await connection.query(
+      `SELECT * FROM supplier_imports WHERE id = ? FOR UPDATE`,
+      [importId],
+    );
+
+    if (imports.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Riwayat import tidak ditemukan.",
+      });
+    }
+
+    if (imports[0].undone_at) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        message: "Import ini sudah pernah dibatalkan.",
+      });
+    }
+
+    const [changes] = await connection.query(
+      `
+      SELECT
+        sicc.supplier_id,
+        sicc.categories_before,
+        sicc.categories_after,
+        s.category_supplier AS current_categories
+      FROM supplier_import_category_changes sicc
+      JOIN suppliers s ON s.supplier_id = sicc.supplier_id
+      WHERE sicc.import_id = ? AND sicc.undone_at IS NULL
+      FOR UPDATE
+      `,
+      [importId],
+    );
+
+    const restorable = [];
+    const completedIds = [];
+    const conflicts = [];
+
+    for (const change of changes) {
+      const current = parseCategories(change.current_categories);
+      const before = parseCategories(change.categories_before);
+      const after = parseCategories(change.categories_after);
+
+      if (categoriesEqual(current, after)) {
+        restorable.push({
+          supplier_id: change.supplier_id,
+          categories_before: before,
+        });
+        completedIds.push(change.supplier_id);
+      } else if (categoriesEqual(current, before)) {
+        completedIds.push(change.supplier_id);
+      } else {
+        conflicts.push(change.supplier_id);
+      }
+    }
+
+    await updateSupplierCategories(connection, restorable);
+    await markCategoryChangesUndone(connection, importId, completedIds);
+
+    if (conflicts.length === 0) {
+      await connection.query(
+        `UPDATE supplier_imports SET undone_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [importId],
+      );
+    }
+
+    await connection.commit();
+
+    return res.status(200).json({
+      success: true,
+      message:
+        conflicts.length === 0
+          ? "Kategori dari import berhasil dibatalkan."
+          : "Sebagian kategori tidak dibatalkan karena supplier sudah diubah setelah import ini.",
+      restored: restorable.length,
+      conflicts: conflicts.length,
+      conflictSupplierIds: conflicts,
+      canRetry: conflicts.length > 0,
+    });
+  } catch (error) {
+    if (connection) {
+      try {
+        await connection.rollback();
+      } catch (rollbackError) {
+        console.error("Rollback undo supplier gagal:", rollbackError);
+      }
+    }
+
+    console.error("Undo supplier import error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Gagal membatalkan import supplier.",
+    });
+  } finally {
+    connection?.release();
   }
 }
 
@@ -551,4 +916,6 @@ module.exports = {
     upload.single("file"),
     importSupplier,
   ],
+  getLatestSupplierImport,
+  undoSupplierImport,
 };

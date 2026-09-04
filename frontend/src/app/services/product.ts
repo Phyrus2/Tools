@@ -23,11 +23,13 @@ export interface ProductImportResult {
     totalRows: number;
     inserted: number;
     updated: number;
+    unchanged: number;
     skipped: number;
   };
  
   insertedRows: ProductRow[];
   updatedRows: ProductRow[];
+  unchangedRows: ProductRow[];
   skippedRows: SkippedProduct[];
 }
 

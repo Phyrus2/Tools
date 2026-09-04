@@ -28,12 +28,18 @@ const PORT = process.env.PORT || 3000;
 
 //SUPPLIER
 app.post("/supplier/import", supplier.importSupplier);
+app.get("/supplier/import/latest", supplier.getLatestSupplierImport);
+app.post("/supplier/import/:importId/undo", supplier.undoSupplierImport);
 
 //PRODUCT
 app.post("/product/import", product.importProduct);
 
 //BOOKED PRODUCT
 app.post("/booked-product/import", booked_product.importBookedProduct);
+app.get(
+  "/booked-product/import/status",
+  booked_product.getBookedProductImportStatus,
+);
 
 //SEARCH BOOKED PRODUCT
 app.get("/booked-product/search", search.searchBookedProduct);

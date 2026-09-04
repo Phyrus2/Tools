@@ -40,6 +40,8 @@ export interface ImportResult {
   success: boolean;
   message: string;
   category: string;
+  importId: number;
+  canUndo: boolean;
 
   summary: {
     totalRows: number;
@@ -53,6 +55,26 @@ export interface ImportResult {
   updatedRows: UpdatedSupplier[];
   unchangedRows: UnchangedSupplier[];
   skippedRows: SkippedSupplier[];
+}
+
+export interface SupplierImportHistory {
+  importId: number;
+  fileName: string;
+  category: string;
+  totalRows: number;
+  importedAt: string;
+  undoneAt: string | null;
+  pendingChanges: number;
+  canUndo: boolean;
+}
+
+export interface UndoSupplierImportResult {
+  success: boolean;
+  message: string;
+  restored: number;
+  conflicts: number;
+  conflictSupplierIds: number[];
+  canRetry: boolean;
 }
 
 @Injectable({
@@ -70,5 +92,22 @@ export class Supplier {
     formData.append('category', category);
 
     return this.http.post<ImportResult>(`${this.apiUrl}/supplier/import`, formData);
+  }
+
+  getLatestImport(): Observable<{
+    success: boolean;
+    latest: SupplierImportHistory | null;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      latest: SupplierImportHistory | null;
+    }>(`${this.apiUrl}/supplier/import/latest`);
+  }
+
+  undoImport(importId: number): Observable<UndoSupplierImportResult> {
+    return this.http.post<UndoSupplierImportResult>(
+      `${this.apiUrl}/supplier/import/${importId}/undo`,
+      {},
+    );
   }
 }

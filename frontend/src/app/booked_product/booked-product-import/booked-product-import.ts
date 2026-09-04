@@ -1,7 +1,17 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { BookedProduct, BookedProductImportResult } from '../../services/booked-product';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  OnInit,
+} from '@angular/core';
+import {
+  BookedProduct,
+  BookedProductImportResult,
+  BookedProductImportStatus,
+} from '../../services/booked-product';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 class Paginator<T> {
   page = 1;
@@ -40,18 +50,24 @@ class Paginator<T> {
   }
 }
 
+type SectionKey = 'new' | 'updated' | 'unchanged' | 'skipped' | null;
+
 @Component({
   selector: 'app-booked-product-import',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './booked-product-import.html',
   styleUrl: './booked-product-import.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class BookedProductImport {
+export class BookedProductImport implements OnInit {
   selectedFile: File | null = null;
   loading = false;
   result: BookedProductImportResult | null = null;
   errorMessage = '';
+  lastImport: BookedProductImportStatus | null = null;
+
+  // Which summary card's detail is currently open in the modal.
+  activeSection: SectionKey = null;
  
   inserted =
     new Paginator<BookedProductImportResult['insertedRows'][number]>();
@@ -66,6 +82,10 @@ export class BookedProductImport {
     private service: BookedProduct,
     private cdr: ChangeDetectorRef,
   ) {}
+
+  ngOnInit(): void {
+    this.loadImportStatus();
+  }
  
   // ==========================================
   // FILE SELECT
@@ -101,6 +121,8 @@ export class BookedProductImport {
     this.service.importBookedProduct(this.selectedFile).subscribe({
       next: (response) => {
         this.loading = false;
+        this.lastImport = response.lastImport;
+        this.cdr.markForCheck();
  
         // Let the button repaint first, then assign the (possibly large)
         // result on the next tick so the UI doesn't look frozen while
@@ -112,6 +134,9 @@ export class BookedProductImport {
           this.updated.setData(response.updatedRows);
           this.unchanged.setData(response.unchangedRows);
           this.skipped.setData(response.skippedRows);
+
+          // A fresh import replaces whatever was open before.
+          this.activeSection = null;
  
           this.cdr.markForCheck();
         }, 0);
@@ -120,6 +145,19 @@ export class BookedProductImport {
       error: (error) => {
         this.loading = false;
         this.errorMessage = error.error?.message || 'Import failed.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  private loadImportStatus(): void {
+    this.service.getImportStatus().subscribe({
+      next: (response) => {
+        this.lastImport = response.lastImport;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.lastImport = null;
         this.cdr.markForCheck();
       },
     });
@@ -133,11 +171,26 @@ export class BookedProductImport {
     this.selectedFile = null;
     this.result = null;
     this.errorMessage = '';
+    this.activeSection = null;
  
     this.inserted.setData([]);
     this.updated.setData([]);
     this.unchanged.setData([]);
     this.skipped.setData([]);
+  }
+
+  // ==========================================
+  // DETAIL MODAL
+  // ==========================================
+
+  openSection(key: SectionKey): void {
+    this.activeSection = key;
+    this.cdr.markForCheck();
+  }
+
+  closeSection(): void {
+    this.activeSection = null;
+    this.cdr.markForCheck();
   }
  
   // ==========================================

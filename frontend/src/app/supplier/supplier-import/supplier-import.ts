@@ -1,7 +1,17 @@
-import { Component, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
-import { Supplier, ImportResult } from '../../services/supplier';
+import {
+  Component,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  OnInit,
+} from '@angular/core';
+import {
+  Supplier,
+  ImportResult,
+  SupplierImportHistory,
+} from '../../services/supplier';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 
 class Paginator<T> {
   page = 1;
@@ -40,19 +50,28 @@ class Paginator<T> {
   }
 }
 
+type SectionKey = 'new' | 'updated' | 'unchanged' | 'skipped' | null;
+
 @Component({
   selector: 'app-supplier-import',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './supplier-import.html',
   styleUrl: './supplier-import.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class SupplierImport {
+export class SupplierImport implements OnInit {
   selectedFile: File | null = null;
     category = '';
     loading = false;
     result: ImportResult | null = null;
     errorMessage = '';
+    confirmationOpen = false;
+    latestImport: SupplierImportHistory | null = null;
+    undoing = false;
+    undoMessage = '';
+
+    // Which summary card's detail is currently open in the modal.
+    activeSection: SectionKey = null;
   
     // One paginator per table/section
     inserted = new Paginator<ImportResult['insertedRows'][number]>();
@@ -64,6 +83,10 @@ export class SupplierImport {
       private service: Supplier,
       private cdr: ChangeDetectorRef,
     ) {}
+
+    ngOnInit(): void {
+      this.loadLatestImport();
+    }
   
     // ==========================================
     // FILE SELECT
@@ -79,6 +102,8 @@ export class SupplierImport {
       this.selectedFile = file;
       this.errorMessage = '';
       this.result = null;
+      this.confirmationOpen = false;
+      this.undoMessage = '';
     }
   
     // ==========================================
@@ -97,6 +122,27 @@ export class SupplierImport {
         this.errorMessage = 'Please select supplier type.';
         return;
       }
+
+      this.confirmationOpen = true;
+      this.cdr.markForCheck();
+    }
+
+    cancelImport(): void {
+      this.confirmationOpen = false;
+      this.cdr.markForCheck();
+    }
+
+    confirmImport(): void {
+      if (!this.selectedFile || !this.category) {
+        this.confirmationOpen = false;
+        return;
+      }
+
+      const file = this.selectedFile;
+      const category = this.category;
+
+      this.confirmationOpen = false;
+      this.undoMessage = '';
   
       this.loading = true;
       // Under OnPush, mutating a plain property still needs a manual
@@ -104,10 +150,11 @@ export class SupplierImport {
       // immediately, before the potentially heavy response handling below.
       this.cdr.markForCheck();
   
-      this.service.importSupplier(this.selectedFile, this.category).subscribe({
+      this.service.importSupplier(file, category).subscribe({
         next: (response) => {
           this.loading = false;
-  
+          this.cdr.markForCheck();
+
           // Let the "Processing..." -> "Import Supplier" repaint happen
           // FIRST, then assign the (possibly huge) result on the next tick.
           // This avoids the button appearing frozen while Angular chews
@@ -119,6 +166,10 @@ export class SupplierImport {
             this.updated.setData(response.updatedRows);
             this.unchanged.setData(response.unchangedRows);
             this.skipped.setData(response.skippedRows);
+
+            // A fresh import replaces whatever was open before.
+            this.activeSection = null;
+            this.loadLatestImport();
   
             this.cdr.markForCheck();
           }, 0);
@@ -127,6 +178,85 @@ export class SupplierImport {
         error: (error) => {
           this.loading = false;
           this.errorMessage = error.error?.message || 'Import failed.';
+          this.cdr.markForCheck();
+        },
+      });
+    }
+
+    get suggestedCategory(): string | null {
+      if (!this.selectedFile) {
+        return null;
+      }
+
+      const normalizedFileName = this.selectedFile.name
+        .replace(/\.[^.]+$/, '')
+        .toUpperCase()
+        .replace(/[^A-Z0-9]/g, '');
+      const categories = [
+        'ACCOMMODATION',
+        'ACTIVITIES',
+        'BOAT',
+        'FLIGHT',
+        'LIVEABOARD',
+        'LOCAL AGENT',
+        'RESTAURANT',
+        'VISA',
+      ];
+
+      return (
+        categories.find((item) =>
+          normalizedFileName.includes(item.replace(/[^A-Z0-9]/g, '')),
+        ) ?? null
+      );
+    }
+
+    get categoryMismatch(): boolean {
+      return Boolean(
+        this.suggestedCategory && this.suggestedCategory !== this.category,
+      );
+    }
+
+    undoLatestImport(): void {
+      if (!this.latestImport?.canUndo || this.undoing) {
+        return;
+      }
+
+      const approved = window.confirm(
+        `Batalkan penambahan kategori ${this.latestImport.category} dari import ${this.latestImport.fileName}? Supplier tidak akan dihapus.`,
+      );
+
+      if (!approved) {
+        return;
+      }
+
+      this.undoing = true;
+      this.undoMessage = '';
+      this.cdr.markForCheck();
+
+      this.service.undoImport(this.latestImport.importId).subscribe({
+        next: (response) => {
+          this.undoing = false;
+          this.undoMessage = response.message;
+          this.loadLatestImport();
+          this.cdr.markForCheck();
+        },
+        error: (error) => {
+          this.undoing = false;
+          this.errorMessage =
+            error.error?.message || 'Gagal membatalkan import supplier.';
+          this.cdr.markForCheck();
+        },
+      });
+    }
+
+    private loadLatestImport(): void {
+      this.service.getLatestImport().subscribe({
+        next: (response) => {
+          this.latestImport = response.latest;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.latestImport = null;
           this.cdr.markForCheck();
         },
       });
@@ -141,11 +271,28 @@ export class SupplierImport {
       this.category = '';
       this.result = null;
       this.errorMessage = '';
+      this.activeSection = null;
+      this.confirmationOpen = false;
+      this.undoMessage = '';
   
       this.inserted.setData([]);
       this.updated.setData([]);
       this.unchanged.setData([]);
       this.skipped.setData([]);
+    }
+  
+    // ==========================================
+    // DETAIL MODAL
+    // ==========================================
+  
+    openSection(key: SectionKey): void {
+      this.activeSection = key;
+      this.cdr.markForCheck();
+    }
+  
+    closeSection(): void {
+      this.activeSection = null;
+      this.cdr.markForCheck();
     }
   
     // ==========================================

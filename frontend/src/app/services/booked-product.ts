@@ -33,11 +33,20 @@ export interface UnchangedBookedProduct {
 export interface SkippedBookedProduct {
   row: number;
   reason: string;
+  supplier_name?: string | null;
+  product_name?: string | null;
+}
+
+export interface BookedProductImportStatus {
+  fileName: string;
+  totalRows: number;
+  importedAt: string;
 }
  
 export interface BookedProductImportResult {
   success: boolean;
   message: string;
+  lastImport: BookedProductImportStatus | null;
  
   summary: {
     totalRows: number;
@@ -70,5 +79,15 @@ export class BookedProduct {
       `${this.apiUrl}/booked-product/import`,
       formData,
     );
+  }
+
+  getImportStatus(): Observable<{
+    success: boolean;
+    lastImport: BookedProductImportStatus | null;
+  }> {
+    return this.http.get<{
+      success: boolean;
+      lastImport: BookedProductImportStatus | null;
+    }>(`${this.apiUrl}/booked-product/import/status`);
   }
 }

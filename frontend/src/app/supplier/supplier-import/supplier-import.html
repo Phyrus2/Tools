@@ -1,101 +1,109 @@
-<div class="import-container">
+<div class="bp-app">
+
+  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
 
   <!-- HEADER -->
-  <div class="header">
-    <h1>Supplier Import</h1>
-    <p>Upload Excel file and select supplier type.</p>
-  </div>
-
+  <header class="bp-masthead">
+    <h1 class="bp-masthead__title">Supplier Import</h1>
+    <p class="bp-masthead__subtitle">Upload file Excel dan pilih tipe supplier.</p>
+  </header>
 
   <!-- IMPORT FORM -->
-  <div class="import-card">
+  <div class="bp-panel">
 
-    <!-- SUPPLIER TYPE -->
-    <div class="form-group">
+    <div class="bp-panel__grid">
 
-      <label>Supplier Type</label>
+      <!-- SUPPLIER TYPE -->
+      <div class="bp-field">
+        <label for="category">Tipe supplier</label>
+        <div class="bp-select">
+          <select id="category" [(ngModel)]="category">
+            <option value="">Pilih tipe supplier</option>
+            <option value="ACCOMMODATION">ACCOMMODATION</option>
+            <option value="ACTIVITIES">ACTIVITIES</option>
+            <option value="BOAT">BOAT</option>
+            <option value="FLIGHT">FLIGHT</option>
+            <option value="LIVEABOARD">LIVEABOARD</option>
+            <option value="LOCAL AGENT">LOCAL AGENT</option>
+            <option value="RESTAURANT">RESTAURANT</option>
+            <option value="VISA">VISA</option>
+          </select>
+        </div>
+      </div>
 
-      <select [(ngModel)]="category">
-
-        <option value="">
-          Select supplier type
-        </option>
-
-        <option value="FLIGHT">
-          FLIGHT
-        </option>
-
-        <option value="ACCOMMODATION">
-          ACCOMMODATION
-        </option>
-
-        <option value="ACTIVITIES">
-          ACTIVITIES
-        </option>
-
-        <option value="LIVEABOARD">
-          LIVEABOARD
-        </option>
-
-        <option value="BOAT">
-          BOAT
-        </option>
-
-        <option value="LOCAL AGENT">
-          LOCAL AGENT
-        </option>
-
-      </select>
-
-    </div>
-
-
-    <!-- FILE -->
-    <div class="form-group">
-
-      <label>Excel File</label>
-
-      <input
-        type="file"
-        accept=".xls,.xlsx"
-        (change)="onFileSelected($event)"
-      />
-
-      <small *ngIf="selectedFile">
-        Selected:
-        <strong>{{ selectedFile.name }}</strong>
-      </small>
+      <!-- FILE -->
+      <div class="bp-field">
+        <label for="excelFile">File Excel</label>
+        <label class="bp-dropzone" for="excelFile" [class.bp-dropzone--filled]="selectedFile">
+          <svg class="bp-dropzone__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M12 15V4M12 4L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+          </svg>
+          <span class="bp-dropzone__text">
+            <ng-container *ngIf="!selectedFile">Klik untuk memilih file .xls / .xlsx</ng-container>
+            <ng-container *ngIf="selectedFile"><strong>{{ selectedFile.name }}</strong></ng-container>
+          </span>
+          <input
+            id="excelFile"
+            type="file"
+            accept=".xls,.xlsx"
+            (change)="onFileSelected($event)"
+          />
+        </label>
+      </div>
 
     </div>
-
 
     <!-- ERROR -->
-    <div
-      class="alert alert-error"
-      *ngIf="errorMessage"
-    >
-
-      ❌ {{ errorMessage }}
-
-    </div>
-
+    <p class="bp-alert bp-alert--danger" *ngIf="errorMessage">
+      {{ errorMessage }}
+    </p>
 
     <!-- BUTTON -->
     <button
       type="button"
+      class="bp-btn-primary"
       (click)="importSupplier()"
       [disabled]="loading"
     >
-
-      <span *ngIf="!loading">
-        Import Supplier
+      <span *ngIf="!loading">Import Supplier</span>
+      <span class="bp-btn-primary__loading" *ngIf="loading">
+        <span class="bp-spinner" aria-hidden="true"></span>
+        Memproses&hellip;
       </span>
-
-      <span *ngIf="loading">
-        Processing...
-      </span>
-
     </button>
+
+    <div class="bp-import-history" *ngIf="latestImport">
+      <div>
+        <span class="bp-import-history__label">Import supplier terakhir</span>
+        <strong>{{ latestImport.fileName }}</strong>
+        <span>
+          {{ latestImport.category }} &middot;
+          {{ latestImport.importedAt | date: 'dd/MM/yyyy HH:mm' }}
+        </span>
+      </div>
+      <button
+        type="button"
+        class="bp-btn-secondary"
+        *ngIf="latestImport.canUndo"
+        (click)="undoLatestImport()"
+        [disabled]="undoing || loading"
+      >
+        {{ undoing ? 'Membatalkan…' : 'Undo kategori' }}
+      </button>
+      <span class="bp-import-history__undone" *ngIf="latestImport.undoneAt">
+        Sudah dibatalkan
+      </span>
+    </div>
+
+    <p class="bp-alert bp-alert--success" *ngIf="undoMessage">
+      {{ undoMessage }}
+    </p>
 
   </div>
 
@@ -104,287 +112,277 @@
   <!-- RESULT -->
   <!-- ================================================= -->
 
-  <div
-    class="result"
-    *ngIf="result"
-  >
-
+  <div class="bp-result" *ngIf="result">
 
     <!-- SUCCESS -->
-    <div
-      class="alert alert-success"
-      *ngIf="result.success"
-    >
-
-      <strong>✅ Import Successful</strong>
-
-      <div>
-        {{ result.message }}
-      </div>
-
+    <div class="bp-alert bp-alert--success" *ngIf="result.success">
+      <strong>Import berhasil</strong>
+      <div>{{ result.message }}</div>
     </div>
 
-
     <!-- ================================================= -->
-    <!-- SUMMARY -->
-    <!-- ================================================= -->
-
-    <div class="summary">
-
-      <div class="summary-card">
-        <span>Total Rows</span>
-        <strong>{{ result.summary.totalRows }}</strong>
-      </div>
-
-      <div class="summary-card new">
-        <span>New Suppliers</span>
-        <strong>{{ result.summary.inserted }}</strong>
-      </div>
-
-      <div class="summary-card updated">
-        <span>Updated</span>
-        <strong>{{ result.summary.updated }}</strong>
-      </div>
-
-      <div class="summary-card unchanged">
-        <span>Unchanged</span>
-        <strong>{{ result.summary.unchanged }}</strong>
-      </div>
-
-      <div class="summary-card skipped">
-        <span>Skipped</span>
-        <strong>{{ result.summary.skipped }}</strong>
-      </div>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- NEW SUPPLIERS -->
+    <!-- SUMMARY — klik card untuk buka detail di modal -->
     <!-- ================================================= -->
 
-    <div
-      class="result-section"
-      *ngIf="inserted.total > 0"
-    >
+    <div class="bp-stats">
 
-      <div class="section-header">
-        <h2>🆕 New Suppliers</h2>
-        <span class="count">{{ inserted.total }}</span>
+      <div class="bp-stat">
+        <span class="bp-stat__label">Total baris</span>
+        <strong class="bp-stat__value">{{ result.summary.totalRows }}</strong>
       </div>
 
-      <div class="table-wrapper">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>Excel Row</th>
-              <th>Supplier ID</th>
-              <th>Company</th>
-              <th>Town</th>
-              <th>Region</th>
-              <th>Location</th>
-              <th>Category</th>
-            </tr>
-          </thead>
-
-          <!-- Only the current page (default 50 rows) is ever rendered,
-               instead of the full insertedRows array which can be
-               tens of thousands of rows. -->
-          <tbody>
-            <tr
-              *ngFor="let supplier of inserted.pageItems; trackBy: trackByRow"
-            >
-              <td>{{ supplier.row }}</td>
-              <td>{{ supplier.supplier_id }}</td>
-              <td><strong>{{ supplier.company_name }}</strong></td>
-              <td>{{ supplier.town || '-' }}</td>
-              <td>{{ supplier.region || '-' }}</td>
-              <td>{{ supplier.location || '-' }}</td>
-              <td>
-                <span
-                  class="badge"
-                  *ngFor="let category of supplier.category_supplier; trackBy: trackByCategory"
-                >
-                  {{ category }}
-                </span>
-              </td>
-            </tr>
-          </tbody>
-
-        </table>
-
-      </div>
-
-      <!-- PAGINATION -->
-      <div class="pagination" *ngIf="inserted.totalPages > 1">
-        <button type="button" (click)="inserted.prev()" [disabled]="inserted.page === 1">‹ Prev</button>
-        <span>Page {{ inserted.page }} / {{ inserted.totalPages }}</span>
-        <button type="button" (click)="inserted.next()" [disabled]="inserted.page === inserted.totalPages">Next ›</button>
-      </div>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- UPDATED SUPPLIERS -->
-    <!-- ================================================= -->
-
-    <div
-      class="result-section"
-      *ngIf="updated.total > 0"
-    >
-
-      <div class="section-header">
-        <h2>🔄 Updated Suppliers</h2>
-        <span class="count updated-count">{{ updated.total }}</span>
-      </div>
-
-      <div
-        class="update-card"
-        *ngFor="let supplier of updated.pageItems; trackBy: trackByRow"
+      <button
+        type="button"
+        class="bp-stat bp-stat--new bp-stat--clickable"
+        [disabled]="inserted.total === 0"
+        (click)="openSection('new')"
       >
+        <span class="bp-stat__label">Supplier baru</span>
+        <strong class="bp-stat__value">{{ result.summary.inserted }}</strong>
+        <span class="bp-stat__hint" *ngIf="inserted.total > 0">Lihat list &rsaquo;</span>
+      </button>
 
-        <div class="update-header">
+      <button
+        type="button"
+        class="bp-stat bp-stat--updated bp-stat--clickable"
+        [disabled]="updated.total === 0"
+        (click)="openSection('updated')"
+      >
+        <span class="bp-stat__label">Diperbarui</span>
+        <strong class="bp-stat__value">{{ result.summary.updated }}</strong>
+        <span class="bp-stat__hint" *ngIf="updated.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--unchanged bp-stat--clickable"
+        [disabled]="unchanged.total === 0"
+        (click)="openSection('unchanged')"
+      >
+        <span class="bp-stat__label">Tidak berubah</span>
+        <strong class="bp-stat__value">{{ result.summary.unchanged }}</strong>
+        <span class="bp-stat__hint" *ngIf="unchanged.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--skipped bp-stat--clickable"
+        [disabled]="skipped.total === 0"
+        (click)="openSection('skipped')"
+      >
+        <span class="bp-stat__label">Dilewati</span>
+        <strong class="bp-stat__value">{{ result.summary.skipped }}</strong>
+        <span class="bp-stat__hint" *ngIf="skipped.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- ================================================= -->
+  <!-- DETAIL MODAL — isi berganti sesuai activeSection -->
+  <!-- ================================================= -->
+
+  <div class="bp-modal-overlay" *ngIf="confirmationOpen" (click)="cancelImport()">
+    <div
+      class="bp-modal bp-confirm-modal"
+      role="dialog"
+      aria-modal="true"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="bp-modal__header">
+        <h2>Konfirmasi import supplier</h2>
+        <button type="button" class="bp-modal__close" (click)="cancelImport()" aria-label="Tutup">
+          &times;
+        </button>
+      </header>
+
+      <div class="bp-modal__body">
+        <p>Pastikan file dan kategori berikut sudah sesuai.</p>
+        <dl class="bp-confirm-list">
           <div>
-            <strong>{{ supplier.company_name }}</strong>
-            <span>Supplier ID: {{ supplier.supplier_id }}</span>
+            <dt>File</dt>
+            <dd>{{ selectedFile?.name }}</dd>
           </div>
-          <span>Excel Row {{ supplier.row }}</span>
+          <div>
+            <dt>Kategori yang akan ditambahkan</dt>
+            <dd><strong>{{ category }}</strong></dd>
+          </div>
+        </dl>
+
+        <p class="bp-alert bp-alert--danger" *ngIf="categoryMismatch">
+          Nama file mengarah ke kategori <strong>{{ suggestedCategory }}</strong>, tetapi kategori
+          yang dipilih adalah <strong>{{ category }}</strong>.
+        </p>
+
+        <div class="bp-confirm-actions">
+          <button type="button" class="bp-btn-secondary" (click)="cancelImport()">Kembali</button>
+          <button type="button" class="bp-btn-primary" (click)="confirmImport()">
+            {{ categoryMismatch ? 'Tetap import' : 'Ya, import' }}
+          </button>
         </div>
+      </div>
+    </div>
+  </div>
 
-        <div class="changes">
-          <div
-            class="change-row"
-            *ngFor="let change of supplier.changes; trackBy: trackByField"
-          >
-            <div class="change-field">{{ change.field }}</div>
+  <div class="bp-modal-overlay" *ngIf="activeSection" (click)="closeSection()">
+    <div class="bp-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
 
-            <div class="change-old">
-              <span class="change-label">Before</span>
-              <div class="value old-value">{{ displayValue(change.old) }}</div>
+      <header class="bp-modal__header">
+        <h2 *ngIf="activeSection === 'new'">Supplier baru</h2>
+        <h2 *ngIf="activeSection === 'updated'">Supplier diperbarui</h2>
+        <h2 *ngIf="activeSection === 'unchanged'">Supplier tidak berubah</h2>
+        <h2 *ngIf="activeSection === 'skipped'">Baris dilewati</h2>
+        <button type="button" class="bp-modal__close" (click)="closeSection()" aria-label="Tutup">
+          &times;
+        </button>
+      </header>
+
+      <div class="bp-modal__body">
+
+        <!-- NEW SUPPLIERS -->
+        <ng-container *ngIf="activeSection === 'new'">
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>ID Supplier</th>
+                  <th>Perusahaan</th>
+                  <th>Kota</th>
+                  <th>Wilayah</th>
+                  <th>Lokasi</th>
+                  <th>Kategori</th>
+                </tr>
+              </thead>
+              <!-- Only the current page (default 50 rows) is ever rendered,
+                   instead of the full insertedRows array which can be
+                   tens of thousands of rows. -->
+              <tbody>
+                <tr *ngFor="let supplier of inserted.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ supplier.row }}</td>
+                  <td data-label="ID Supplier">{{ supplier.supplier_id }}</td>
+                  <td data-label="Perusahaan"><span class="bp-table__primary">{{ supplier.company_name }}</span></td>
+                  <td data-label="Kota">{{ supplier.town || '—' }}</td>
+                  <td data-label="Wilayah">{{ supplier.region || '—' }}</td>
+                  <td data-label="Lokasi">{{ supplier.location || '—' }}</td>
+                  <td data-label="Kategori">
+                    <span
+                      class="bp-badge"
+                      *ngFor="let category of supplier.category_supplier; trackBy: trackByCategory"
+                    >
+                      {{ category }}
+                    </span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="inserted.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="inserted.prev()" [disabled]="inserted.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ inserted.page }} / {{ inserted.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="inserted.next()" [disabled]="inserted.page === inserted.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- UPDATED SUPPLIERS -->
+        <ng-container *ngIf="activeSection === 'updated'">
+          <div class="bp-diff-card" *ngFor="let supplier of updated.pageItems; trackBy: trackByRow">
+            <div class="bp-diff-card__header">
+              <div>
+                <strong>{{ supplier.company_name }}</strong>
+                <span>ID Supplier: {{ supplier.supplier_id }}</span>
+              </div>
+              <span class="bp-diff-card__row-tag">Baris Excel {{ supplier.row }}</span>
             </div>
 
-            <div class="arrow">→</div>
+            <div class="bp-diff-list">
+              <div
+                class="bp-diff-row"
+                *ngFor="let change of supplier.changes; trackBy: trackByField"
+              >
+                <div class="bp-diff-row__field">{{ change.field }}</div>
 
-            <div class="change-new">
-              <span class="change-label">After</span>
-              <div class="value new-value">{{ displayValue(change.new) }}</div>
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sebelum</span>
+                  <div class="bp-value bp-value--old">{{ displayValue(change.old) }}</div>
+                </div>
+
+                <div class="bp-diff-row__arrow" aria-hidden="true">&rarr;</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sesudah</span>
+                  <div class="bp-value bp-value--new">{{ displayValue(change.new) }}</div>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+
+          <div class="bp-pager" *ngIf="updated.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="updated.prev()" [disabled]="updated.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ updated.page }} / {{ updated.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- UNCHANGED -->
+        <ng-container *ngIf="activeSection === 'unchanged'">
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>ID Supplier</th>
+                  <th>Perusahaan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let supplier of unchanged.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ supplier.row }}</td>
+                  <td data-label="ID Supplier">{{ supplier.supplier_id }}</td>
+                  <td data-label="Perusahaan">{{ supplier.company_name }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="unchanged.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="unchanged.prev()" [disabled]="unchanged.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ unchanged.page }} / {{ unchanged.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="unchanged.next()" [disabled]="unchanged.page === unchanged.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- SKIPPED -->
+        <ng-container *ngIf="activeSection === 'skipped'">
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>Alasan</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of skipped.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ row.row }}</td>
+                  <td data-label="Alasan">{{ row.reason }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="skipped.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="skipped.prev()" [disabled]="skipped.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ skipped.page }} / {{ skipped.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="skipped.next()" [disabled]="skipped.page === skipped.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
 
       </div>
-
-      <!-- PAGINATION -->
-      <div class="pagination" *ngIf="updated.totalPages > 1">
-        <button type="button" (click)="updated.prev()" [disabled]="updated.page === 1">‹ Prev</button>
-        <span>Page {{ updated.page }} / {{ updated.totalPages }}</span>
-        <button type="button" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next ›</button>
-      </div>
-
     </div>
-
-
-    <!-- ================================================= -->
-    <!-- UNCHANGED -->
-    <!-- ================================================= -->
-
-    <div
-      class="result-section"
-      *ngIf="unchanged.total > 0"
-    >
-
-      <div class="section-header">
-        <h2>⚪ Unchanged Suppliers</h2>
-        <span class="count">{{ unchanged.total }}</span>
-      </div>
-
-      <div class="table-wrapper">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>Excel Row</th>
-              <th>Supplier ID</th>
-              <th>Company</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr
-              *ngFor="let supplier of unchanged.pageItems; trackBy: trackByRow"
-            >
-              <td>{{ supplier.row }}</td>
-              <td>{{ supplier.supplier_id }}</td>
-              <td>{{ supplier.company_name }}</td>
-            </tr>
-          </tbody>
-
-        </table>
-
-      </div>
-
-      <!-- PAGINATION -->
-      <div class="pagination" *ngIf="unchanged.totalPages > 1">
-        <button type="button" (click)="unchanged.prev()" [disabled]="unchanged.page === 1">‹ Prev</button>
-        <span>Page {{ unchanged.page }} / {{ unchanged.totalPages }}</span>
-        <button type="button" (click)="unchanged.next()" [disabled]="unchanged.page === unchanged.totalPages">Next ›</button>
-      </div>
-
-    </div>
-
-
-    <!-- ================================================= -->
-    <!-- SKIPPED -->
-    <!-- ================================================= -->
-
-    <div
-      class="result-section"
-      *ngIf="skipped.total > 0"
-    >
-
-      <div class="section-header">
-        <h2>⚠️ Skipped Rows</h2>
-        <span class="count skipped-count">{{ skipped.total }}</span>
-      </div>
-
-      <div class="table-wrapper">
-
-        <table>
-
-          <thead>
-            <tr>
-              <th>Excel Row</th>
-              <th>Reason</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            <tr
-              *ngFor="let row of skipped.pageItems; trackBy: trackByRow"
-            >
-              <td>{{ row.row }}</td>
-              <td>{{ row.reason }}</td>
-            </tr>
-          </tbody>
-
-        </table>
-
-      </div>
-
-      <!-- PAGINATION -->
-      <div class="pagination" *ngIf="skipped.totalPages > 1">
-        <button type="button" (click)="skipped.prev()" [disabled]="skipped.page === 1">‹ Prev</button>
-        <span>Page {{ skipped.page }} / {{ skipped.totalPages }}</span>
-        <button type="button" (click)="skipped.next()" [disabled]="skipped.page === skipped.totalPages">Next ›</button>
-      </div>
-
-    </div>
-
-
   </div>
 
 </div>

@@ -23,6 +23,7 @@ const ALLOWED_COLUMNS = [
   "dossier_id",
   "dossier_name",
   "supplier_id",
+  "supplier_name",
   "product_id",
   "product_name",
   "status",
@@ -61,8 +62,8 @@ const HEADER_ALIASES = {
   // Supplier ID
   supplierid: "supplier_id",
 
-  // Supplier tidak digunakan
-  supplier: null,
+  // Nama supplier dipakai untuk memberi konteks pada baris yang dilewati
+  supplier: "supplier_name",
 
   // Product ID
   productid: "product_id",
@@ -460,6 +461,50 @@ function normalizeTransport(value) {
   return JSON.stringify(result);
 }
 
+async function recordBookedProductImport(fileName, totalRows) {
+  await pool.query(
+    `
+    INSERT INTO data_import_status (dataset, file_name, total_rows, imported_at)
+    VALUES ('booked_products', ?, ?, CURRENT_TIMESTAMP)
+    ON DUPLICATE KEY UPDATE
+      file_name = VALUES(file_name),
+      total_rows = VALUES(total_rows),
+      imported_at = CURRENT_TIMESTAMP
+    `,
+    [fileName, totalRows],
+  );
+
+  return readBookedProductImportStatus();
+}
+
+async function readBookedProductImportStatus() {
+  const [rows] = await pool.query(
+    `
+    SELECT file_name AS fileName, total_rows AS totalRows, imported_at AS importedAt
+    FROM data_import_status
+    WHERE dataset = 'booked_products'
+    `,
+  );
+
+  return rows[0] ?? null;
+}
+
+async function getBookedProductImportStatus(_req, res) {
+  try {
+    return res.status(200).json({
+      success: true,
+      lastImport: await readBookedProductImportStatus(),
+    });
+  } catch (error) {
+    console.error("Get booked product import status error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Gagal mengambil status booked product.",
+    });
+  }
+}
+
 /**
  * ============================================================
  * IMPORT BOOKED PRODUCT (HTTP HANDLER)
@@ -602,6 +647,7 @@ async function importBookedProduct(req, res) {
         skippedRows.push({
           row: excelRow,
           reason: `supplier_id "${mapped.supplier_id}" tidak ditemukan di database`,
+          supplier_name: mapped.supplier_name || null,
         });
 
         return;
@@ -626,6 +672,8 @@ async function importBookedProduct(req, res) {
         skippedRows.push({
           row: excelRow,
           reason: `product_id "${mapped.product_id}" tidak ditemukan di database`,
+          supplier_name: mapped.supplier_name || null,
+          product_name: mapped.product_name || null,
         });
 
         return;
@@ -773,6 +821,8 @@ async function importBookedProduct(req, res) {
      */
 
     if (dataToInsert.length === 0) {
+      const lastImport = await readBookedProductImportStatus();
+
       if (filePath) {
         fs.unlink(filePath, () => {});
         filePath = null;
@@ -781,6 +831,7 @@ async function importBookedProduct(req, res) {
       return res.status(200).json({
         success: true,
         message: "Tidak ada data valid untuk diimport.",
+        lastImport,
         summary: {
           totalRows: rows.length,
           inserted: 0,
@@ -1171,6 +1222,11 @@ async function importBookedProduct(req, res) {
       affectedRows = result.affectedRows;
     }
 
+    const lastImport = await recordBookedProductImport(
+      req.file.originalname,
+      rows.length,
+    );
+
     /**
      * ==========================================================
      * HAPUS TEMPORARY FILE
@@ -1203,6 +1259,7 @@ async function importBookedProduct(req, res) {
     return res.status(200).json({
       success: true,
       message: "Import booked product berhasil.",
+      lastImport,
 
       summary: {
         totalRows: rows.length,
@@ -1278,4 +1335,5 @@ module.exports = {
     upload.single("file"),
     importBookedProduct,
   ],
+  getBookedProductImportStatus,
 };

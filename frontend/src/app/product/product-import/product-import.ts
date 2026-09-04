@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, ChangeDetectorRef } from '@angular/
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Product, ProductImportResult } from '../../services/product';
+import { RouterLink } from '@angular/router';
 
 class Paginator<T> {
   page = 1;
@@ -40,9 +41,11 @@ class Paginator<T> {
   }
 }
 
+type SectionKey = 'new' | 'updated' | 'unchanged' | 'skipped' | null;
+
 @Component({
   selector: 'app-import-product',
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, RouterLink],
   templateUrl: './product-import.html',
   styleUrl: './product-import.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -53,9 +56,13 @@ export class ProductImport {
     loading = false;
     result: ProductImportResult | null = null;
     errorMessage = '';
+
+    // Which summary card's detail is currently open in the modal.
+    activeSection: SectionKey = null;
    
     inserted = new Paginator<ProductImportResult['insertedRows'][number]>();
     updated = new Paginator<ProductImportResult['updatedRows'][number]>();
+    unchanged = new Paginator<ProductImportResult['unchangedRows'][number]>();
     skipped = new Paginator<ProductImportResult['skippedRows'][number]>();
    
     constructor(
@@ -106,7 +113,11 @@ export class ProductImport {
    
             this.inserted.setData(response.insertedRows);
             this.updated.setData(response.updatedRows);
+            this.unchanged.setData(response.unchangedRows);
             this.skipped.setData(response.skippedRows);
+
+            // A fresh import replaces whatever was open before.
+            this.activeSection = null;
    
             this.cdr.markForCheck();
           }, 0);
@@ -128,10 +139,26 @@ export class ProductImport {
       this.selectedFile = null;
       this.result = null;
       this.errorMessage = '';
+      this.activeSection = null;
    
       this.inserted.setData([]);
       this.updated.setData([]);
+      this.unchanged.setData([]);
       this.skipped.setData([]);
+    }
+
+    // ==========================================
+    // DETAIL MODAL
+    // ==========================================
+
+    openSection(key: SectionKey): void {
+      this.activeSection = key;
+      this.cdr.markForCheck();
+    }
+
+    closeSection(): void {
+      this.activeSection = null;
+      this.cdr.markForCheck();
     }
    
     // ==========================================

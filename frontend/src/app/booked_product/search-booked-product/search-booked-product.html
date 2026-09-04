@@ -1,9 +1,42 @@
 <section class="bp-app" [formGroup]="form">
+  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
+
   <header class="bp-masthead">
     <h1 class="bp-masthead__title">Booked Product</h1>
     <p class="bp-masthead__subtitle">
       Cari berdasarkan nama produk, supplier, lokasi, atau catatan booking.
     </p>
+    <div class="bp-data-freshness" *ngIf="lastImport; else noImportHistory">
+      <svg class="bp-data-freshness__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3.5" y="5.5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8 3.5v4M16 3.5v4M3.5 10h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        <path d="m9 15 2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <div class="bp-data-freshness__content">
+        <span class="bp-data-freshness__label">Data Booked Product terakhir diperbarui</span>
+        <strong>{{ lastImport.importedAt | date: 'dd/MM/yyyy, HH:mm' }}</strong>
+        <span class="bp-data-freshness__source">
+          Sumber: {{ lastImport.fileName }} &middot; {{ lastImport.totalRows }} baris
+        </span>
+      </div>
+    </div>
+    <ng-template #noImportHistory>
+      <div class="bp-data-freshness bp-data-freshness--empty">
+        <svg class="bp-data-freshness__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5" />
+          <path d="M12 8v5M12 16.5v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+        <div class="bp-data-freshness__content">
+          <span class="bp-data-freshness__label">Status pembaruan data</span>
+          <strong>Belum ada riwayat import Booked Product</strong>
+        </div>
+      </div>
+    </ng-template>
   </header>
 
   <form class="bp-search-row" (ngSubmit)="onSubmit()">
@@ -27,7 +60,7 @@
       class="bp-search__reset"
       type="button"
       (click)="clearSearch()"
-      [disabled]="!hasSearched && !form.value.keyword"
+      [disabled]="!hasSearched && !form.value.keyword && form.value.dateMode === 'none'"
     >
       Reset
     </button>
@@ -62,6 +95,26 @@
           type="radio"
           name="dateMode"
           formControlName="dateMode"
+          value="from"
+          (change)="onDateModeChange()"
+        />
+        <span>Mulai tanggal</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="until"
+          (change)="onDateModeChange()"
+        />
+        <span>Sampai tanggal</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
           value="range"
           (change)="onDateModeChange()"
         />
@@ -69,9 +122,24 @@
       </label>
     </div>
 
-    <div class="bp-date-fields" *ngIf="form.value.dateMode === 'single'">
+    <div
+      class="bp-date-fields"
+      *ngIf="
+        form.value.dateMode === 'single' ||
+        form.value.dateMode === 'from' ||
+        form.value.dateMode === 'until'
+      "
+    >
       <div class="bp-date-field">
-        <label for="date">Tanggal</label>
+        <label for="date">
+          {{
+            form.value.dateMode === 'from'
+              ? 'Mulai dari (termasuk tanggal ini)'
+              : form.value.dateMode === 'until'
+                ? 'Sampai dengan (termasuk tanggal ini)'
+                : 'Tanggal'
+          }}
+        </label>
         <input id="date" type="date" formControlName="date" (change)="onDateFieldChange()" />
       </div>
     </div>
@@ -209,6 +277,16 @@
         <div class="bp-row">
           <dt>Supplier</dt>
           <dd>{{ selectedItem.company_name }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Alamat</dt>
+          <dd>
+            <ng-container *ngIf="selectedItem.address; else noDetailAddress">
+              {{ selectedItem.address }}
+            </ng-container>
+            <ng-template #noDetailAddress>&mdash;</ng-template>
+          </dd>
         </div>
 
         <div class="bp-row">
