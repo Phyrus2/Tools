@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS products (
 
     type VARCHAR(255),
 
+    status VARCHAR(50) NOT NULL DEFAULT 'Regular Product',
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

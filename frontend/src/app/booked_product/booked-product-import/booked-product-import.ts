@@ -8,6 +8,8 @@ import {
   BookedProduct,
   BookedProductImportResult,
   BookedProductImportStatus,
+  ManualBookedProductPayload,
+  SkippedBookedProduct,
 } from '../../services/booked-product';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -48,6 +50,16 @@ class Paginator<T> {
   prev() {
     this.goTo(this.page - 1);
   }
+
+  prepend(item: T) {
+    this.all = [item, ...this.all];
+    this.page = 1;
+  }
+
+  remove(predicate: (item: T) => boolean) {
+    this.all = this.all.filter((item) => !predicate(item));
+    this.page = Math.min(this.page, this.totalPages);
+  }
 }
 
 type SectionKey = 'new' | 'updated' | 'unchanged' | 'skipped' | null;
@@ -65,6 +77,10 @@ export class BookedProductImport implements OnInit {
   result: BookedProductImportResult | null = null;
   errorMessage = '';
   lastImport: BookedProductImportStatus | null = null;
+  manualForm: ManualBookedProductPayload | null = null;
+  manualSaving = false;
+  manualError = '';
+  manualNotice = '';
 
   // Which summary card's detail is currently open in the modal.
   activeSection: SectionKey = null;
@@ -101,6 +117,8 @@ export class BookedProductImport implements OnInit {
     this.selectedFile = file;
     this.errorMessage = '';
     this.result = null;
+    this.manualForm = null;
+    this.manualNotice = '';
   }
  
   // ==========================================
@@ -172,6 +190,9 @@ export class BookedProductImport implements OnInit {
     this.result = null;
     this.errorMessage = '';
     this.activeSection = null;
+    this.manualForm = null;
+    this.manualError = '';
+    this.manualNotice = '';
  
     this.inserted.setData([]);
     this.updated.setData([]);
@@ -192,6 +213,104 @@ export class BookedProductImport implements OnInit {
     this.activeSection = null;
     this.cdr.markForCheck();
   }
+
+  openManualProduct(row: SkippedBookedProduct): void {
+    const data = row.manual_data;
+
+    if (!data) {
+      return;
+    }
+
+    const originalProductId = data.original_product_id;
+
+    this.manualForm = {
+      sourceRow: row.row,
+      idMode: originalProductId && originalProductId > 0 ? 'manual' : 'random',
+      productId: originalProductId && originalProductId > 0 ? originalProductId : null,
+      supplierId: data.supplier_id,
+      productName: data.product_name || '',
+      productType: data.product_type || '',
+      productStatus: 'One Time Product',
+      booking: {
+        bookedProductId: data.booked_product_id,
+        dossierId: data.dossier_id || '',
+        dossierName: data.dossier_name || '',
+        status: data.booking_status || '',
+        code: data.code || '',
+        duration: data.duration,
+        travelDate: data.travel_date || '',
+        endDate: data.end_date || '',
+        sales: data.sales || '',
+        operational: data.operational || '',
+        quantity: data.quantity,
+        unit: data.unit || '',
+        price: data.price,
+        description: data.description || '',
+        info: data.info || '',
+        instructions: data.instructions || '',
+        transportPickup: data.transport_pickup || '',
+        transportDropoff: data.transport_dropoff || '',
+      },
+    };
+
+    this.manualError = '';
+    this.manualNotice = '';
+    this.cdr.markForCheck();
+  }
+
+  closeManualProduct(): void {
+    if (this.manualSaving) {
+      return;
+    }
+
+    this.manualForm = null;
+    this.manualError = '';
+    this.cdr.markForCheck();
+  }
+
+  saveManualProduct(): void {
+    if (!this.manualForm || this.manualSaving) {
+      return;
+    }
+
+    this.manualSaving = true;
+    this.manualError = '';
+
+    this.service.createManualProduct(this.manualForm).subscribe({
+      next: (response) => {
+        const sourceRow = this.manualForm?.sourceRow;
+
+        if (sourceRow !== undefined) {
+          this.skipped.remove((row) => row.row === sourceRow);
+        }
+
+        this.inserted.prepend(response.bookedProduct);
+
+        if (this.result) {
+          this.result.skippedRows = this.result.skippedRows.filter(
+            (row) => row.row !== sourceRow,
+          );
+          this.result.insertedRows = [
+            response.bookedProduct,
+            ...this.result.insertedRows,
+          ];
+          this.result.summary.skipped = this.skipped.total;
+          this.result.summary.inserted = this.inserted.total;
+        }
+
+        this.manualSaving = false;
+        this.manualForm = null;
+        this.manualNotice = `${response.message} Product ID: ${response.productId}.`;
+        this.cdr.markForCheck();
+      },
+      error: (error) => {
+        this.manualSaving = false;
+        this.manualError =
+          error.error?.message || 'Gagal menambahkan produk secara manual.';
+        this.cdr.markForCheck();
+      },
+    });
+  }
  
   // ==========================================
   // DISPLAY VALUE
@@ -201,8 +320,47 @@ export class BookedProductImport implements OnInit {
     if (value === null || value === undefined || value === '') {
       return '-';
     }
+
+    if (typeof value === 'object') {
+      return JSON.stringify(value);
+    }
  
     return String(value);
+  }
+
+  formatChangeField(field: string): string {
+    const labels: Record<string, string> = {
+      dossier_id: 'Dossier ID',
+      dossier_name: 'Dossier Name',
+      supplier_id: 'Supplier ID',
+      product_id: 'Product ID',
+      product_name: 'Product Name',
+      status: 'Status',
+      code: 'Code',
+      duration: 'Duration',
+      travel_date: 'Travel Date',
+      end_date: 'End Date',
+      sales: 'Sales',
+      operational: 'Operational',
+      quantity: 'Quantity',
+      unit: 'Unit',
+      price: 'Price',
+      description: 'Description',
+      info: 'Info',
+      instructions: 'Instructions',
+      transport_pickup: 'Transport Pickup',
+      transport_dropoff: 'Transport Dropoff',
+    };
+
+    return labels[field] ?? field;
+  }
+
+  displayChangeValue(field: string, value: any): string {
+    if (field === 'travel_date' || field === 'end_date') {
+      return this.formatDate(value);
+    }
+
+    return this.displayValue(value);
   }
  
   // ==========================================
@@ -233,5 +391,9 @@ export class BookedProductImport implements OnInit {
  
   trackByRow(_index: number, item: any): any {
     return item.id ?? item.row;
+  }
+
+  trackByField(_index: number, item: any): string {
+    return item.field;
   }
 }

@@ -2,8 +2,12 @@ import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, inject, ChangeDetectorRef } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Subject, Subscription } from 'rxjs';
+import { Subject, Subscription, firstValueFrom } from 'rxjs';
 import { debounceTime, distinctUntilChanged, switchMap, tap } from 'rxjs/operators';
+
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import * as XLSX from 'xlsx';
 
 import {
   Search,
@@ -14,15 +18,55 @@ import {
   BookedProduct,
   BookedProductImportStatus,
 } from '../../services/booked-product';
+import { DatePicker } from '../../shared/date-picker/date-picker';
 
 type DateMode = 'none' | 'single' | 'from' | 'until' | 'range';
+type ExportKind = 'pdf' | 'excel' | 'copy';
 
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
+const INDONESIAN_MONTH_NAMES = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+// Limit maksimum per-request yang sudah diizinkan backend (lihat searchBookedProduct.js).
+// Dipakai saat export supaya kita bisa menyapu semua halaman dengan request sesedikit mungkin.
+const EXPORT_FETCH_LIMIT = 200;
+
+interface ExportColumn {
+  label: string;
+  key: string;
+}
+
+// Kolom & urutan yang SAMA dipakai untuk export PDF, Excel, maupun Copy.
+const EXPORT_COLUMNS: ExportColumn[] = [
+  { label: 'Dossier ID', key: 'dossier_id' },
+  { label: 'Dossier Name', key: 'dossier_name' },
+  { label: 'Status', key: 'status' },
+  { label: 'Supplier', key: 'company_name' },
+  { label: 'Product', key: 'product_name' },
+  { label: 'Duration', key: 'duration' },
+  { label: 'Travel Date', key: 'travel_date' },
+  { label: 'End Date', key: 'end_date' },
+  { label: 'Sales', key: 'sales' },
+  { label: 'Operational', key: 'operational' },
+  { label: 'Quantity', key: 'quantity' },
+];
 
 @Component({
   selector: 'app-search-booked-product',
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, DatePicker],
   templateUrl: './search-booked-product.html',
   styleUrl: './search-booked-product.scss',
 })
@@ -51,6 +95,16 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   selectedItem: BookedProductSearchResult | null = null;
   lastImport: BookedProductImportStatus | null = null;
+
+  // --- Export & copy state ---
+  exporting: ExportKind | null = null;
+  exportError: string | null = null;
+  copyFeedback = false;
+  private copyFeedbackTimeout?: ReturnType<typeof setTimeout>;
+
+  // --- Per-row copy state (copy satu item langsung dari tabel) ---
+  copiedRowIndex: number | null = null;
+  private copiedRowTimeout?: ReturnType<typeof setTimeout>;
 
   private readonly search$ = new Subject<void>();
   private subscription?: Subscription;
@@ -145,6 +199,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.subscription?.unsubscribe();
+    clearTimeout(this.copyFeedbackTimeout);
+    clearTimeout(this.copiedRowTimeout);
   }
 
   formatLongText(text: string | null): string {
@@ -173,6 +229,31 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     return formatted.trim();
   }
 
+  formatDisplayDate(value: string | null | undefined): string {
+    if (!value) return '—';
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    if (!match) return String(value);
+
+    const [, year, month, day] = match;
+    return `${Number(day)} ${INDONESIAN_MONTH_NAMES[Number(month) - 1]} ${year}`;
+  }
+
+  formatDisplayDateTime(value: string | null | undefined): string {
+    if (!value) return '—';
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return String(value);
+
+    return new Intl.DateTimeFormat('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(date);
+  }
+
   // =====================================================
   // ACTIONS
   // =====================================================
@@ -191,6 +272,32 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   onDateFieldChange(): void {
     this.page = 1;
     this.triggerSearch();
+  }
+
+  onSingleDateSelected(value: string): void {
+    this.form.controls.date.setValue(value);
+    this.onDateFieldChange();
+  }
+
+  onStartDateSelected(value: string): void {
+    this.form.controls.startDate.setValue(value);
+    this.onDateFieldChange();
+  }
+
+  onEndDateSelected(value: string): void {
+    this.form.controls.endDate.setValue(value);
+    this.onDateFieldChange();
+  }
+
+  get isDateRangeInvalid(): boolean {
+    const { dateMode, startDate, endDate } = this.form.getRawValue();
+
+    return Boolean(
+      dateMode === 'range' &&
+        startDate &&
+        endDate &&
+        startDate > endDate,
+    );
   }
 
   goToPage(nextPage: number): void {
@@ -212,6 +319,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     this.results = [];
     this.hasSearched = false;
     this.errorMessage = null;
+    this.exportError = null;
     this.page = 1;
     this.totalPages = 1;
     this.total = 0;
@@ -236,11 +344,374 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   }
 
   // =====================================================
+  // EXPORT & COPY
+  // =====================================================
+  // Catatan: export mengambil SEMUA baris yang cocok dengan filter pencarian
+  // saat ini (bukan cuma halaman yang sedang tampil di layar), dengan menyapu
+  // seluruh halaman lewat endpoint search yang sama.
+
+  async exportPdf(): Promise<void> {
+    if (this.exporting) return;
+
+    const rows = await this.prepareExportRows('pdf');
+    if (!rows) return;
+
+    try {
+      const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+      doc.setFontSize(13);
+      doc.text(this.buildPdfTitle(), 40, 36);
+
+      doc.setFontSize(9);
+      const info: string[] = [];
+      if (this.form.value.keyword) info.push(`Keyword: "${this.form.value.keyword}"`);
+      info.push(`${rows.length} rows`);
+      info.push(`Exported ${this.formatTimestamp()}`);
+      doc.text(info.join('   •   '), 40, 52);
+
+      autoTable(doc, {
+        startY: 64,
+        head: [EXPORT_COLUMNS.map((c) => c.label)],
+        body: rows.map((row) =>
+          EXPORT_COLUMNS.map((c) => this.stringifyCell((row as any)[c.key])),
+        ),
+        styles: { fontSize: 8, cellPadding: 4 },
+        headStyles: { fillColor: [53, 86, 77] }, // var(--bp-forest)
+        margin: { left: 40, right: 40 },
+      });
+
+      doc.save(this.buildExportFilename('pdf'));
+    } catch (err) {
+      console.error('❌ Export PDF error:', err);
+      this.exportError = 'Gagal membuat file PDF.';
+    } finally {
+      this.exporting = null;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async exportExcel(): Promise<void> {
+    if (this.exporting) return;
+
+    const rows = await this.prepareExportRows('excel');
+    if (!rows) return;
+
+    try {
+      const sheetData = rows.map((row) => {
+        const record: Record<string, unknown> = {};
+        for (const col of EXPORT_COLUMNS) {
+          record[col.label] = (row as any)[col.key] ?? '';
+        }
+        return record;
+      });
+
+      const worksheet = XLSX.utils.json_to_sheet(sheetData);
+      worksheet['!cols'] = EXPORT_COLUMNS.map(() => ({ wch: 18 }));
+
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Booked Product');
+
+      XLSX.writeFile(workbook, this.buildExportFilename('xlsx'));
+    } catch (err) {
+      console.error('❌ Export Excel error:', err);
+      this.exportError = 'Gagal membuat file Excel.';
+    } finally {
+      this.exporting = null;
+      this.cdr.markForCheck();
+    }
+  }
+
+  async copyResults(): Promise<void> {
+    if (this.exporting) return;
+
+    const rows = await this.prepareExportRows('copy');
+    if (!rows) return;
+
+    try {
+      const header: string[] = [`*Hasil Booked Product* (${rows.length} data)`];
+      if (this.form.value.keyword) header.push(`Keyword: "${this.form.value.keyword}"`);
+      header.push(`Diekspor ${this.formatTimestamp()}`);
+
+      const blocks = rows.map((row, index) => this.buildWhatsAppBlock(row as any, index + 1));
+      const text = [header.join('\n'), '', blocks.join('\n\n')].join('\n');
+
+      await this.writeClipboard(text);
+
+      this.copyFeedback = true;
+      clearTimeout(this.copyFeedbackTimeout);
+      this.copyFeedbackTimeout = setTimeout(() => {
+        this.copyFeedback = false;
+        this.cdr.markForCheck();
+      }, 2000);
+    } catch (err) {
+      console.error('❌ Copy error:', err);
+      this.exportError = 'Gagal menyalin data. Periksa izin clipboard browser lalu coba lagi.';
+    } finally {
+      this.exporting = null;
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Copy satu baris langsung dari tabel hasil (tanpa perlu mengambil ulang
+   * semua halaman) — dipakai oleh tombol copy per-item.
+   */
+  async copyItem(item: BookedProductSearchResult, rowIndex: number): Promise<void> {
+    this.exportError = null;
+
+    try {
+      const text = this.buildWhatsAppBlock(item as any);
+      await this.writeClipboard(text);
+
+      this.copiedRowIndex = rowIndex;
+      clearTimeout(this.copiedRowTimeout);
+      this.copiedRowTimeout = setTimeout(() => {
+        this.copiedRowIndex = null;
+        this.cdr.markForCheck();
+      }, 1500);
+      this.cdr.markForCheck();
+    } catch (err) {
+      console.error('❌ Copy item error:', err);
+      this.exportError = 'Gagal menyalin data. Periksa izin clipboard browser lalu coba lagi.';
+      this.cdr.markForCheck();
+    }
+  }
+
+  /**
+   * Bikin satu blok teks rapi siap-tempel ke WhatsApp untuk satu record
+   * (bukan tabel/TSV — WhatsApp tidak merender tabel, jadi TSV cuma jadi
+   * berantakan). Field kosong otomatis disembunyikan.
+   *
+   * `index` diisi kalau blok ini bagian dari export banyak baris (ditampilkan
+   * sebagai "1. *Nama*"); dikosongkan untuk copy satu item dari tabel
+   * (tanpa nomor urut).
+   */
+  private buildWhatsAppBlock(row: any, index?: number): string {
+    const dateRange = this.buildDateRangeText(
+      this.formatDateForExport(row.travel_date),
+      this.formatDateForExport(row.end_date),
+    );
+    const hasQty = row.quantity !== undefined && row.quantity !== null && row.quantity !== '';
+    const title = this.stringifyCell(row.product_name) || 'Tanpa nama produk';
+
+    const lines = [
+      index ? `${index}. *${title}*` : `*${title}*`,
+      row.dossier_name || row.dossier_id
+        ? `Dossier: ${[row.dossier_name, row.dossier_id].filter(Boolean).join(' - ')}`
+        : null,
+      row.status ? `Status: ${row.status}` : null,
+      row.company_name ? `Supplier: ${row.company_name}` : null,
+      row.duration ? `Duration: ${row.duration}` : null,
+      dateRange ? `Tanggal: ${dateRange}` : null,
+      row.sales ? `Sales: ${row.sales}` : null,
+      row.operational ? `Operational: ${row.operational}` : null,
+      hasQty ? `Qty: ${row.quantity}` : null,
+    ].filter((line): line is string => Boolean(line));
+
+    return lines.join('\n');
+  }
+
+  private buildDateRangeText(travelDate: string, endDate: string): string {
+    if (!travelDate && !endDate) return '';
+    if (travelDate && endDate && travelDate !== endDate) return `${travelDate} - ${endDate}`;
+    return travelDate || endDate;
+  }
+
+  /**
+   * Ambil SEMUA baris yang cocok filter pencarian saat ini, lalu rapikan
+   * field tanggal untuk ditampilkan di file export. Return null kalau tidak
+   * ada yang bisa diekspor atau terjadi error saat mengambil data.
+   */
+  private async prepareExportRows(kind: ExportKind): Promise<BookedProductSearchResult[] | null> {
+    this.exportError = null;
+
+    if (!this.hasSearched || this.total === 0) {
+      this.exportError = 'Tidak ada hasil untuk diekspor.';
+      return null;
+    }
+
+    this.exporting = kind;
+    this.cdr.markForCheck();
+
+    try {
+      const allRows = await this.fetchAllResults();
+      return allRows.map((row) => ({
+        ...row,
+        travel_date: this.formatDateForExport((row as any).travel_date) as any,
+        end_date: this.formatDateForExport((row as any).end_date) as any,
+      }));
+    } catch (err) {
+      console.error('❌ Gagal mengambil semua data untuk export:', err);
+      this.exportError = 'Gagal mengambil data dari server untuk diekspor.';
+      this.exporting = null;
+      this.cdr.markForCheck();
+      return null;
+    }
+  }
+
+  /**
+   * Menyapu semua halaman lewat endpoint search yang sama (limit maksimum
+   * server = 200/request), supaya export tidak terbatas hanya pada halaman
+   * yang sedang aktif di UI.
+   */
+  private async fetchAllResults(): Promise<BookedProductSearchResult[]> {
+    const baseParams = this.buildBaseParams();
+    if (!baseParams) return [];
+
+    let currentPage = 1;
+    let totalPages = 1;
+    const all: BookedProductSearchResult[] = [];
+
+    do {
+      const response = await firstValueFrom(
+        this.bookedProductService.searchBookedProduct({
+          ...baseParams,
+          page: currentPage,
+          limit: EXPORT_FETCH_LIMIT,
+        } as BookedProductSearchParams),
+      );
+
+      if (!response) break;
+
+      all.push(...response.results);
+      totalPages = response.pagination.totalPages;
+      currentPage++;
+    } while (currentPage <= totalPages);
+
+    return all;
+  }
+
+  private stringifyCell(value: unknown): string {
+    if (value === null || value === undefined) return '';
+    return String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+  }
+
+  private async writeClipboard(text: string): Promise<void> {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+
+    const textArea = document.createElement('textarea');
+    textArea.value = text;
+    textArea.setAttribute('readonly', '');
+    textArea.style.position = 'fixed';
+    textArea.style.opacity = '0';
+    document.body.appendChild(textArea);
+    textArea.select();
+
+    const copied = document.execCommand('copy');
+    textArea.remove();
+
+    if (!copied) {
+      throw new Error('Browser tidak mengizinkan akses clipboard.');
+    }
+  }
+
+  private formatDateForExport(value: string | null | undefined): string {
+    if (!value) return '';
+    // Backend mengirim tanggal berformat YYYY-MM-DD (atau ISO datetime) — parse
+    // manual (bukan `new Date()`) supaya tidak kena pergeseran timezone.
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    if (match) {
+      const [, y, m, d] = match;
+      return `${d}/${m}/${y}`;
+    }
+    return String(value);
+  }
+
+  private formatTimestamp(): string {
+    const now = new Date();
+    return `${this.pad2(now.getDate())}/${this.pad2(now.getMonth() + 1)}/${now.getFullYear()} ${this.pad2(now.getHours())}:${this.pad2(now.getMinutes())}`;
+  }
+
+  private buildPdfTitle(): string {
+    const { dateMode, date, startDate, endDate } = this.form.getRawValue();
+    const selectedDate = this.formatDateForTitle(date);
+    const selectedStartDate = this.formatDateForTitle(startDate);
+    const selectedEndDate = this.formatDateForTitle(endDate);
+
+    if (dateMode === 'single' && selectedDate) {
+      return `Booked Product - ${selectedDate}`;
+    }
+
+    if (dateMode === 'from' && selectedDate) {
+      return `Booked Product - From ${selectedDate}`;
+    }
+
+    if (dateMode === 'until' && selectedDate) {
+      return `Booked Product - Until ${selectedDate}`;
+    }
+
+    if (dateMode === 'range') {
+      if (selectedStartDate && selectedEndDate) {
+        return `Booked Product - ${selectedStartDate} to ${selectedEndDate}`;
+      }
+
+      if (selectedStartDate) {
+        return `Booked Product - From ${selectedStartDate}`;
+      }
+
+      if (selectedEndDate) {
+        return `Booked Product - Until ${selectedEndDate}`;
+      }
+    }
+
+    return 'Booked Product - Search Results';
+  }
+
+  private formatDateForTitle(value: string | null | undefined): string {
+    if (!value) return '';
+
+    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    if (!match) return String(value);
+
+    const monthNames = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    const [, year, month, day] = match;
+
+    return `${monthNames[Number(month) - 1]} ${Number(day)}, ${year}`;
+  }
+
+  private buildExportFilename(ext: string): string {
+    const now = new Date();
+    const stamp = `${now.getFullYear()}${this.pad2(now.getMonth() + 1)}${this.pad2(now.getDate())}-${this.pad2(now.getHours())}${this.pad2(now.getMinutes())}`;
+    return `booked-product-${stamp}.${ext}`;
+  }
+
+  private pad2(n: number): string {
+    return String(n).padStart(2, '0');
+  }
+
+  // =====================================================
   // INTERNAL
   // =====================================================
 
   private triggerSearch(): void {
     const keyword = (this.form.value.keyword ?? '').trim();
+
+    if (this.isDateRangeInvalid) {
+      this.loading = false;
+      this.results = [];
+      this.hasSearched = false;
+      this.errorMessage = null;
+      this.total = 0;
+      this.totalPages = 1;
+      this.cdr.markForCheck();
+      return;
+    }
 
     if (
       (keyword.length > 0 && keyword.length < MIN_KEYWORD_LENGTH) ||
@@ -272,8 +743,28 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   }
 
   private buildParams(): BookedProductSearchParams | null {
+    const base = this.buildBaseParams();
+    if (!base) return null;
+
+    return {
+      ...base,
+      page: this.page,
+      limit: PAGE_SIZE,
+    };
+  }
+
+  /**
+   * Params pencarian tanpa page/limit — dipakai untuk pencarian normal
+   * (dikombinasikan dengan halaman/limit UI) maupun untuk export (dikombinasikan
+   * dengan loop semua halaman di fetchAllResults()).
+   */
+  private buildBaseParams(): Omit<BookedProductSearchParams, 'page' | 'limit'> | null {
     const value = this.form.value;
     const keyword = (value.keyword ?? '').trim();
+
+    if (this.isDateRangeInvalid) {
+      return null;
+    }
 
     if (
       (keyword.length > 0 && keyword.length < MIN_KEYWORD_LENGTH) ||
@@ -282,11 +773,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       return null;
     }
 
-    const params: BookedProductSearchParams = {
-      keyword,
-      page: this.page,
-      limit: PAGE_SIZE,
-    };
+    const params: Omit<BookedProductSearchParams, 'page' | 'limit'> = { keyword };
 
     if (value.dateMode === 'single' && value.date) {
       params.date = value.date;

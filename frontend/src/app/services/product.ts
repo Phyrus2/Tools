@@ -8,6 +8,7 @@ export interface ProductRow {
   supplier_id: string;
   name: string;
   type: string | null;
+  status: string;
 }
  
 export interface SkippedProduct {

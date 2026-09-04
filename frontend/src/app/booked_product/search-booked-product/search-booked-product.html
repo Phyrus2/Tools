@@ -19,7 +19,7 @@
       </svg>
       <div class="bp-data-freshness__content">
         <span class="bp-data-freshness__label">Data Booked Product terakhir diperbarui</span>
-        <strong>{{ lastImport.importedAt | date: 'dd/MM/yyyy, HH:mm' }}</strong>
+        <strong>{{ formatDisplayDateTime(lastImport.importedAt) }}</strong>
         <span class="bp-data-freshness__source">
           Sumber: {{ lastImport.fileName }} &middot; {{ lastImport.totalRows }} baris
         </span>
@@ -55,7 +55,9 @@
         autocomplete="off"
       />
     </div>
-    <button class="bp-search__submit" type="submit">Cari</button>
+    <button class="bp-search__submit" type="submit" [disabled]="isDateRangeInvalid">
+      Cari
+    </button>
     <button
       class="bp-search__reset"
       type="button"
@@ -131,7 +133,7 @@
       "
     >
       <div class="bp-date-field">
-        <label for="date">
+        <label>
           {{
             form.value.dateMode === 'from'
               ? 'Mulai dari (termasuk tanggal ini)'
@@ -140,24 +142,36 @@
                 : 'Tanggal'
           }}
         </label>
-        <input id="date" type="date" formControlName="date" (change)="onDateFieldChange()" />
+        <app-date-picker
+          [value]="form.value.date || ''"
+          ariaLabel="Pilih tanggal pencarian"
+          (valueChange)="onSingleDateSelected($event)"
+        ></app-date-picker>
       </div>
     </div>
 
     <div class="bp-date-fields" *ngIf="form.value.dateMode === 'range'">
       <div class="bp-date-field">
-        <label for="startDate">Dari</label>
-        <input
-          id="startDate"
-          type="date"
-          formControlName="startDate"
-          (change)="onDateFieldChange()"
-        />
+        <label>Dari</label>
+        <app-date-picker
+          [value]="form.value.startDate || ''"
+          [max]="form.value.endDate || ''"
+          ariaLabel="Pilih tanggal mulai"
+          (valueChange)="onStartDateSelected($event)"
+        ></app-date-picker>
       </div>
       <div class="bp-date-field">
-        <label for="endDate">Sampai</label>
-        <input id="endDate" type="date" formControlName="endDate" (change)="onDateFieldChange()" />
+        <label>Sampai</label>
+        <app-date-picker
+          [value]="form.value.endDate || ''"
+          [min]="form.value.startDate || ''"
+          ariaLabel="Pilih tanggal akhir"
+          (valueChange)="onEndDateSelected($event)"
+        ></app-date-picker>
       </div>
+      <p class="bp-date-error" *ngIf="isDateRangeInvalid" role="alert">
+        Tanggal akhir tidak boleh lebih awal dari tanggal mulai.
+      </p>
     </div>
   </fieldset>
 
@@ -169,6 +183,53 @@
   <p class="bp-alert" *ngIf="errorMessage" role="alert">
     {{ errorMessage }}
   </p>
+
+  <p class="bp-alert" *ngIf="exportError" role="alert">
+    {{ exportError }}
+  </p>
+
+  <div class="bp-toolbar" *ngIf="!loading && hasSearched && results.length > 0">
+    <span class="bp-toolbar__label">Export {{ total }} hasil:</span>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="exportExcel()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+        <path d="M3 8h14M8 3v14" stroke="currentColor" stroke-width="1.4" />
+      </svg>
+      {{ exporting === 'excel' ? 'Menyiapkan…' : 'Excel' }}
+    </button>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="exportPdf()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M6 2.5h5.5L15 6v11.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+        <path d="M11.5 2.5V6H15" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+      </svg>
+      {{ exporting === 'pdf' ? 'Menyiapkan…' : 'PDF' }}
+    </button>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="copyResults()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="6.5" y="6.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+        <path d="M4.5 13V4.5a1 1 0 0 1 1-1H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      </svg>
+      {{ exporting === 'copy' ? 'Menyalin…' : (copyFeedback ? 'Tersalin ✓' : 'Copy') }}
+    </button>
+  </div>
 
   <div class="bp-blank" *ngIf="!hasSearched && !loading && !errorMessage && !form.value.keyword">
     Mulai ketik untuk mencari booked product.
@@ -192,12 +253,11 @@
           <th scope="col">Sales</th>
           <th scope="col">Operational</th>
           <th scope="col">Cocok di</th>
-          <th scope="col">Action</th>
-          <th scope="col"><span class="visually-hidden">Detail</span></th>
+          <th scope="col" class="bp-record__action-heading">Aksi</th>
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let item of results">
+        <tr *ngFor="let item of results; let rowIndex = index">
           <td data-label="Dossier & produk">
             <span class="bp-record__title">{{ item.product_name }}</span>
             <span class="bp-record__meta" *ngIf="item.dossier_name || item.dossier_id">
@@ -230,8 +290,32 @@
           <td data-label="Cocok di">
             <span class="bp-tag bp-tag--outline">{{ matchedFieldLabel(item.matched_field) }}</span>
           </td>
-          <td data-label="" class="bp-record__action">
-            <button type="button" class="bp-link-btn" (click)="openDetail(item)">Detail</button>
+          <td data-label="Aksi" class="bp-record__action">
+            <div class="bp-record__actions">
+              <button
+                type="button"
+                class="bp-action-btn"
+                (click)="copyItem(item, rowIndex)"
+                [attr.aria-label]="'Copy data ' + (item.product_name || '')"
+                [title]="copiedRowIndex === rowIndex ? 'Tersalin!' : 'Copy data ini'"
+              >
+                <svg *ngIf="copiedRowIndex !== rowIndex" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <rect x="6.5" y="6.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M4.5 13V4.5a1 1 0 0 1 1-1H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+                <svg *ngIf="copiedRowIndex === rowIndex" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4 10.5 8 14.5 16 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>{{ copiedRowIndex === rowIndex ? 'Tersalin' : 'Copy' }}</span>
+              </button>
+              <button type="button" class="bp-action-btn" (click)="openDetail(item)">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M2.5 10s2.7-4.5 7.5-4.5 7.5 4.5 7.5 4.5-2.7 4.5-7.5 4.5S2.5 10 2.5 10Z" stroke="currentColor" stroke-width="1.4" />
+                  <circle cx="10" cy="10" r="2" stroke="currentColor" stroke-width="1.4" />
+                </svg>
+                <span>Detail</span>
+              </button>
+            </div>
           </td>
         </tr>
       </tbody>
@@ -306,11 +390,11 @@
           <dt>Tanggal</dt>
           <dd>
             <ng-container *ngIf="selectedItem.travel_date; else noDetailDate">
-              {{ selectedItem.travel_date | date: 'dd/MM/yyyy' }}
+              {{ formatDisplayDate(selectedItem.travel_date) }}
               <ng-container
                 *ngIf="selectedItem.end_date && selectedItem.end_date !== selectedItem.travel_date"
               >
-                &ndash; {{ selectedItem.end_date | date: 'dd/MM/yyyy' }}
+                &ndash; {{ formatDisplayDate(selectedItem.end_date) }}
               </ng-container>
             </ng-container>
             <ng-template #noDetailDate>—</ng-template>

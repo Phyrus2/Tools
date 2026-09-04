@@ -98,6 +98,8 @@ export interface BookedProductSearchResult {
   matched_field: MatchedField;
   sales: string | null;        // 👈 tambahan
   operational: string | null; 
+  duration: number | null;
+  quantity: number | null;
 }
  
 export interface BookedProductSearchFilters {
@@ -202,4 +204,5 @@ export class Search {
       { params: httpParams },
     );
   }
+
 }

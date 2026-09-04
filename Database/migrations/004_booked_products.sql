@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     unit varchar(50),
 
-    price DECIMAL(10, 2),
+    price DECIMAL(15, 2),
 
     description TEXT,
 

@@ -36,6 +36,7 @@ app.post("/product/import", product.importProduct);
 
 //BOOKED PRODUCT
 app.post("/booked-product/import", booked_product.importBookedProduct);
+app.post("/booked-product/manual", booked_product.createManualBookedProduct);
 app.get(
   "/booked-product/import/status",
   booked_product.getBookedProductImportStatus,

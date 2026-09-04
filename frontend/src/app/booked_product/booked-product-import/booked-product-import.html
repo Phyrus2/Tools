@@ -202,38 +202,42 @@
 
         <!-- UPDATED BOOKINGS -->
         <ng-container *ngIf="activeSection === 'updated'">
-          <div class="bp-table-wrap">
-            <table class="bp-table">
-              <thead>
-                <tr>
-                  <th>Baris Excel</th>
-                  <th>ID Sold Product</th>
-                  <th>Dossier</th>
-                  <th>ID Supplier</th>
-                  <th>ID Produk</th>
-                  <th>Nama Produk</th>
-                  <th>Status</th>
-                  <th>Tanggal Travel</th>
-                  <th>Harga</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let b of updated.pageItems; trackBy: trackByRow">
-                  <td data-label="Baris Excel">{{ b.row }}</td>
-                  <td data-label="ID Sold Product">{{ b.id }}</td>
-                  <td data-label="Dossier">
-                    {{ displayValue(b.dossier_id) }}
-                    <div class="bp-table__secondary" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
-                  </td>
-                  <td data-label="ID Supplier">{{ b.supplier_id }}</td>
-                  <td data-label="ID Produk">{{ b.product_id }}</td>
-                  <td data-label="Nama Produk"><span class="bp-table__primary">{{ b.product_name }}</span></td>
-                  <td data-label="Status">{{ displayValue(b.status) }}</td>
-                  <td data-label="Tanggal Travel">{{ formatDate(b.travel_date) }}</td>
-                  <td data-label="Harga">{{ displayValue(b.price) }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="bp-diff-card" *ngFor="let b of updated.pageItems; trackBy: trackByRow">
+            <div class="bp-diff-card__header">
+              <div>
+                <strong>{{ displayValue(b.product_name) }}</strong>
+                <span>
+                  ID Sold Product: {{ b.id }}
+                  &middot; Dossier: {{ displayValue(b.dossier_id) }}
+                </span>
+              </div>
+              <span class="bp-diff-card__row-tag">Baris Excel {{ b.row }}</span>
+            </div>
+
+            <div class="bp-diff-list">
+              <div
+                class="bp-diff-row"
+                *ngFor="let change of b.changes; trackBy: trackByField"
+              >
+                <div class="bp-diff-row__field">{{ formatChangeField(change.field) }}</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sebelum</span>
+                  <div class="bp-value bp-value--old">
+                    {{ displayChangeValue(change.field, change.old) }}
+                  </div>
+                </div>
+
+                <div class="bp-diff-row__arrow" aria-hidden="true">&rarr;</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sesudah</span>
+                  <div class="bp-value bp-value--new">
+                    {{ displayChangeValue(change.field, change.new) }}
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="bp-pager" *ngIf="updated.totalPages > 1">
@@ -278,6 +282,8 @@
 
         <!-- SKIPPED -->
         <ng-container *ngIf="activeSection === 'skipped'">
+          <p class="bp-alert bp-alert--success" *ngIf="manualNotice">{{ manualNotice }}</p>
+
           <div class="bp-table-wrap">
             <table class="bp-table">
               <thead>
@@ -286,6 +292,7 @@
                   <th>Alasan</th>
                   <th>Nama Supplier</th>
                   <th>Nama Produk</th>
+                  <th>Aksi</th>
                 </tr>
               </thead>
               <tbody>
@@ -294,6 +301,17 @@
                   <td data-label="Alasan">{{ row.reason }}</td>
                   <td data-label="Nama Supplier">{{ row.supplier_name || '-' }}</td>
                   <td data-label="Nama Produk">{{ row.product_name || '-' }}</td>
+                  <td data-label="Aksi">
+                    <button
+                      *ngIf="row.can_add_product"
+                      type="button"
+                      class="bp-btn-secondary bp-btn-secondary--compact"
+                      (click)="openManualProduct(row)"
+                    >
+                      Tambah manual
+                    </button>
+                    <span *ngIf="!row.can_add_product">-</span>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -307,6 +325,206 @@
         </ng-container>
 
       </div>
+    </div>
+  </div>
+
+  <!-- MANUAL PRODUCT + BOOKED PRODUCT FORM -->
+  <div
+    class="bp-modal-overlay bp-modal-overlay--manual"
+    *ngIf="manualForm as form"
+    (click)="closeManualProduct()"
+  >
+    <div
+      class="bp-modal bp-modal--form"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="manualProductTitle"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="bp-modal__header">
+        <div>
+          <h2 id="manualProductTitle">Tambah produk dan booking</h2>
+          <span class="bp-modal__subtitle">Data dari baris Excel {{ form.sourceRow }}</span>
+        </div>
+        <button
+          type="button"
+          class="bp-modal__close"
+          (click)="closeManualProduct()"
+          [disabled]="manualSaving"
+          aria-label="Tutup"
+        >
+          &times;
+        </button>
+      </header>
+
+      <form class="bp-manual-form" (ngSubmit)="saveManualProduct()">
+        <div class="bp-modal__body">
+          <p class="bp-alert bp-alert--danger" *ngIf="manualError">{{ manualError }}</p>
+
+          <section class="bp-form-section">
+            <h3>Data produk</h3>
+
+            <div class="bp-id-mode">
+              <label>
+                <input type="radio" name="idMode" value="random" [(ngModel)]="form.idMode" />
+                Buat ID otomatis
+              </label>
+              <label>
+                <input type="radio" name="idMode" value="manual" [(ngModel)]="form.idMode" />
+                Masukkan ID sendiri
+              </label>
+            </div>
+
+            <div class="bp-form-grid">
+              <label class="bp-form-field">
+                <span>Product ID</span>
+                <input
+                  type="number"
+                  name="productId"
+                  min="1"
+                  max="2147483647"
+                  [(ngModel)]="form.productId"
+                  [disabled]="form.idMode === 'random'"
+                  [required]="form.idMode === 'manual'"
+                  placeholder="Dibuat oleh sistem"
+                />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Status produk</span>
+                <select name="productStatus" [(ngModel)]="form.productStatus" required>
+                  <option value="One Time Product">One Time Product</option>
+                  <option value="Regular Product">Regular Product</option>
+                </select>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Nama produk</span>
+                <input type="text" name="productName" [(ngModel)]="form.productName" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Supplier ID</span>
+                <input type="number" name="supplierId" min="1" [(ngModel)]="form.supplierId" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Tipe produk</span>
+                <input type="text" name="productType" [(ngModel)]="form.productType" placeholder="Opsional" />
+              </label>
+            </div>
+          </section>
+
+          <section class="bp-form-section">
+            <h3>Data booked product</h3>
+
+            <div class="bp-form-grid">
+              <label class="bp-form-field">
+                <span>Sold Product ID</span>
+                <input type="number" name="bookedProductId" min="1" [(ngModel)]="form.booking.bookedProductId" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Dossier ID</span>
+                <input type="text" name="dossierId" [(ngModel)]="form.booking.dossierId" />
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Dossier Name</span>
+                <input type="text" name="dossierName" [(ngModel)]="form.booking.dossierName" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Status booking</span>
+                <input type="text" name="bookingStatus" [(ngModel)]="form.booking.status" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Code</span>
+                <input type="text" name="code" [(ngModel)]="form.booking.code" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Duration</span>
+                <input type="number" name="duration" [(ngModel)]="form.booking.duration" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Travel Date</span>
+                <input type="date" name="travelDate" [(ngModel)]="form.booking.travelDate" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>End Date</span>
+                <input type="date" name="endDate" [(ngModel)]="form.booking.endDate" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Sales</span>
+                <input type="text" name="sales" [(ngModel)]="form.booking.sales" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Operational</span>
+                <input type="text" name="operational" [(ngModel)]="form.booking.operational" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Quantity</span>
+                <input type="number" name="quantity" [(ngModel)]="form.booking.quantity" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Unit</span>
+                <input type="text" name="unit" [(ngModel)]="form.booking.unit" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Price</span>
+                <input type="number" name="price" step="0.01" [(ngModel)]="form.booking.price" />
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Description</span>
+                <textarea name="description" rows="2" [(ngModel)]="form.booking.description"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Info</span>
+                <textarea name="info" rows="2" [(ngModel)]="form.booking.info"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Instructions</span>
+                <textarea name="instructions" rows="2" [(ngModel)]="form.booking.instructions"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Transport Pickup</span>
+                <textarea name="transportPickup" rows="3" [(ngModel)]="form.booking.transportPickup"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Transport Dropoff</span>
+                <textarea name="transportDropoff" rows="3" [(ngModel)]="form.booking.transportDropoff"></textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <footer class="bp-modal__footer">
+          <button type="button" class="bp-btn-secondary" (click)="closeManualProduct()" [disabled]="manualSaving">
+            Batal
+          </button>
+          <button type="submit" class="bp-btn-primary" [disabled]="manualSaving">
+            <span *ngIf="!manualSaving">Simpan produk dan booking</span>
+            <span class="bp-btn-primary__loading" *ngIf="manualSaving">
+              <span class="bp-spinner" aria-hidden="true"></span>
+              Menyimpan&hellip;
+            </span>
+          </button>
+        </footer>
+      </form>
     </div>
   </div>
 

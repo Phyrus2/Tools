@@ -1,5 +1,6 @@
 const xlsx = require("xlsx");
 const fs = require("fs");
+const crypto = require("crypto");
 const multer = require("multer");
 const pool = require("../../../../Database/connection");
 require("dotenv").config();
@@ -461,6 +462,33 @@ function normalizeTransport(value) {
   return JSON.stringify(result);
 }
 
+function buildManualBookedProductData(mapped) {
+  return {
+    booked_product_id: normalizeInteger(mapped.id),
+    original_product_id: normalizeInteger(mapped.product_id),
+    dossier_id: mapped.dossier_id || null,
+    dossier_name: mapped.dossier_name || null,
+    supplier_id: normalizeInteger(mapped.supplier_id),
+    product_name: mapped.product_name || null,
+    product_type: null,
+    booking_status: mapped.status || null,
+    code: mapped.code || null,
+    duration: normalizeDuration(mapped.duration),
+    travel_date: normalizeDate(mapped.travel_date),
+    end_date: normalizeDate(mapped.end_date),
+    sales: mapped.sales || null,
+    operational: mapped.operational || null,
+    quantity: normalizeInteger(mapped.quantity),
+    unit: mapped.unit || null,
+    price: normalizePrice(mapped.price),
+    description: mapped.description || null,
+    info: mapped.info || null,
+    instructions: mapped.instructions || null,
+    transport_pickup: mapped.transport_pickup || null,
+    transport_dropoff: mapped.transport_dropoff || null,
+  };
+}
+
 async function recordBookedProductImport(fileName, totalRows) {
   await pool.query(
     `
@@ -558,6 +586,25 @@ async function importBookedProduct(req, res) {
 
     const validProductIds = new Set(
       products.map((product) => String(product.product_id)),
+    );
+
+    /**
+     * File sumber untuk one-time product biasanya tetap berisi product_id 0.
+     * Hubungkan kembali melalui Sold Product ID agar hasil input manual tidak
+     * dianggap sebagai produk hilang ketika file yang sama diimpor ulang.
+     */
+    const [oneTimeBookedProducts] = await pool.query(`
+      SELECT bp.id AS booked_product_id, bp.product_id
+      FROM booked_products bp
+      INNER JOIN products p ON p.product_id = bp.product_id
+      WHERE p.status = 'One Time Product'
+    `);
+
+    const oneTimeProductByBookedId = new Map(
+      oneTimeBookedProducts.map((item) => [
+        String(item.booked_product_id),
+        item.product_id,
+      ]),
     );
 
     /**
@@ -669,11 +716,23 @@ async function importBookedProduct(req, res) {
       }
 
       if (!validProductIds.has(String(mapped.product_id))) {
+        const existingOneTimeProductId = oneTimeProductByBookedId.get(
+          String(mapped.id),
+        );
+
+        if (existingOneTimeProductId) {
+          mapped.product_id = String(existingOneTimeProductId);
+        }
+      }
+
+      if (!validProductIds.has(String(mapped.product_id))) {
         skippedRows.push({
           row: excelRow,
           reason: `product_id "${mapped.product_id}" tidak ditemukan di database`,
           supplier_name: mapped.supplier_name || null,
           product_name: mapped.product_name || null,
+          can_add_product: true,
+          manual_data: buildManualBookedProductData(mapped),
         });
 
         return;
@@ -777,12 +836,12 @@ async function importBookedProduct(req, res) {
       if (
         normalizedPrice !== null &&
         (!Number.isFinite(normalizedPrice) ||
-          normalizedPrice > 99999999.99 ||
-          normalizedPrice < -99999999.99)
+          normalizedPrice > 9999999999999.99 ||
+          normalizedPrice < -9999999999999.99)
       ) {
         skippedRows.push({
           row: excelRow,
-          reason: `price di luar range DECIMAL(10,2): "${mapped.price}" -> ${normalizedPrice}`,
+          reason: `price di luar range DECIMAL(15,2): "${mapped.price}" -> ${normalizedPrice}`,
         });
 
         return;
@@ -1320,6 +1379,194 @@ async function importBookedProduct(req, res) {
   }
 }
 
+async function createManualBookedProduct(req, res) {
+  const connection = await pool.getConnection();
+
+  try {
+    const body = req.body || {};
+    const booking = body.booking || {};
+    const idMode = body.idMode === "manual" ? "manual" : "random";
+    const allowedProductStatuses = new Set([
+      "One Time Product",
+      "Regular Product",
+    ]);
+
+    const supplierId = normalizeInteger(body.supplierId);
+    const bookedProductId = normalizeInteger(booking.bookedProductId);
+    const productName = String(body.productName || "").trim();
+    const productType = String(body.productType || "").trim() || null;
+    const productStatus = allowedProductStatuses.has(body.productStatus)
+      ? body.productStatus
+      : null;
+
+    if (!supplierId || supplierId < 1) {
+      return res.status(400).json({ success: false, message: "Supplier ID wajib diisi dan harus valid." });
+    }
+
+    if (!bookedProductId || bookedProductId < 1) {
+      return res.status(400).json({ success: false, message: "Sold Product ID wajib diisi dan harus valid." });
+    }
+
+    if (!productName) {
+      return res.status(400).json({ success: false, message: "Nama produk wajib diisi." });
+    }
+
+    if (!productStatus) {
+      return res.status(400).json({ success: false, message: "Status produk tidak valid." });
+    }
+
+    const travelDate = normalizeDate(booking.travelDate);
+    const endDate = normalizeDate(booking.endDate);
+    const price = normalizePrice(booking.price);
+
+    if (booking.travelDate && !travelDate) {
+      return res.status(400).json({ success: false, message: "Travel Date tidak valid." });
+    }
+
+    if (booking.endDate && !endDate) {
+      return res.status(400).json({ success: false, message: "End Date tidak valid." });
+    }
+
+    if (
+      price !== null &&
+      (!Number.isFinite(price) ||
+        price > 9999999999999.99 ||
+        price < -9999999999999.99)
+    ) {
+      return res.status(400).json({ success: false, message: "Price di luar range DECIMAL(15,2)." });
+    }
+
+    await connection.beginTransaction();
+
+    const [supplierRows] = await connection.query(
+      "SELECT supplier_id FROM suppliers WHERE supplier_id = ? LIMIT 1",
+      [supplierId],
+    );
+
+    if (supplierRows.length === 0) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: `Supplier ID "${supplierId}" tidak ditemukan.` });
+    }
+
+    let productId = normalizeInteger(body.productId);
+
+    if (idMode === "random") {
+      productId = null;
+
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const candidate = crypto.randomInt(100000000, 2147483647);
+        const [existingRandomId] = await connection.query(
+          "SELECT product_id FROM products WHERE product_id = ? LIMIT 1",
+          [candidate],
+        );
+
+        if (existingRandomId.length === 0) {
+          productId = candidate;
+          break;
+        }
+      }
+    }
+
+    if (!productId || productId < 1 || productId > 2147483647) {
+      await connection.rollback();
+      return res.status(400).json({ success: false, message: "Product ID wajib berupa angka 1 sampai 2147483647." });
+    }
+
+    const [[existingProduct], [existingBooking]] = await Promise.all([
+      connection.query(
+        "SELECT product_id FROM products WHERE product_id = ? LIMIT 1",
+        [productId],
+      ),
+      connection.query(
+        "SELECT id FROM booked_products WHERE id = ? LIMIT 1",
+        [bookedProductId],
+      ),
+    ]);
+
+    if (existingProduct.length > 0) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: `Product ID "${productId}" sudah digunakan.` });
+    }
+
+    if (existingBooking.length > 0) {
+      await connection.rollback();
+      return res.status(409).json({ success: false, message: `Sold Product ID "${bookedProductId}" sudah digunakan.` });
+    }
+
+    await connection.query(
+      `INSERT INTO products (product_id, supplier_id, name, type, status)
+       VALUES (?, ?, ?, ?, ?)`,
+      [productId, supplierId, productName, productType, productStatus],
+    );
+
+    await connection.query(
+      `INSERT INTO booked_products (
+        id, dossier_id, dossier_name, supplier_id, product_id, product_name,
+        status, code, duration, travel_date, end_date, sales, operational,
+        quantity, unit, price, description, info, instructions,
+        transport_pickup, transport_dropoff
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        bookedProductId,
+        booking.dossierId || null,
+        booking.dossierName || null,
+        supplierId,
+        productId,
+        productName,
+        booking.status || null,
+        booking.code || null,
+        normalizeDuration(booking.duration),
+        travelDate,
+        endDate,
+        booking.sales || null,
+        booking.operational || null,
+        normalizeInteger(booking.quantity),
+        booking.unit || null,
+        price,
+        booking.description || null,
+        booking.info || null,
+        booking.instructions || null,
+        normalizeTransport(booking.transportPickup),
+        normalizeTransport(booking.transportDropoff),
+      ],
+    );
+
+    await connection.commit();
+
+    return res.status(201).json({
+      success: true,
+      message: "Produk dan booked product berhasil ditambahkan.",
+      productId,
+      bookedProduct: {
+        row: body.sourceRow || 0,
+        id: bookedProductId,
+        dossier_id: booking.dossierId || null,
+        dossier_name: booking.dossierName || null,
+        supplier_id: supplierId,
+        product_id: productId,
+        product_name: productName,
+        status: booking.status || null,
+        travel_date: travelDate,
+        price,
+      },
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Create manual booked product error:", error);
+
+    const status = error.code === "ER_DUP_ENTRY" ? 409 : 500;
+    return res.status(status).json({
+      success: false,
+      message:
+        status === 409
+          ? "Product ID atau Sold Product ID sudah digunakan."
+          : error.message || "Gagal menambahkan produk secara manual.",
+    });
+  } finally {
+    connection.release();
+  }
+}
+
 /**
  * ============================================================
  * EXPORT
@@ -1336,4 +1583,5 @@ module.exports = {
     importBookedProduct,
   ],
   getBookedProductImportStatus,
+  createManualBookedProduct,
 };

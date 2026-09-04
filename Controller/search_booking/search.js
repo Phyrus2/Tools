@@ -68,6 +68,13 @@ async function searchBookedProduct(req, res) {
       hasEndDate = true;
     }
 
+    if (hasStartDate && hasEndDate && startDate > endDate) {
+      return res.status(400).json({
+        success: false,
+        message: "Tanggal akhir tidak boleh lebih awal dari tanggal mulai.",
+      });
+    }
+
     // =================================================
     // VALIDASI KEYWORD
     // =================================================
@@ -213,7 +220,7 @@ async function searchBookedProduct(req, res) {
       FROM booked_products bp
       JOIN suppliers s ON s.supplier_id = bp.supplier_id
       WHERE ${baseWhereSql}
-      ORDER BY bp.travel_date ASC
+      ORDER BY bp.travel_date ASC, bp.id ASC
       LIMIT ? OFFSET ?
       `,
       [

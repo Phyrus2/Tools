@@ -16,13 +16,14 @@ const upload = multer({
 // KOLOM EXCEL YANG DIGUNAKAN
 // =====================================================
 
-const ALLOWED_COLUMNS = ["id", "product", "supplier", "type"];
+const ALLOWED_COLUMNS = ["id", "product", "supplier", "type", "status"];
 
 const HEADER_ALIASES = {
   id: "id",
   product: "product",
   supplier: "supplier",
   type: "type",
+  status: "status",
 };
 
 // =====================================================
@@ -192,6 +193,7 @@ async function importProduct(req, res) {
         supplier_id: supplierId,
         name: mapped.product,
         type: mapped.type || null,
+        status: mapped.status || "Regular Product",
       });
     });
 
@@ -220,7 +222,7 @@ async function importProduct(req, res) {
     const productIds = dataToInsert.map((r) => r.product_id);
 
     const [existingProducts] = await pool.query(
-      `SELECT product_id, supplier_id, name, type
+      `SELECT product_id, supplier_id, name, type, status
        FROM products
        WHERE product_id IN (?)`,
       [productIds],
@@ -245,7 +247,8 @@ async function importProduct(req, res) {
       const hasChanges =
         normalizeValue(existing.supplier_id) !== normalizeValue(row.supplier_id) ||
         normalizeValue(existing.name) !== normalizeValue(row.name) ||
-        normalizeValue(existing.type) !== normalizeValue(row.type);
+        normalizeValue(existing.type) !== normalizeValue(row.type) ||
+        normalizeValue(existing.status) !== normalizeValue(row.status);
 
       if (hasChanges) {
         updatedRows.push(row);
@@ -264,17 +267,19 @@ async function importProduct(req, res) {
       r.supplier_id,
       r.name,
       r.type,
+      r.status,
     ]);
 
     if (values.length > 0) {
       await pool.query(
         `
-        INSERT INTO products (product_id, supplier_id, name, type)
+        INSERT INTO products (product_id, supplier_id, name, type, status)
         VALUES ?
         ON DUPLICATE KEY UPDATE
           supplier_id = VALUES(supplier_id),
           name = VALUES(name),
-          type = VALUES(type)
+          type = VALUES(type),
+          status = VALUES(status)
         `,
         [values],
       );
@@ -318,6 +323,7 @@ async function importProduct(req, res) {
         supplier_id: r.supplier_id,
         name: r.name,
         type: r.type,
+        status: r.status,
       })),
 
       updatedRows: updatedRows.map((r) => ({
@@ -326,6 +332,7 @@ async function importProduct(req, res) {
         supplier_id: r.supplier_id,
         name: r.name,
         type: r.type,
+        status: r.status,
       })),
 
       unchangedRows: unchangedRows.map((r) => ({
@@ -334,6 +341,7 @@ async function importProduct(req, res) {
         supplier_id: r.supplier_id,
         name: r.name,
         type: r.type,
+        status: r.status,
       })),
 
       skippedRows,

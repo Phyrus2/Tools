@@ -184,6 +184,34 @@
   gap: var(--bp-space-2);
 }
 
+.bp-btn-secondary {
+  appearance: none;
+  padding: 0.65rem 1rem;
+  border: 1px solid var(--bp-hairline-strong);
+  border-radius: 6px;
+  background: var(--bp-surface);
+  color: var(--bp-ink);
+  font: inherit;
+  font-weight: 500;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--bp-forest);
+    color: var(--bp-forest-deep);
+  }
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+.bp-btn-secondary--compact {
+  padding: 0.4rem 0.65rem;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+
 .bp-spinner {
   width: 14px;
   height: 14px;
@@ -565,12 +593,251 @@
 }
 
 // ---------------------------------------------------------------
+// Perubahan pada booked product yang diperbarui
+// ---------------------------------------------------------------
+
+.bp-diff-card {
+  background: var(--bp-surface);
+  border: 1px solid var(--bp-hairline);
+  border-radius: 8px;
+  margin-bottom: var(--bp-space-3);
+  overflow: hidden;
+}
+
+.bp-diff-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bp-space-3);
+  padding: var(--bp-space-3) var(--bp-space-4);
+  background: var(--bp-paper);
+  border-bottom: 1px solid var(--bp-hairline);
+
+  strong {
+    display: block;
+    color: var(--bp-ink);
+  }
+
+  span {
+    color: var(--bp-ink-faint);
+    font-size: 0.78rem;
+  }
+}
+
+.bp-diff-card__row-tag {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.bp-diff-list {
+  padding: var(--bp-space-2) var(--bp-space-4);
+}
+
+.bp-diff-row {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr) 32px minmax(0, 1fr);
+  align-items: center;
+  gap: var(--bp-space-3);
+  padding: var(--bp-space-3) 0;
+  border-bottom: 1px solid var(--bp-hairline);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.bp-diff-row__field {
+  color: var(--bp-ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.bp-diff-row__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--bp-ink-faint);
+  font-size: 0.68rem;
+}
+
+.bp-value {
+  min-height: 1.2rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: 5px;
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.bp-value--old {
+  background: var(--bp-red-wash);
+  color: var(--bp-red);
+}
+
+.bp-value--new {
+  background: var(--bp-forest-wash);
+  color: var(--bp-forest-deep);
+}
+
+.bp-diff-row__arrow {
+  color: var(--bp-ink-faint);
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+// ---------------------------------------------------------------
+// Manual product form
+// ---------------------------------------------------------------
+
+.bp-modal-overlay--manual {
+  z-index: 110;
+}
+
+.bp-modal--form {
+  max-width: 980px;
+}
+
+.bp-modal__subtitle {
+  display: block;
+  margin-top: 0.15rem;
+  color: var(--bp-ink-faint);
+  font-size: 0.78rem;
+}
+
+.bp-manual-form {
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+}
+
+.bp-form-section {
+  padding-bottom: var(--bp-space-5);
+
+  & + & {
+    padding-top: var(--bp-space-4);
+    border-top: 1px solid var(--bp-hairline);
+  }
+
+  h3 {
+    margin: 0 0 var(--bp-space-3);
+    color: var(--bp-forest-deep);
+    font-family: 'Fraunces', serif;
+    font-size: 1rem;
+  }
+}
+
+.bp-id-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--bp-space-4);
+  margin-bottom: var(--bp-space-4);
+
+  label {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--bp-space-2);
+    color: var(--bp-ink-soft);
+    font-size: 0.84rem;
+    cursor: pointer;
+  }
+
+  input {
+    accent-color: var(--bp-forest);
+  }
+}
+
+.bp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--bp-space-3) var(--bp-space-4);
+}
+
+.bp-form-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.35rem;
+
+  > span {
+    color: var(--bp-ink-soft);
+    font-size: 0.76rem;
+    font-weight: 500;
+  }
+
+  input,
+  select,
+  textarea {
+    width: 100%;
+    border: 1px solid var(--bp-hairline-strong);
+    border-radius: 6px;
+    background: var(--bp-surface);
+    padding: 0.58rem 0.7rem;
+    color: var(--bp-ink);
+    font: inherit;
+
+    &:focus {
+      border-color: var(--bp-forest);
+      outline: 2px solid rgba(53, 86, 77, 0.14);
+    }
+
+    &:disabled {
+      background: var(--bp-paper);
+      color: var(--bp-ink-faint);
+    }
+  }
+
+  textarea {
+    resize: vertical;
+  }
+}
+
+.bp-form-field--wide {
+  grid-column: 1 / -1;
+}
+
+.bp-modal__footer {
+  display: flex;
+  flex: 0 0 auto;
+  justify-content: flex-end;
+  gap: var(--bp-space-3);
+  padding: var(--bp-space-4) var(--bp-space-5);
+  border-top: 1px solid var(--bp-hairline);
+  background: var(--bp-surface);
+}
+
+// ---------------------------------------------------------------
 // Responsive
 // ---------------------------------------------------------------
 
 @media (max-width: 640px) {
   .bp-app {
     padding: var(--bp-space-5) var(--bp-space-4) var(--bp-space-6);
+  }
+
+  .bp-diff-row {
+    grid-template-columns: 1fr;
+    gap: var(--bp-space-2);
+  }
+
+  .bp-diff-row__arrow {
+    display: none;
+  }
+
+  .bp-diff-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--bp-space-1);
+  }
+
+  .bp-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .bp-form-field--wide {
+    grid-column: auto;
+  }
+
+  .bp-modal__footer {
+    padding: var(--bp-space-3) var(--bp-space-4);
   }
 
   .bp-table {
