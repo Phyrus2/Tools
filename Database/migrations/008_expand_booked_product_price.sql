@@ -1,0 +1,2 @@
+ALTER TABLE booked_products
+MODIFY COLUMN price DECIMAL(15, 2) NULL;

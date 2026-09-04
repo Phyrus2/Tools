@@ -1,0 +1,162 @@
+<main class="hub-shell">
+  <header class="hub-topbar">
+    <a class="hub-brand" routerLink="/" aria-label="Kembali ke beranda">
+      <span class="hub-brand__mark" aria-hidden="true">
+        <span></span>
+        <span></span>
+        <span></span>
+      </span>
+      <span>
+        <strong>DATABASE TOOLS</strong>
+        <small>Internal workspace</small>
+      </span>
+    </a>
+
+    <div class="hub-topbar__meta">
+      <span class="hub-status"><i aria-hidden="true"></i> Sistem aktif</span>
+      <span class="hub-avatar" aria-label="Profil pengguna">OP</span>
+    </div>
+  </header>
+
+  <div class="hub-content">
+    <section class="hub-hero" aria-labelledby="hub-title">
+      <div>
+        <p class="hub-eyebrow">Database Operasional</p>
+        <h1 id="hub-title">Apa yang ingin Anda kerjakan?</h1>
+        <p class="hub-lead">
+          Pilih alat kerja berdasarkan modul. Semua proses import, pencarian, dan analisis tersedia
+          dari satu tempat.
+        </p>
+      </div>
+      <div class="hub-hero__ornament" aria-hidden="true">
+        <span>4</span>
+        <small>alat tersedia</small>
+      </div>
+    </section>
+
+    <section class="hub-module" aria-labelledby="import-title">
+      <header class="hub-module__header">
+        <span class="hub-module__number">01</span>
+        <div>
+          <h2 id="import-title">Modul Import</h2>
+          <p>Masukkan dan sinkronkan data dari file Excel.</p>
+        </div>
+      </header>
+
+      <div class="hub-grid hub-grid--three">
+        <a class="hub-app hub-app--forest" routerLink="/supplier">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M11 37V16l13-7 13 7v21" />
+              <path d="M17 22h14M17 28h14M20 37v-4h8v4" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Supplier Import</strong>
+            <small>Kelola data dan kategori supplier</small>
+          </span>
+          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="hub-app hub-app--blue" routerLink="/product">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="m10 17 14-8 14 8-14 8-14-8Z" />
+              <path d="m10 17 14 8 14-8v15l-14 8-14-8V17Z" />
+              <path d="M24 25v15" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Product Import</strong>
+            <small>Perbarui katalog dan relasi produk</small>
+          </span>
+          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
+        </a>
+
+        <a class="hub-app hub-app--gold" routerLink="/bookedProduct">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M13 13h22v27H13z" />
+              <path d="M18 9v8M30 9v8M13 21h22M19 28h10M19 34h7" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Booked Product</strong>
+            <small>Import transaksi booked product</small>
+          </span>
+          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="hub-module" aria-labelledby="search-title">
+      <header class="hub-module__header">
+        <span class="hub-module__number">02</span>
+        <div>
+          <h2 id="search-title">Modul Search</h2>
+          <p>Temukan informasi operasional dengan cepat.</p>
+        </div>
+      </header>
+
+      <div class="hub-grid hub-grid--three">
+        <a class="hub-app hub-app--plum" routerLink="/search">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <circle cx="21" cy="21" r="11" />
+              <path d="m29 29 10 10M16 18h10M16 23h7" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Search Booked Product</strong>
+            <small>Cari produk, supplier, lokasi, dan tanggal</small>
+          </span>
+          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="hub-module hub-module--upcoming" aria-labelledby="upcoming-title">
+      <header class="hub-module__header">
+        <span class="hub-module__number">03</span>
+        <div>
+          <h2 id="upcoming-title">Segera Hadir</h2>
+          <p>Modul baru yang sedang disiapkan untuk workspace ini.</p>
+        </div>
+      </header>
+
+      <div class="hub-grid hub-grid--three">
+        <article class="hub-app hub-app--disabled">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M11 38V25h7v13M21 38V16h7v22M31 38V10h7v28M8 38h33" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Data Analyst</strong>
+            <small>Dashboard, laporan, dan insight data</small>
+          </span>
+          <span class="hub-app__badge">Segera</span>
+        </article>
+
+        <article class="hub-app hub-app--disabled">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48" role="img">
+              <path d="M24 10v28M10 24h28" />
+              <circle cx="24" cy="24" r="17" />
+            </svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Modul Lainnya</strong>
+            <small>Alat operasional berikutnya</small>
+          </span>
+          <span class="hub-app__badge">Segera</span>
+        </article>
+      </div>
+    </section>
+  </div>
+
+  <footer class="hub-footer">
+    <span>Database Tools</span>
+    <span>Workspace internal</span>
+  </footer>
+</main>

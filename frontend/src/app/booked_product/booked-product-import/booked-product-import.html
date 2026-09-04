@@ -1,0 +1,531 @@
+<div class="bp-app">
+
+  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
+
+  <!-- HEADER -->
+  <header class="bp-masthead">
+    <h1 class="bp-masthead__title">Booked Product Import</h1>
+    <p class="bp-masthead__subtitle">Upload file Excel berisi data booked product.</p>
+    <p class="bp-data-freshness" *ngIf="lastImport; else noImportHistory">
+      Data terakhir diperbarui:
+      <strong>{{ lastImport.importedAt | date: 'dd/MM/yyyy HH:mm' }}</strong>
+      dari {{ lastImport.fileName }} ({{ lastImport.totalRows }} baris)
+    </p>
+    <ng-template #noImportHistory>
+      <p class="bp-data-freshness">Belum ada riwayat pembaruan data.</p>
+    </ng-template>
+  </header>
+
+  <!-- IMPORT FORM -->
+  <div class="bp-panel">
+
+    <div class="bp-field bp-field--wide">
+      <label for="excelFile">File Excel</label>
+      <label class="bp-dropzone" for="excelFile" [class.bp-dropzone--filled]="selectedFile">
+        <svg class="bp-dropzone__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 15V4M12 4L7.5 8.5M12 4l4.5 4.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
+        </svg>
+        <span class="bp-dropzone__text">
+          <ng-container *ngIf="!selectedFile">Klik untuk memilih file .xls / .xlsx</ng-container>
+          <ng-container *ngIf="selectedFile"><strong>{{ selectedFile.name }}</strong></ng-container>
+        </span>
+        <input
+          id="excelFile"
+          type="file"
+          accept=".xls,.xlsx"
+          (change)="onFileSelected($event)"
+        />
+      </label>
+    </div>
+
+    <!-- ERROR -->
+    <p class="bp-alert bp-alert--danger" *ngIf="errorMessage">
+      {{ errorMessage }}
+    </p>
+
+    <!-- BUTTON -->
+    <button
+      type="button"
+      class="bp-btn-primary"
+      (click)="importBookedProduct()"
+      [disabled]="loading"
+    >
+      <span *ngIf="!loading">Import Booked Product</span>
+      <span class="bp-btn-primary__loading" *ngIf="loading">
+        <span class="bp-spinner" aria-hidden="true"></span>
+        Memproses&hellip;
+      </span>
+    </button>
+
+  </div>
+
+
+  <!-- ================================================= -->
+  <!-- RESULT -->
+  <!-- ================================================= -->
+
+  <div class="bp-result" *ngIf="result">
+
+    <!-- SUCCESS -->
+    <div class="bp-alert bp-alert--success" *ngIf="result.success">
+      <strong>Import berhasil</strong>
+      <div>{{ result.message }}</div>
+    </div>
+
+    <!-- ================================================= -->
+    <!-- SUMMARY — klik card untuk buka detail di modal -->
+    <!-- ================================================= -->
+
+    <div class="bp-stats">
+
+      <div class="bp-stat">
+        <span class="bp-stat__label">Total baris</span>
+        <strong class="bp-stat__value">{{ result.summary.totalRows }}</strong>
+      </div>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--new bp-stat--clickable"
+        [disabled]="inserted.total === 0"
+        (click)="openSection('new')"
+      >
+        <span class="bp-stat__label">Booking baru</span>
+        <strong class="bp-stat__value">{{ result.summary.inserted }}</strong>
+        <span class="bp-stat__hint" *ngIf="inserted.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--updated bp-stat--clickable"
+        [disabled]="updated.total === 0"
+        (click)="openSection('updated')"
+      >
+        <span class="bp-stat__label">Diperbarui</span>
+        <strong class="bp-stat__value">{{ result.summary.updated }}</strong>
+        <span class="bp-stat__hint" *ngIf="updated.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--unchanged bp-stat--clickable"
+        [disabled]="unchanged.total === 0"
+        (click)="openSection('unchanged')"
+      >
+        <span class="bp-stat__label">Tidak berubah</span>
+        <strong class="bp-stat__value">{{ result.summary.unchanged }}</strong>
+        <span class="bp-stat__hint" *ngIf="unchanged.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+      <button
+        type="button"
+        class="bp-stat bp-stat--skipped bp-stat--clickable"
+        [disabled]="skipped.total === 0"
+        (click)="openSection('skipped')"
+      >
+        <span class="bp-stat__label">Dilewati</span>
+        <strong class="bp-stat__value">{{ result.summary.skipped }}</strong>
+        <span class="bp-stat__hint" *ngIf="skipped.total > 0">Lihat list &rsaquo;</span>
+      </button>
+
+    </div>
+
+  </div>
+
+
+  <!-- ================================================= -->
+  <!-- DETAIL MODAL — isi berganti sesuai activeSection -->
+  <!-- ================================================= -->
+
+  <div class="bp-modal-overlay" *ngIf="activeSection" (click)="closeSection()">
+    <div class="bp-modal bp-modal--wide" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+
+      <header class="bp-modal__header">
+        <h2 *ngIf="activeSection === 'new'">Booking baru</h2>
+        <h2 *ngIf="activeSection === 'updated'">Booking diperbarui</h2>
+        <h2 *ngIf="activeSection === 'unchanged'">Booking tidak berubah</h2>
+        <h2 *ngIf="activeSection === 'skipped'">Baris dilewati</h2>
+        <button type="button" class="bp-modal__close" (click)="closeSection()" aria-label="Tutup">
+          &times;
+        </button>
+      </header>
+
+      <div class="bp-modal__body">
+
+        <!-- NEW BOOKINGS -->
+        <ng-container *ngIf="activeSection === 'new'">
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>ID Sold Product</th>
+                  <th>Dossier</th>
+                  <th>ID Supplier</th>
+                  <th>ID Produk</th>
+                  <th>Nama Produk</th>
+                  <th>Status</th>
+                  <th>Tanggal Travel</th>
+                  <th>Harga</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let b of inserted.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ b.row }}</td>
+                  <td data-label="ID Sold Product">{{ b.id }}</td>
+                  <td data-label="Dossier">
+                    {{ displayValue(b.dossier_id) }}
+                    <div class="bp-table__secondary" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
+                  </td>
+                  <td data-label="ID Supplier">{{ b.supplier_id }}</td>
+                  <td data-label="ID Produk">{{ b.product_id }}</td>
+                  <td data-label="Nama Produk"><span class="bp-table__primary">{{ b.product_name }}</span></td>
+                  <td data-label="Status">{{ displayValue(b.status) }}</td>
+                  <td data-label="Tanggal Travel">{{ formatDate(b.travel_date) }}</td>
+                  <td data-label="Harga">{{ displayValue(b.price) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="inserted.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="inserted.prev()" [disabled]="inserted.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ inserted.page }} / {{ inserted.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="inserted.next()" [disabled]="inserted.page === inserted.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- UPDATED BOOKINGS -->
+        <ng-container *ngIf="activeSection === 'updated'">
+          <div class="bp-diff-card" *ngFor="let b of updated.pageItems; trackBy: trackByRow">
+            <div class="bp-diff-card__header">
+              <div>
+                <strong>{{ displayValue(b.product_name) }}</strong>
+                <span>
+                  ID Sold Product: {{ b.id }}
+                  &middot; Dossier: {{ displayValue(b.dossier_id) }}
+                </span>
+              </div>
+              <span class="bp-diff-card__row-tag">Baris Excel {{ b.row }}</span>
+            </div>
+
+            <div class="bp-diff-list">
+              <div
+                class="bp-diff-row"
+                *ngFor="let change of b.changes; trackBy: trackByField"
+              >
+                <div class="bp-diff-row__field">{{ formatChangeField(change.field) }}</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sebelum</span>
+                  <div class="bp-value bp-value--old">
+                    {{ displayChangeValue(change.field, change.old) }}
+                  </div>
+                </div>
+
+                <div class="bp-diff-row__arrow" aria-hidden="true">&rarr;</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sesudah</span>
+                  <div class="bp-value bp-value--new">
+                    {{ displayChangeValue(change.field, change.new) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="bp-pager" *ngIf="updated.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="updated.prev()" [disabled]="updated.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ updated.page }} / {{ updated.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- UNCHANGED -->
+        <ng-container *ngIf="activeSection === 'unchanged'">
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>ID Sold Product</th>
+                  <th>Dossier</th>
+                  <th>Nama Produk</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let b of unchanged.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ b.row }}</td>
+                  <td data-label="ID Sold Product">{{ b.id }}</td>
+                  <td data-label="Dossier">
+                    {{ displayValue(b.dossier_id) }}
+                    <div class="bp-table__secondary" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
+                  </td>
+                  <td data-label="Nama Produk">{{ b.product_name }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="unchanged.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="unchanged.prev()" [disabled]="unchanged.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ unchanged.page }} / {{ unchanged.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="unchanged.next()" [disabled]="unchanged.page === unchanged.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+        <!-- SKIPPED -->
+        <ng-container *ngIf="activeSection === 'skipped'">
+          <p class="bp-alert bp-alert--success" *ngIf="manualNotice">{{ manualNotice }}</p>
+
+          <div class="bp-table-wrap">
+            <table class="bp-table">
+              <thead>
+                <tr>
+                  <th>Baris Excel</th>
+                  <th>Alasan</th>
+                  <th>Nama Supplier</th>
+                  <th>Nama Produk</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let row of skipped.pageItems; trackBy: trackByRow">
+                  <td data-label="Baris Excel">{{ row.row }}</td>
+                  <td data-label="Alasan">{{ row.reason }}</td>
+                  <td data-label="Nama Supplier">{{ row.supplier_name || '-' }}</td>
+                  <td data-label="Nama Produk">{{ row.product_name || '-' }}</td>
+                  <td data-label="Aksi">
+                    <button
+                      *ngIf="row.can_add_product"
+                      type="button"
+                      class="bp-btn-secondary bp-btn-secondary--compact"
+                      (click)="openManualProduct(row)"
+                    >
+                      Tambah manual
+                    </button>
+                    <span *ngIf="!row.can_add_product">-</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bp-pager" *ngIf="skipped.totalPages > 1">
+            <button type="button" class="bp-pager__btn" (click)="skipped.prev()" [disabled]="skipped.page === 1">&lsaquo; Prev</button>
+            <span class="bp-pager__status">Halaman {{ skipped.page }} / {{ skipped.totalPages }}</span>
+            <button type="button" class="bp-pager__btn" (click)="skipped.next()" [disabled]="skipped.page === skipped.totalPages">Next &rsaquo;</button>
+          </div>
+        </ng-container>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- MANUAL PRODUCT + BOOKED PRODUCT FORM -->
+  <div
+    class="bp-modal-overlay bp-modal-overlay--manual"
+    *ngIf="manualForm as form"
+    (click)="closeManualProduct()"
+  >
+    <div
+      class="bp-modal bp-modal--form"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="manualProductTitle"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="bp-modal__header">
+        <div>
+          <h2 id="manualProductTitle">Tambah produk dan booking</h2>
+          <span class="bp-modal__subtitle">Data dari baris Excel {{ form.sourceRow }}</span>
+        </div>
+        <button
+          type="button"
+          class="bp-modal__close"
+          (click)="closeManualProduct()"
+          [disabled]="manualSaving"
+          aria-label="Tutup"
+        >
+          &times;
+        </button>
+      </header>
+
+      <form class="bp-manual-form" (ngSubmit)="saveManualProduct()">
+        <div class="bp-modal__body">
+          <p class="bp-alert bp-alert--danger" *ngIf="manualError">{{ manualError }}</p>
+
+          <section class="bp-form-section">
+            <h3>Data produk</h3>
+
+            <div class="bp-id-mode">
+              <label>
+                <input type="radio" name="idMode" value="random" [(ngModel)]="form.idMode" />
+                Buat ID otomatis
+              </label>
+              <label>
+                <input type="radio" name="idMode" value="manual" [(ngModel)]="form.idMode" />
+                Masukkan ID sendiri
+              </label>
+            </div>
+
+            <div class="bp-form-grid">
+              <label class="bp-form-field">
+                <span>Product ID</span>
+                <input
+                  type="number"
+                  name="productId"
+                  min="1"
+                  max="2147483647"
+                  [(ngModel)]="form.productId"
+                  [disabled]="form.idMode === 'random'"
+                  [required]="form.idMode === 'manual'"
+                  placeholder="Dibuat oleh sistem"
+                />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Status produk</span>
+                <select name="productStatus" [(ngModel)]="form.productStatus" required>
+                  <option value="One Time Product">One Time Product</option>
+                  <option value="Regular Product">Regular Product</option>
+                </select>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Nama produk</span>
+                <input type="text" name="productName" [(ngModel)]="form.productName" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Supplier ID</span>
+                <input type="number" name="supplierId" min="1" [(ngModel)]="form.supplierId" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Tipe produk</span>
+                <input type="text" name="productType" [(ngModel)]="form.productType" placeholder="Opsional" />
+              </label>
+            </div>
+          </section>
+
+          <section class="bp-form-section">
+            <h3>Data booked product</h3>
+
+            <div class="bp-form-grid">
+              <label class="bp-form-field">
+                <span>Sold Product ID</span>
+                <input type="number" name="bookedProductId" min="1" [(ngModel)]="form.booking.bookedProductId" required />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Dossier ID</span>
+                <input type="text" name="dossierId" [(ngModel)]="form.booking.dossierId" />
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Dossier Name</span>
+                <input type="text" name="dossierName" [(ngModel)]="form.booking.dossierName" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Status booking</span>
+                <input type="text" name="bookingStatus" [(ngModel)]="form.booking.status" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Code</span>
+                <input type="text" name="code" [(ngModel)]="form.booking.code" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Duration</span>
+                <input type="number" name="duration" [(ngModel)]="form.booking.duration" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Travel Date</span>
+                <input type="date" name="travelDate" [(ngModel)]="form.booking.travelDate" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>End Date</span>
+                <input type="date" name="endDate" [(ngModel)]="form.booking.endDate" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Sales</span>
+                <input type="text" name="sales" [(ngModel)]="form.booking.sales" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Operational</span>
+                <input type="text" name="operational" [(ngModel)]="form.booking.operational" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Quantity</span>
+                <input type="number" name="quantity" [(ngModel)]="form.booking.quantity" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Unit</span>
+                <input type="text" name="unit" [(ngModel)]="form.booking.unit" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Price</span>
+                <input type="number" name="price" step="0.01" [(ngModel)]="form.booking.price" />
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Description</span>
+                <textarea name="description" rows="2" [(ngModel)]="form.booking.description"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Info</span>
+                <textarea name="info" rows="2" [(ngModel)]="form.booking.info"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Instructions</span>
+                <textarea name="instructions" rows="2" [(ngModel)]="form.booking.instructions"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Transport Pickup</span>
+                <textarea name="transportPickup" rows="3" [(ngModel)]="form.booking.transportPickup"></textarea>
+              </label>
+
+              <label class="bp-form-field bp-form-field--wide">
+                <span>Transport Dropoff</span>
+                <textarea name="transportDropoff" rows="3" [(ngModel)]="form.booking.transportDropoff"></textarea>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <footer class="bp-modal__footer">
+          <button type="button" class="bp-btn-secondary" (click)="closeManualProduct()" [disabled]="manualSaving">
+            Batal
+          </button>
+          <button type="submit" class="bp-btn-primary" [disabled]="manualSaving">
+            <span *ngIf="!manualSaving">Simpan produk dan booking</span>
+            <span class="bp-btn-primary__loading" *ngIf="manualSaving">
+              <span class="bp-spinner" aria-hidden="true"></span>
+              Menyimpan&hellip;
+            </span>
+          </button>
+        </footer>
+      </form>
+    </div>
+  </div>
+
+</div>

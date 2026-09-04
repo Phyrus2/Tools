@@ -1,0 +1,446 @@
+<section class="bp-app" [formGroup]="form">
+  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
+
+  <header class="bp-masthead">
+    <h1 class="bp-masthead__title">Booked Product</h1>
+    <p class="bp-masthead__subtitle">
+      Cari berdasarkan nama produk, supplier, lokasi, atau catatan booking.
+    </p>
+    <div class="bp-data-freshness" *ngIf="lastImport; else noImportHistory">
+      <svg class="bp-data-freshness__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <rect x="3.5" y="5.5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.5" />
+        <path d="M8 3.5v4M16 3.5v4M3.5 10h17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        <path d="m9 15 2 2 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+      <div class="bp-data-freshness__content">
+        <span class="bp-data-freshness__label">Data Booked Product terakhir diperbarui</span>
+        <strong>{{ formatDisplayDateTime(lastImport.importedAt) }}</strong>
+        <span class="bp-data-freshness__source">
+          Sumber: {{ lastImport.fileName }} &middot; {{ lastImport.totalRows }} baris
+        </span>
+      </div>
+    </div>
+    <ng-template #noImportHistory>
+      <div class="bp-data-freshness bp-data-freshness--empty">
+        <svg class="bp-data-freshness__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.5" />
+          <path d="M12 8v5M12 16.5v.1" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+        </svg>
+        <div class="bp-data-freshness__content">
+          <span class="bp-data-freshness__label">Status pembaruan data</span>
+          <strong>Belum ada riwayat import Booked Product</strong>
+        </div>
+      </div>
+    </ng-template>
+  </header>
+
+  <form class="bp-search-row" (ngSubmit)="onSubmit()">
+    <label class="visually-hidden" for="keyword">Kata kunci</label>
+    <div class="bp-search">
+      <svg class="bp-search__icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <circle cx="9" cy="9" r="6.25" stroke="currentColor" stroke-width="1.5" />
+        <line x1="13.6" y1="13.6" x2="17.5" y2="17.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+      </svg>
+      <input
+        id="keyword"
+        class="bp-search__input"
+        type="text"
+        formControlName="keyword"
+        placeholder="Ketik minimal 2 karakter — mis. Bali, Sunrise Tour, PT Nusantara"
+        autocomplete="off"
+      />
+    </div>
+    <button class="bp-search__submit" type="submit" [disabled]="isDateRangeInvalid">
+      Cari
+    </button>
+    <button
+      class="bp-search__reset"
+      type="button"
+      (click)="clearSearch()"
+      [disabled]="!hasSearched && !form.value.keyword && form.value.dateMode === 'none'"
+    >
+      Reset
+    </button>
+  </form>
+
+  <fieldset class="bp-filters">
+    <legend class="bp-filters__legend">Filter tanggal</legend>
+
+    <div class="bp-chips">
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="none"
+          (change)="onDateModeChange()"
+        />
+        <span>Tanpa filter</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="single"
+          (change)="onDateModeChange()"
+        />
+        <span>Tanggal tertentu</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="from"
+          (change)="onDateModeChange()"
+        />
+        <span>Mulai tanggal</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="until"
+          (change)="onDateModeChange()"
+        />
+        <span>Sampai tanggal</span>
+      </label>
+      <label class="bp-chip">
+        <input
+          type="radio"
+          name="dateMode"
+          formControlName="dateMode"
+          value="range"
+          (change)="onDateModeChange()"
+        />
+        <span>Rentang tanggal</span>
+      </label>
+    </div>
+
+    <div
+      class="bp-date-fields"
+      *ngIf="
+        form.value.dateMode === 'single' ||
+        form.value.dateMode === 'from' ||
+        form.value.dateMode === 'until'
+      "
+    >
+      <div class="bp-date-field">
+        <label>
+          {{
+            form.value.dateMode === 'from'
+              ? 'Mulai dari (termasuk tanggal ini)'
+              : form.value.dateMode === 'until'
+                ? 'Sampai dengan (termasuk tanggal ini)'
+                : 'Tanggal'
+          }}
+        </label>
+        <app-date-picker
+          [value]="form.value.date || ''"
+          ariaLabel="Pilih tanggal pencarian"
+          (valueChange)="onSingleDateSelected($event)"
+        ></app-date-picker>
+      </div>
+    </div>
+
+    <div class="bp-date-fields" *ngIf="form.value.dateMode === 'range'">
+      <div class="bp-date-field">
+        <label>Dari</label>
+        <app-date-picker
+          [value]="form.value.startDate || ''"
+          [max]="form.value.endDate || ''"
+          ariaLabel="Pilih tanggal mulai"
+          (valueChange)="onStartDateSelected($event)"
+        ></app-date-picker>
+      </div>
+      <div class="bp-date-field">
+        <label>Sampai</label>
+        <app-date-picker
+          [value]="form.value.endDate || ''"
+          [min]="form.value.startDate || ''"
+          ariaLabel="Pilih tanggal akhir"
+          (valueChange)="onEndDateSelected($event)"
+        ></app-date-picker>
+      </div>
+      <p class="bp-date-error" *ngIf="isDateRangeInvalid" role="alert">
+        Tanggal akhir tidak boleh lebih awal dari tanggal mulai.
+      </p>
+    </div>
+  </fieldset>
+
+  <div class="bp-meta-line" aria-live="polite">
+    <span *ngIf="loading">Mencari&hellip;</span>
+    <span *ngIf="!loading && hasSearched && !errorMessage"> {{ total }} hasil ditemukan </span>
+  </div>
+
+  <p class="bp-alert" *ngIf="errorMessage" role="alert">
+    {{ errorMessage }}
+  </p>
+
+  <p class="bp-alert" *ngIf="exportError" role="alert">
+    {{ exportError }}
+  </p>
+
+  <div class="bp-toolbar" *ngIf="!loading && hasSearched && results.length > 0">
+    <span class="bp-toolbar__label">Export {{ total }} hasil:</span>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="exportExcel()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="3" y="3" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+        <path d="M3 8h14M8 3v14" stroke="currentColor" stroke-width="1.4" />
+      </svg>
+      {{ exporting === 'excel' ? 'Menyiapkan…' : 'Excel' }}
+    </button>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="exportPdf()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <path d="M6 2.5h5.5L15 6v11.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+        <path d="M11.5 2.5V6H15" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
+      </svg>
+      {{ exporting === 'pdf' ? 'Menyiapkan…' : 'PDF' }}
+    </button>
+
+    <button
+      type="button"
+      class="bp-toolbar__btn"
+      (click)="copyResults()"
+      [disabled]="!!exporting"
+    >
+      <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+        <rect x="6.5" y="6.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+        <path d="M4.5 13V4.5a1 1 0 0 1 1-1H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+      </svg>
+      {{ exporting === 'copy' ? 'Menyalin…' : (copyFeedback ? 'Tersalin ✓' : 'Copy') }}
+    </button>
+  </div>
+
+  <div class="bp-blank" *ngIf="!hasSearched && !loading && !errorMessage && !form.value.keyword">
+    Mulai ketik untuk mencari booked product.
+  </div>
+
+  <div
+    class="bp-blank"
+    *ngIf="!loading && hasSearched && !errorMessage && results.length === 0"
+  >
+    Tidak ada booked product yang cocok dengan pencarian ini.
+  </div>
+
+  <div class="bp-records" *ngIf="!loading && results.length > 0">
+    <table class="bp-table">
+      <thead>
+        <tr>
+          <th scope="col">Dossier &amp; produk</th>
+          <th scope="col">Supplier</th>
+          <th scope="col">Tanggal</th>
+          <th scope="col">Status</th>
+          <th scope="col">Sales</th>
+          <th scope="col">Operational</th>
+          <th scope="col">Cocok di</th>
+          <th scope="col" class="bp-record__action-heading">Aksi</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let item of results; let rowIndex = index">
+          <td data-label="Dossier & produk">
+            <span class="bp-record__title">{{ item.product_name }}</span>
+            <span class="bp-record__meta" *ngIf="item.dossier_name || item.dossier_id">
+              {{ item.dossier_name || '—' }}
+              <ng-container *ngIf="item.dossier_id">&nbsp;&middot; {{ item.dossier_id }}</ng-container>
+            </span>
+          </td>
+          <td data-label="Supplier">
+            <span class="bp-record__title">{{ item.company_name }}</span>
+            <span class="bp-record__meta" *ngIf="item.town || item.region">
+              {{ item.town }}<ng-container *ngIf="item.town && item.region">, </ng-container
+              >{{ item.region }}
+            </span>
+          </td>
+          <td data-label="Tanggal">
+            <ng-container *ngIf="item.travel_date; else noDate">
+              {{ item.travel_date | date: 'dd/MM/yyyy' }}
+              <ng-container *ngIf="item.end_date && item.end_date !== item.travel_date">
+                &ndash; {{ item.end_date | date: 'dd/MM/yyyy' }}
+              </ng-container>
+            </ng-container>
+            <ng-template #noDate>—</ng-template>
+          </td>
+          <td data-label="Status">
+            <span class="bp-tag" *ngIf="item.status; else noStatus">{{ item.status }}</span>
+            <ng-template #noStatus>—</ng-template>
+          </td>
+          <td data-label="Sales">{{ item.sales || '—' }}</td>
+          <td data-label="Operational">{{ item.operational || '—' }}</td>
+          <td data-label="Cocok di">
+            <span class="bp-tag bp-tag--outline">{{ matchedFieldLabel(item.matched_field) }}</span>
+          </td>
+          <td data-label="Aksi" class="bp-record__action">
+            <div class="bp-record__actions">
+              <button
+                type="button"
+                class="bp-action-btn"
+                (click)="copyItem(item, rowIndex)"
+                [attr.aria-label]="'Copy data ' + (item.product_name || '')"
+                [title]="copiedRowIndex === rowIndex ? 'Tersalin!' : 'Copy data ini'"
+              >
+                <svg *ngIf="copiedRowIndex !== rowIndex" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <rect x="6.5" y="6.5" width="10" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4" />
+                  <path d="M4.5 13V4.5a1 1 0 0 1 1-1H13" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" />
+                </svg>
+                <svg *ngIf="copiedRowIndex === rowIndex" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M4 10.5 8 14.5 16 5.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>{{ copiedRowIndex === rowIndex ? 'Tersalin' : 'Copy' }}</span>
+              </button>
+              <button type="button" class="bp-action-btn" (click)="openDetail(item)">
+                <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                  <path d="M2.5 10s2.7-4.5 7.5-4.5 7.5 4.5 7.5 4.5-2.7 4.5-7.5 4.5S2.5 10 2.5 10Z" stroke="currentColor" stroke-width="1.4" />
+                  <circle cx="10" cy="10" r="2" stroke="currentColor" stroke-width="1.4" />
+                </svg>
+                <span>Detail</span>
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer class="bp-pager" *ngIf="!loading && results.length > 0">
+    <button type="button" class="bp-pager__btn" (click)="goToPage(page - 1)" [disabled]="page <= 1">
+      &lsaquo; Sebelumnya
+    </button>
+    <span class="bp-pager__status">Halaman {{ page }} dari {{ totalPages }}</span>
+    <button
+      type="button"
+      class="bp-pager__btn"
+      (click)="goToPage(page + 1)"
+      [disabled]="page >= totalPages"
+    >
+      Selanjutnya &rsaquo;
+    </button>
+  </footer>
+
+  <div class="bp-drawer-overlay" *ngIf="selectedItem" (click)="closeDetail()">
+    <aside class="bp-drawer" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="bp-drawer__header">
+        <div>
+          <span class="bp-drawer__eyebrow">Booked product</span>
+          <h2>{{ selectedItem.product_name }}</h2>
+        </div>
+        <button type="button" class="bp-drawer__close" (click)="closeDetail()" aria-label="Tutup">
+          &times;
+        </button>
+      </header>
+
+      <dl class="bp-drawer__body">
+        <div class="bp-row">
+          <dt>Dossier</dt>
+          <dd>
+            {{ selectedItem.dossier_name || '—' }}
+            <span *ngIf="selectedItem.dossier_id">({{ selectedItem.dossier_id }})</span>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Supplier</dt>
+          <dd>{{ selectedItem.company_name }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Alamat</dt>
+          <dd>
+            <ng-container *ngIf="selectedItem.address; else noDetailAddress">
+              {{ selectedItem.address }}
+            </ng-container>
+            <ng-template #noDetailAddress>&mdash;</ng-template>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Lokasi</dt>
+          <dd>
+            {{ selectedItem.location || '—' }}
+            <ng-container *ngIf="selectedItem.town || selectedItem.region">
+              <br />
+              {{ selectedItem.town
+              }}<ng-container *ngIf="selectedItem.town && selectedItem.region">, </ng-container
+              >{{ selectedItem.region }}
+            </ng-container>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Tanggal</dt>
+          <dd>
+            <ng-container *ngIf="selectedItem.travel_date; else noDetailDate">
+              {{ formatDisplayDate(selectedItem.travel_date) }}
+              <ng-container
+                *ngIf="selectedItem.end_date && selectedItem.end_date !== selectedItem.travel_date"
+              >
+                &ndash; {{ formatDisplayDate(selectedItem.end_date) }}
+              </ng-container>
+            </ng-container>
+            <ng-template #noDetailDate>—</ng-template>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Status</dt>
+          <dd>
+            <span class="bp-tag" *ngIf="selectedItem.status; else noDetailStatus">{{ selectedItem.status }}</span>
+            <ng-template #noDetailStatus>—</ng-template>
+          </dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Sales</dt>
+          <dd>{{ selectedItem.sales || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Operational</dt>
+          <dd>{{ selectedItem.operational || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Deskripsi</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.description) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Info</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.info) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row bp-row--block">
+          <dt>Instruksi</dt>
+          <dd class="bp-note">{{ formatLongText(selectedItem.instructions) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Cocok di</dt>
+          <dd>
+            <span class="bp-tag bp-tag--outline">{{ matchedFieldLabel(selectedItem.matched_field) }}</span>
+          </dd>
+        </div>
+      </dl>
+    </aside>
+  </div>
+</section>
