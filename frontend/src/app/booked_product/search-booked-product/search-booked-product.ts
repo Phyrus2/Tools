@@ -14,10 +14,7 @@ import {
   BookedProductSearchParams,
   BookedProductSearchResult,
 } from '../../services/search';
-import {
-  BookedProduct,
-  BookedProductImportStatus,
-} from '../../services/booked-product';
+import { BookedProduct, BookedProductImportStatus } from '../../services/booked-product';
 import { DatePicker } from '../../shared/date-picker/date-picker';
 
 type DateMode = 'none' | 'single' | 'from' | 'until' | 'range';
@@ -292,12 +289,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   get isDateRangeInvalid(): boolean {
     const { dateMode, startDate, endDate } = this.form.getRawValue();
 
-    return Boolean(
-      dateMode === 'range' &&
-        startDate &&
-        endDate &&
-        startDate > endDate,
-    );
+    return Boolean(dateMode === 'range' && startDate && endDate && startDate > endDate);
   }
 
   goToPage(nextPage: number): void {
@@ -358,27 +350,127 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 40;
 
-      doc.setFontSize(13);
-      doc.text(this.buildPdfTitle(), 40, 36);
+      // Palet warna brand
+      const COLOR_FOREST: [number, number, number] = [53, 86, 77]; // var(--bp-forest)
+      const COLOR_CREAM: [number, number, number] = [247, 245, 240];
+      const COLOR_TEXT: [number, number, number] = [40, 40, 40];
+      const COLOR_MUTED: [number, number, number] = [120, 120, 120];
+      const COLOR_BORDER: [number, number, number] = [225, 222, 214];
 
-      doc.setFontSize(9);
-      const info: string[] = [];
-      if (this.form.value.keyword) info.push(`Keyword: "${this.form.value.keyword}"`);
-      info.push(`${rows.length} rows`);
-      info.push(`Exported ${this.formatTimestamp()}`);
-      doc.text(info.join('   •   '), 40, 52);
+      const drawHeader = () => {
+        // Bar hijau di bagian atas halaman
+        doc.setFillColor(...COLOR_FOREST);
+        doc.rect(0, 0, pageWidth, 58, 'F');
+
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(15);
+        doc.text(this.buildPdfTitle(), margin, 30);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(220, 230, 226);
+        doc.text(`${rows.length} booking   •   Exported ${this.formatTimestamp()}`, margin, 46);
+      };
+
+      const drawFooter = (pageNumber: number, pageCount: number) => {
+        doc.setDrawColor(...COLOR_BORDER);
+        doc.setLineWidth(0.5);
+        doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(...COLOR_MUTED);
+        doc.text('Booking Report', margin, pageHeight - 18);
+        doc.text(`Page ${pageNumber} of ${pageCount}`, pageWidth - margin, pageHeight - 18, {
+          align: 'right',
+        });
+      };
+
+      drawHeader();
+
+      // Dihitung otomatis lewat callback didDrawPage di bawah — aman lintas versi jsPDF
+      let totalPages = 1;
 
       autoTable(doc, {
-        startY: 64,
+        startY: 76,
         head: [EXPORT_COLUMNS.map((c) => c.label)],
-        body: rows.map((row) =>
-          EXPORT_COLUMNS.map((c) => this.stringifyCell((row as any)[c.key])),
+        body: rows.map((row) => EXPORT_COLUMNS.map((c) => this.stringifyCell((row as any)[c.key]))),
+        theme: 'grid',
+        margin: { left: margin, right: margin, top: 76, bottom: 40 },
+        styles: {
+          font: 'helvetica',
+          fontSize: 8.5,
+          cellPadding: { top: 6, bottom: 6, left: 8, right: 8 },
+          textColor: COLOR_TEXT,
+          lineColor: COLOR_BORDER,
+          lineWidth: 0.5,
+          valign: 'middle',
+        },
+        headStyles: {
+          fillColor: COLOR_FOREST,
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 8.5,
+          halign: 'left',
+        },
+        alternateRowStyles: {
+          fillColor: COLOR_CREAM,
+        },
+        // Rata kanan untuk kolom nominal/angka, rata tengah untuk status
+        // — sesuaikan key ini dengan key asli di EXPORT_COLUMNS milikmu
+        columnStyles: EXPORT_COLUMNS.reduce(
+          (acc, c, i) => {
+            if (['total', 'amount', 'price'].includes(c.key)) {
+              acc[i] = { halign: 'right' };
+            }
+            if (c.key === 'status') {
+              acc[i] = { halign: 'center' };
+            }
+            return acc;
+          },
+          {} as Record<number, any>,
         ),
-        styles: { fontSize: 8, cellPadding: 4 },
-        headStyles: { fillColor: [53, 86, 77] }, // var(--bp-forest)
-        margin: { left: 40, right: 40 },
+
+        // Beri warna teks pada kolom status sesuai nilainya
+        didParseCell: (data) => {
+          if (data.section !== 'body') return;
+          const columnKey = EXPORT_COLUMNS[data.column.index]?.key;
+          if (columnKey !== 'status') return;
+
+          const value = String(data.cell.raw ?? '').toLowerCase();
+          const statusColors: Record<string, [number, number, number]> = {
+            confirmed: [39, 116, 87],
+            completed: [39, 116, 87],
+            pending: [176, 132, 33],
+            cancelled: [178, 58, 46],
+            canceled: [178, 58, 46],
+          };
+          const match = Object.keys(statusColors).find((k) => value.includes(k));
+          if (match) {
+            data.cell.styles.textColor = statusColors[match];
+            data.cell.styles.fontStyle = 'bold';
+          }
+        },
+
+        // Ulangi header di setiap halaman baru + catat jumlah halaman berjalan
+        didDrawPage: (data) => {
+          totalPages = data.pageNumber;
+          if (data.pageNumber > 1) {
+            drawHeader();
+          }
+        },
       });
+
+      // Tambahkan footer + nomor halaman ke semua halaman yang sudah dibuat
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i);
+        drawFooter(i, totalPages);
+      }
 
       doc.save(this.buildExportFilename('pdf'));
     } catch (err) {
