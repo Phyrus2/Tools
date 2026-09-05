@@ -122,7 +122,7 @@ export interface BookedProductImportResult {
 })
 
 export class BookedProduct {
-  private apiUrl = 'https://weekly-gdp-colours-leonard.trycloudflare.com';
+  private apiUrl = 'http://localhost:3000';
  
   constructor(private http: HttpClient) {}
  

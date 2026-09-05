@@ -81,7 +81,7 @@ export interface UndoSupplierImportResult {
   providedIn: 'root',
 })
 export class Supplier {
-  private apiUrl = 'https://weekly-gdp-colours-leonard.trycloudflare.com';
+  private apiUrl = 'http://localhost:3000';
 
   constructor(private http: HttpClient) {}
 

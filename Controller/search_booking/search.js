@@ -1,173 +1,161 @@
 const pool = require("../../Database/connection");
 require("dotenv").config();
 
-
 function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 /**
  * ------------------------------------------------------------
- * BUILD WORD-BOUNDARY PATTERN
+ * BUILD WORD-BOUNDARY PATTERN (per satu term)
+ * spasi di term diganti \s+ supaya toleran ke non-breaking space,
+ * spasi ganda, atau line break di data database.
  * ------------------------------------------------------------
  */
-
-function buildWordBoundaryPattern(keyword) {
-  const escaped = escapeRegex(keyword.trim());
+function buildWordBoundaryPattern(term) {
+  const normalized = term.trim().replace(/\s+/g, " ");
+  const escaped = escapeRegex(normalized).replace(/ /g, "\\s+");
   return `\\b${escaped}`;
 }
+
+// Pisah keyword multi-lokasi pakai koma, misal "ruteng, liang bua"
+function parseKeywordTerms(rawKeyword) {
+  return String(rawKeyword)
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+}
+
+const SEARCHABLE_FIELDS = [
+  { column: "s.company_name", label: "company_name" },
+  { column: "s.address", label: "address" },
+  { column: "s.town", label: "town" },
+  { column: "s.region", label: "region" },
+  { column: "s.location", label: "location" },
+  { column: "bp.product_name", label: "product_name" },
+  { column: "bp.description", label: "description" },
+  { column: "bp.info", label: "info" },
+  { column: "bp.instructions", label: "instructions" },
+];
 
 /**
  * ------------------------------------------------------------
  * SEARCH HANDLER
  * ------------------------------------------------------------
  */
-
 async function searchBookedProduct(req, res) {
   try {
     const { keyword, date, startDate, endDate } = req.query;
     console.log("Received search request:", { keyword, date, startDate, endDate });
-    // =================================================
-    // VALIDASI TANGGAL (opsional, fleksibel)
-    // =================================================
-    //
 
+    // =================================================
+    // VALIDASI TANGGAL
+    // =================================================
     const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-
     let hasSingleDate = false;
     let hasStartDate = false;
     let hasEndDate = false;
 
     if (date) {
       if (!dateRegex.test(date)) {
-        return res.status(400).json({
-          success: false,
-          message: "Format date tidak valid. Gunakan YYYY-MM-DD.",
-        });
+        return res.status(400).json({ success: false, message: "Format date tidak valid. Gunakan YYYY-MM-DD." });
       }
       hasSingleDate = true;
     }
 
     if (!hasSingleDate && startDate) {
       if (!dateRegex.test(startDate)) {
-        return res.status(400).json({
-          success: false,
-          message: "Format startDate tidak valid. Gunakan YYYY-MM-DD.",
-        });
+        return res.status(400).json({ success: false, message: "Format startDate tidak valid. Gunakan YYYY-MM-DD." });
       }
       hasStartDate = true;
     }
 
     if (!hasSingleDate && endDate) {
       if (!dateRegex.test(endDate)) {
-        return res.status(400).json({
-          success: false,
-          message: "Format endDate tidak valid. Gunakan YYYY-MM-DD.",
-        });
+        return res.status(400).json({ success: false, message: "Format endDate tidak valid. Gunakan YYYY-MM-DD." });
       }
       hasEndDate = true;
     }
 
     if (hasStartDate && hasEndDate && startDate > endDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Tanggal akhir tidak boleh lebih awal dari tanggal mulai.",
-      });
+      return res.status(400).json({ success: false, message: "Tanggal akhir tidak boleh lebih awal dari tanggal mulai." });
     }
 
     // =================================================
-    // VALIDASI KEYWORD
+    // VALIDASI KEYWORD (per-term, bukan total string)
     // =================================================
-
     const trimmedKeyword = keyword ? String(keyword).trim() : "";
-    const hasKeyword = trimmedKeyword.length > 0;
+    const keywordTerms = trimmedKeyword ? parseKeywordTerms(trimmedKeyword) : [];
+    const hasKeyword = keywordTerms.length > 0;
 
-    if (hasKeyword && trimmedKeyword.length < 2) {
+    if (hasKeyword && keywordTerms.some((t) => t.length < 2)) {
       return res.status(400).json({
         success: false,
-        message: "Keyword minimal 2 karakter.",
+        message: "Setiap keyword minimal 2 karakter.",
       });
     }
 
     if (!hasKeyword && !hasSingleDate && !hasStartDate && !hasEndDate) {
-      return res.status(400).json({
-        success: false,
-        message: "Isi keyword atau pilih filter tanggal.",
-      });
+      return res.status(400).json({ success: false, message: "Isi keyword atau pilih filter tanggal." });
     }
 
-    const pattern = hasKeyword
-      ? buildWordBoundaryPattern(trimmedKeyword)
-      : null;
+    const keywordPatterns = keywordTerms.map(buildWordBoundaryPattern);
 
     // =================================================
     // PAGINATION
     // =================================================
-
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(
-      200,
-      Math.max(1, parseInt(req.query.limit, 10) || 50),
-    );
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const offset = (page - 1) * limit;
 
     // =================================================
-    // BANGUN WHERE CLAUSE SECARA DINAMIS
+    // WHERE: setiap term dicek di semua field, digabung OR
+    // (per-term terpisah, TANPA grouping regex alternation)
     // =================================================
-    //
+    const keywordWhereSql = hasKeyword
+      ? "(" +
+        keywordPatterns
+          .map(
+            () =>
+              "(" +
+              SEARCHABLE_FIELDS.map((f) => `${f.column} REGEXP ?`).join(" OR ") +
+              ")",
+          )
+          .join(" OR ") +
+        ")"
+      : "";
 
-    const whereParts = [
-      "s.company_name REGEXP ?",
-      "s.address REGEXP ?",
-      "s.town REGEXP ?",
-      "s.region REGEXP ?",
-      "s.location REGEXP ?",
-      "bp.product_name REGEXP ?",
-      "bp.description REGEXP ?",
-      "bp.info REGEXP ?",
-      "bp.instructions REGEXP ?",
-    ];
-
-    // Setiap placeholder REGEXP di atas butuh pattern yang sama
-    const whereParams = hasKeyword
-      ? Array(whereParts.length).fill(pattern)
+    const keywordWhereParams = hasKeyword
+      ? keywordPatterns.flatMap((pattern) => SEARCHABLE_FIELDS.map(() => pattern))
       : [];
 
     // =================================================
     // FILTER TANGGAL: SINGLE DATE ATAU RANGE (OVERLAP)
     // =================================================
-    //
-
     let dateSql = "";
     const dateParams = [];
 
     if (hasSingleDate) {
-      dateSql =
-        " AND bp.travel_date <= ? AND COALESCE(bp.end_date, bp.travel_date) >= ?";
+      dateSql = " AND bp.travel_date <= ? AND COALESCE(bp.end_date, bp.travel_date) >= ?";
       dateParams.push(date, date);
     } else if (hasStartDate && hasEndDate) {
-      dateSql =
-        " AND bp.travel_date <= ? AND COALESCE(bp.end_date, bp.travel_date) >= ?";
+      dateSql = " AND bp.travel_date <= ? AND COALESCE(bp.end_date, bp.travel_date) >= ?";
       dateParams.push(endDate, startDate);
     } else if (hasStartDate) {
-      // Booking masih berlangsung atau dimulai pada/setelah startDate.
-      // Contoh: booking 21/12/2026–01/01/2027 tetap cocok untuk 01/01/2027.
       dateSql = " AND COALESCE(bp.end_date, bp.travel_date) >= ?";
       dateParams.push(startDate);
     } else if (hasEndDate) {
-      // Booking sudah mulai sebelum/pada endDate
       dateSql = " AND bp.travel_date <= ?";
       dateParams.push(endDate);
     }
 
     const baseWhereSql = hasKeyword
-      ? `(${whereParts.join(" OR ")})${dateSql}`
+      ? `${keywordWhereSql}${dateSql}`
       : dateSql.replace(/^ AND /, "");
 
     // =================================================
     // COUNT TOTAL (untuk pagination)
     // =================================================
-
     const [countResult] = await pool.query(
       `
       SELECT COUNT(*) AS total
@@ -175,34 +163,30 @@ async function searchBookedProduct(req, res) {
       JOIN suppliers s ON s.supplier_id = bp.supplier_id
       WHERE ${baseWhereSql}
       `,
-      [...whereParams, ...dateParams],
+      [...keywordWhereParams, ...dateParams],
     );
 
     const total = countResult[0].total;
 
+    console.log("WHERE SQL:", baseWhereSql);
+    console.log("Params:", [...keywordWhereParams, ...dateParams]);
+
     // =================================================
     // AMBIL DATA
     // =================================================
-
-    // matched_field butuh pattern lagi (dipakai di SELECT, bukan cuma WHERE)
-    const matchedFieldParams = hasKeyword
-      ? Array(whereParts.length).fill(pattern)
-      : [];
-
     const matchedFieldSql = hasKeyword
       ? `CASE
-          WHEN s.company_name REGEXP ? THEN 'company_name'
-          WHEN s.address REGEXP ? THEN 'address'
-          WHEN s.town REGEXP ? THEN 'town'
-          WHEN s.region REGEXP ? THEN 'region'
-          WHEN s.location REGEXP ? THEN 'location'
-          WHEN bp.product_name REGEXP ? THEN 'product_name'
-          WHEN bp.description REGEXP ? THEN 'description'
-          WHEN bp.info REGEXP ? THEN 'info'
-          WHEN bp.instructions REGEXP ? THEN 'instructions'
-          ELSE 'other'
-        END`
+${SEARCHABLE_FIELDS.map(
+        (f) =>
+          `        WHEN (${keywordPatterns.map(() => `${f.column} REGEXP ?`).join(" OR ")}) THEN '${f.label}'`,
+      ).join("\n")}
+        ELSE 'other'
+      END`
       : "'travel_date'";
+
+    const matchedFieldParams = hasKeyword
+      ? SEARCHABLE_FIELDS.flatMap(() => keywordPatterns)
+      : [];
 
     const [rows] = await pool.query(
       `
@@ -225,14 +209,14 @@ async function searchBookedProduct(req, res) {
       `,
       [
         ...matchedFieldParams,
-        ...whereParams,
+        ...keywordWhereParams,
         ...dateParams,
         limit,
         offset,
       ],
     );
 
-    console.log("Query selesai, jumlah rows:", rows.length); 
+    console.log("Query selesai, jumlah rows:", rows.length);
 
     return res.status(200).json({
       success: true,

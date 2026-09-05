@@ -189,13 +189,14 @@
   </p>
 
   <div class="bp-toolbar" *ngIf="!loading && hasSearched && results.length > 0">
-    <span class="bp-toolbar__label">Export {{ total }} hasil:</span>
+    <span class="bp-toolbar__label">{{ total }} hasil ditemukan. Pilih booking untuk PDF atau Excel:</span>
 
     <button
       type="button"
       class="bp-toolbar__btn"
       (click)="exportExcel()"
-      [disabled]="!!exporting"
+      [disabled]="!!exporting || selectedBookingCount === 0"
+      [title]="selectedBookingCount === 0 ? 'Pilih minimal satu booking terlebih dahulu' : 'Export booking terpilih ke Excel'"
     >
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <rect x="3" y="3" width="14" height="14" rx="1.5" stroke="currentColor" stroke-width="1.4" />
@@ -208,7 +209,8 @@
       type="button"
       class="bp-toolbar__btn"
       (click)="exportPdf()"
-      [disabled]="!!exporting"
+      [disabled]="!!exporting || selectedBookingCount === 0"
+      [title]="selectedBookingCount === 0 ? 'Pilih minimal satu booking terlebih dahulu' : 'Export booking terpilih ke PDF'"
     >
       <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
         <path d="M6 2.5h5.5L15 6v11.5a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-14a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" />
@@ -246,6 +248,16 @@
     <table class="bp-table">
       <thead>
         <tr>
+          <th scope="col" class="bp-record__select-heading">
+            <input
+              type="checkbox"
+              class="bp-record__checkbox"
+              [checked]="areAllVisibleBookingsSelected"
+              (change)="toggleVisibleBookingSelection($any($event.target).checked)"
+              aria-label="Pilih semua booking pada halaman ini"
+              title="Pilih semua booking pada halaman ini"
+            />
+          </th>
           <th scope="col">Dossier &amp; produk</th>
           <th scope="col">Supplier</th>
           <th scope="col">Tanggal</th>
@@ -258,6 +270,15 @@
       </thead>
       <tbody>
         <tr *ngFor="let item of results; let rowIndex = index">
+          <td data-label="Pilih" class="bp-record__select">
+            <input
+              type="checkbox"
+              class="bp-record__checkbox"
+              [checked]="isBookingSelected(item)"
+              (change)="toggleBookingSelection(item, $any($event.target).checked)"
+              [attr.aria-label]="'Pilih ' + (item.product_name || 'booking') + ' untuk PDF'"
+            />
+          </td>
           <td data-label="Dossier & produk">
             <span class="bp-record__title">{{ item.product_name }}</span>
             <span class="bp-record__meta" *ngIf="item.dossier_name || item.dossier_id">

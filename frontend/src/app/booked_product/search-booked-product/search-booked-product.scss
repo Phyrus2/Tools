@@ -427,7 +427,7 @@
 
 .bp-table {
   width: 100%;
-  min-width: 1120px;
+  min-width: 1160px;
   border-collapse: collapse;
   font-size: 0.87rem;
 
@@ -486,37 +486,52 @@
   white-space: nowrap;
 }
 
+.bp-record__select-heading,
+.bp-record__select {
+  width: 38px;
+  padding-right: 0.35rem !important;
+  text-align: center !important;
+}
+
+.bp-record__checkbox {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--bp-forest);
+  cursor: pointer;
+}
+
 @media (min-width: 641px) {
   .bp-table {
-    th:nth-child(1),
-    td:nth-child(1) {
-      width: 23%;
-    }
-
     th:nth-child(2),
     td:nth-child(2) {
-      width: 17%;
+      width: 23%;
     }
 
     th:nth-child(3),
     td:nth-child(3) {
+      width: 17%;
+    }
+
+    th:nth-child(4),
+    td:nth-child(4) {
       width: 16%;
       white-space: nowrap;
     }
 
-    th:nth-child(4),
-    td:nth-child(4),
     th:nth-child(5),
     td:nth-child(5),
     th:nth-child(6),
     td:nth-child(6),
     th:nth-child(7),
-    td:nth-child(7) {
+    td:nth-child(7),
+    th:nth-child(8),
+    td:nth-child(8) {
       width: 9%;
     }
 
-    th:nth-child(8),
-    td:nth-child(8) {
+    th:nth-child(9),
+    td:nth-child(9) {
       width: 172px;
       min-width: 172px;
     }

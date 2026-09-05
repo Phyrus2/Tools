@@ -22,6 +22,7 @@ type ExportKind = 'pdf' | 'excel' | 'copy';
 
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
+const BOOKING_TIME_ZONE = 'Asia/Makassar';
 const INDONESIAN_MONTH_NAMES = [
   'Januari',
   'Februari',
@@ -82,6 +83,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   });
 
   results: BookedProductSearchResult[] = [];
+  readonly selectedBookingIds = new Set<number>();
   page = 1;
   totalPages = 1;
   total = 0;
@@ -117,6 +119,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         console.log('🔍 Keyword:', keyword);
 
         this.page = 1;
+        this.clearBookingSelection();
         this.triggerSearch();
       });
 
@@ -229,10 +232,10 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   formatDisplayDate(value: string | null | undefined): string {
     if (!value) return '—';
 
-    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(this.formatDateForExport(value));
     if (!match) return String(value);
 
-    const [, year, month, day] = match;
+    const [, day, month, year] = match;
     return `${Number(day)} ${INDONESIAN_MONTH_NAMES[Number(month) - 1]} ${year}`;
   }
 
@@ -257,17 +260,20 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   onSubmit(): void {
     this.page = 1;
+    this.clearBookingSelection();
     this.triggerSearch();
   }
 
   onDateModeChange(): void {
     this.form.patchValue({ date: '', startDate: '', endDate: '' });
     this.page = 1;
+    this.clearBookingSelection();
     this.triggerSearch();
   }
 
   onDateFieldChange(): void {
     this.page = 1;
+    this.clearBookingSelection();
     this.triggerSearch();
   }
 
@@ -315,6 +321,41 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     this.page = 1;
     this.totalPages = 1;
     this.total = 0;
+    this.clearBookingSelection();
+  }
+
+  get selectedBookingCount(): number {
+    return this.selectedBookingIds.size;
+  }
+
+  get areAllVisibleBookingsSelected(): boolean {
+    return this.results.length > 0 && this.results.every((item) => this.selectedBookingIds.has(item.id));
+  }
+
+  isBookingSelected(item: BookedProductSearchResult): boolean {
+    return this.selectedBookingIds.has(item.id);
+  }
+
+  toggleBookingSelection(item: BookedProductSearchResult, selected: boolean): void {
+    if (selected) {
+      this.selectedBookingIds.add(item.id);
+    } else {
+      this.selectedBookingIds.delete(item.id);
+    }
+  }
+
+  toggleVisibleBookingSelection(selected: boolean): void {
+    for (const item of this.results) {
+      if (selected) {
+        this.selectedBookingIds.add(item.id);
+      } else {
+        this.selectedBookingIds.delete(item.id);
+      }
+    }
+  }
+
+  private clearBookingSelection(): void {
+    this.selectedBookingIds.clear();
   }
 
   matchedFieldLabel(field: string): string {
@@ -344,6 +385,12 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   async exportPdf(): Promise<void> {
     if (this.exporting) return;
+
+    if (this.selectedBookingCount === 0) {
+      this.exportError = 'Pilih minimal satu booking untuk diekspor ke PDF.';
+      this.cdr.markForCheck();
+      return;
+    }
 
     const rows = await this.prepareExportRows('pdf');
     if (!rows) return;
@@ -485,6 +532,12 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   async exportExcel(): Promise<void> {
     if (this.exporting) return;
 
+    if (this.selectedBookingCount === 0) {
+      this.exportError = 'Pilih minimal satu booking untuk diekspor ke Excel.';
+      this.cdr.markForCheck();
+      return;
+    }
+
     const rows = await this.prepareExportRows('excel');
     if (!rows) return;
 
@@ -497,8 +550,91 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         return record;
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(sheetData);
-      worksheet['!cols'] = EXPORT_COLUMNS.map(() => ({ wch: 18 }));
+      const worksheet = XLSX.utils.aoa_to_sheet([
+        [this.buildPdfTitle()],
+        [`${rows.length} selected booking(s)  |  Exported ${this.formatTimestamp()}`],
+        [],
+      ]);
+      XLSX.utils.sheet_add_json(worksheet, sheetData, { origin: 'A4', skipHeader: false });
+
+      const columnWidths = [14, 28, 15, 34, 38, 12, 14, 14, 16, 16, 11];
+      worksheet['!cols'] = columnWidths.map((wch) => ({ wch }));
+      worksheet['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 8 }, { hpt: 25 }];
+      worksheet['!merges'] = [
+        XLSX.utils.decode_range(`A1:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}1`),
+        XLSX.utils.decode_range(`A2:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}2`),
+      ];
+      worksheet['!autofilter'] = { ref: `A4:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}${rows.length + 4}` };
+      (worksheet as any)['!freeze'] = { xSplit: 0, ySplit: 4, topLeftCell: 'A5', activePane: 'bottomLeft', state: 'frozen' };
+
+      const titleStyle = {
+        font: { name: 'Aptos Display', sz: 16, bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { patternType: 'solid', fgColor: { rgb: '35564D' } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+      };
+      const metadataStyle = {
+        font: { name: 'Aptos', sz: 10, color: { rgb: '596660' } },
+        fill: { patternType: 'solid', fgColor: { rgb: 'F7F5F0' } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+      };
+      const headerStyle = {
+        font: { name: 'Aptos', sz: 10, bold: true, color: { rgb: 'FFFFFF' } },
+        fill: { patternType: 'solid', fgColor: { rgb: '35564D' } },
+        alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+        border: { bottom: { style: 'thin', color: { rgb: '27463C' } } },
+      };
+      const baseCellStyle = {
+        font: { name: 'Aptos', sz: 10, color: { rgb: '282828' } },
+        alignment: { vertical: 'center', wrapText: true },
+        border: { bottom: { style: 'hair', color: { rgb: 'D9DDD8' } } },
+      };
+
+      worksheet['A1']!.s = titleStyle;
+      worksheet['A2']!.s = metadataStyle;
+
+      for (let column = 0; column < EXPORT_COLUMNS.length; column++) {
+        worksheet[XLSX.utils.encode_cell({ r: 3, c: column })]!.s = headerStyle;
+      }
+
+      rows.forEach((row, rowIndex) => {
+        const excelRow = rowIndex + 4;
+        const isAlternateRow = rowIndex % 2 === 1;
+
+        for (let column = 0; column < EXPORT_COLUMNS.length; column++) {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: excelRow, c: column })];
+          if (!cell) continue;
+
+          cell.s = {
+            ...baseCellStyle,
+            fill: isAlternateRow ? { patternType: 'solid', fgColor: { rgb: 'F7F5F0' } } : undefined,
+          };
+        }
+
+        const statusCell = worksheet[XLSX.utils.encode_cell({ r: excelRow, c: 2 })];
+        const status = String((row as any).status ?? '').toLowerCase();
+        if (statusCell && status) {
+          const statusColor = status.includes('confirm') || status.includes('complete')
+            ? '277457'
+            : status.includes('cancel')
+              ? 'B23A2E'
+              : status.includes('pending')
+                ? 'B08421'
+                : '596660';
+          const statusFill = status.includes('confirm') || status.includes('complete')
+            ? 'E1F0E9'
+            : status.includes('cancel')
+              ? 'F9E2DF'
+              : status.includes('pending')
+                ? 'FFF1CF'
+                : 'EEF0EE';
+          statusCell.s = {
+            ...statusCell.s,
+            font: { name: 'Aptos', sz: 10, bold: true, color: { rgb: statusColor } },
+            fill: { patternType: 'solid', fgColor: { rgb: statusFill } },
+            alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+          };
+        }
+      });
 
       const workbook = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(workbook, worksheet, 'Booked Product');
@@ -627,7 +763,11 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     try {
       const allRows = await this.fetchAllResults();
-      return allRows.map((row) => ({
+      const rowsToExport = kind === 'pdf' || kind === 'excel'
+        ? allRows.filter((row) => this.selectedBookingIds.has(row.id))
+        : allRows;
+
+      return rowsToExport.map((row) => ({
         ...row,
         travel_date: this.formatDateForExport((row as any).travel_date) as any,
         end_date: this.formatDateForExport((row as any).end_date) as any,
@@ -702,14 +842,25 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   private formatDateForExport(value: string | null | undefined): string {
     if (!value) return '';
+    const rawValue = String(value);
     // Backend mengirim tanggal berformat YYYY-MM-DD (atau ISO datetime) — parse
     // manual (bukan `new Date()`) supaya tidak kena pergeseran timezone.
-    const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(value));
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(rawValue);
     if (match) {
       const [, y, m, d] = match;
       return `${d}/${m}/${y}`;
     }
-    return String(value);
+    const date = new Date(rawValue);
+    if (!Number.isNaN(date.getTime())) {
+      return new Intl.DateTimeFormat('en-GB', {
+        timeZone: BOOKING_TIME_ZONE,
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(date);
+    }
+
+    return rawValue;
   }
 
   private formatTimestamp(): string {
