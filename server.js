@@ -45,6 +45,14 @@ app.get(
 //SEARCH BOOKED PRODUCT
 app.get("/booked-product/search", search.searchBookedProduct);
 
+
+app.get('/', (req, res) => {
+    res.json({
+        success: true,
+        message: 'Backend Express berhasil berjalan!'
+    });
+});
+
 (async () => {
   try {
     await runMigrations();

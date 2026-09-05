@@ -151,7 +151,7 @@ export interface BookedProductSearchParams {
   providedIn: 'root',
 })
 export class Search {
-  private apiUrl = 'http://localhost:3000';
+  private apiUrl = 'https://weekly-gdp-colours-leonard.trycloudflare.com';
  
   constructor(private http: HttpClient) {}
  

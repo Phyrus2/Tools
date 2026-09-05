@@ -38,7 +38,7 @@ export interface ProductImportResult {
   providedIn: 'root',
 })
 export class Product {
-   private apiUrl = 'http://localhost:3000';
+   private apiUrl = 'https://weekly-gdp-colours-leonard.trycloudflare.com';
  
   constructor(private http: HttpClient) {}
  
