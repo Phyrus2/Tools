@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
+import { AuthService } from '../auth/auth.service';
 
 @Component({
   selector: 'app-landing-page',
@@ -8,4 +9,10 @@ import { RouterLink } from '@angular/router';
   styleUrl: './landing-page.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class LandingPage {}
+export class LandingPage {
+  constructor(readonly auth: AuthService, private readonly router: Router) {}
+
+  logout(): void {
+    this.auth.logout().subscribe(() => void this.router.navigate(['/login']));
+  }
+}

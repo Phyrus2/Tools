@@ -14,7 +14,8 @@
 
     <div class="hub-topbar__meta">
       <span class="hub-status"><i aria-hidden="true"></i> Sistem aktif</span>
-      <span class="hub-avatar" aria-label="Profil pengguna">OP</span>
+      <span class="hub-user">{{ auth.user()?.fullname }}</span>
+      <button class="hub-logout" type="button" (click)="logout()">Keluar</button>
     </div>
   </header>
 

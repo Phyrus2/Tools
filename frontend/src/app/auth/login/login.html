@@ -1,0 +1,38 @@
+<main class="login-shell">
+  <section class="login-card" aria-labelledby="login-title">
+    <div class="login-brand" aria-hidden="true"><span></span><span></span><span></span></div>
+    <p class="login-eyebrow">Database Tools</p>
+    <h1 id="login-title">Masuk sebagai admin</h1>
+    <p class="login-intro">Gunakan akun administrator untuk mengakses data internal.</p>
+
+    <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+      <label for="username">Username</label>
+      <input id="username" type="text" formControlName="username" autocomplete="username"
+        autocapitalize="none" spellcheck="false" maxlength="100" />
+      @if (form.controls.username.touched && form.controls.username.invalid) {
+        <small class="field-error">Username wajib diisi.</small>
+      }
+
+      <label for="password">Password</label>
+      <div class="password-field">
+        <input id="password" [type]="showPassword ? 'text' : 'password'" formControlName="password"
+          autocomplete="current-password" maxlength="128" />
+        <button type="button" (click)="showPassword = !showPassword"
+          [attr.aria-label]="showPassword ? 'Sembunyikan password' : 'Tampilkan password'">
+          {{ showPassword ? 'Sembunyikan' : 'Lihat' }}
+        </button>
+      </div>
+      @if (form.controls.password.touched && form.controls.password.invalid) {
+        <small class="field-error">Password wajib diisi.</small>
+      }
+
+      @if (errorMessage) {
+        <div class="login-error" role="alert">{{ errorMessage }}</div>
+      }
+
+      <button class="submit-button" type="submit" [disabled]="loading">
+        {{ loading ? 'Memeriksa…' : 'Masuk' }}
+      </button>
+    </form>
+  </section>
+</main>

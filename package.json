@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "admin:create": "node scripts/create-admin.js"
   },
   "dependencies": {
     "cors": "^2.8.6",

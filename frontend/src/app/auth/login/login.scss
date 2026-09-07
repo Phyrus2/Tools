@@ -1,0 +1,30 @@
+:host { display: block; min-height: 100dvh; }
+* { box-sizing: border-box; }
+.login-shell {
+  min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem;
+  color: #20261f; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: radial-gradient(circle at 75% 10%, rgba(53, 86, 77, .14), transparent 30rem), #f6f3ea;
+}
+.login-card {
+  width: min(100%, 430px); padding: clamp(2rem, 6vw, 3.2rem); border: 1px solid #ddd5c1;
+  border-radius: 16px; background: rgba(255, 253, 248, .95); box-shadow: 0 24px 70px rgba(37, 62, 55, .12);
+}
+.login-brand { width: 48px; height: 48px; display: flex; align-items: end; gap: 4px; padding: 11px; border-radius: 12px; background: #253e37; }
+.login-brand span { flex: 1; background: #fffdf8; border-radius: 2px 2px 0 0; }
+.login-brand span:nth-child(1) { height: 45%; }
+.login-brand span:nth-child(2) { height: 100%; background: #cba55d; }
+.login-brand span:nth-child(3) { height: 72%; }
+.login-eyebrow { margin: 1.5rem 0 .55rem; color: #a97e37; font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; }
+h1 { margin: 0; color: #253e37; font-family: 'Fraunces', Georgia, serif; font-size: clamp(2rem, 8vw, 2.65rem); line-height: 1.05; }
+.login-intro { margin: .8rem 0 1.8rem; color: #687064; font-size: .9rem; line-height: 1.6; }
+label { display: block; margin: 1rem 0 .4rem; color: #384139; font-size: .78rem; font-weight: 700; }
+input { width: 100%; min-height: 46px; padding: .72rem .8rem; border: 1px solid #c7bc9f; border-radius: 8px; color: #20261f; background: #fff; font: inherit; }
+input:focus { outline: 3px solid rgba(53, 86, 77, .16); border-color: #35564d; }
+.password-field { position: relative; }
+.password-field input { padding-right: 6.5rem; }
+.password-field button { position: absolute; right: .45rem; top: 50%; transform: translateY(-50%); padding: .4rem .55rem; border: 0; color: #35564d; background: transparent; font-weight: 700; cursor: pointer; }
+.field-error { display: block; margin-top: .35rem; color: #9c3e35; }
+.login-error { margin-top: 1rem; padding: .75rem; border: 1px solid #e2b7b1; border-radius: 8px; color: #842f27; background: #fff0ee; font-size: .82rem; }
+.submit-button { width: 100%; min-height: 48px; margin-top: 1.35rem; border: 0; border-radius: 8px; color: #fffdf8; background: #35564d; font: inherit; font-weight: 700; cursor: pointer; }
+.submit-button:hover:not(:disabled) { background: #253e37; }
+.submit-button:disabled { opacity: .65; cursor: wait; }

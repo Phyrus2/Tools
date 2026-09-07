@@ -146,6 +146,29 @@
   font-weight: 600;
 }
 
+.hub-user {
+  max-width: 180px;
+  overflow: hidden;
+  color: var(--hub-ink-soft);
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.hub-logout {
+  padding: 0.48rem 0.72rem;
+  border: 1px solid var(--hub-hairline-strong);
+  border-radius: 7px;
+  color: var(--hub-forest-deep);
+  background: var(--hub-surface);
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.hub-logout:hover { background: var(--hub-forest-wash); }
+
 .hub-content {
   width: min(1180px, calc(100% - 3rem));
   margin: 0 auto;

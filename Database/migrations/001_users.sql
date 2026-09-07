@@ -25,21 +25,5 @@ CREATE TABLE IF NOT EXISTS users (
         ON UPDATE CURRENT_TIMESTAMP
 );
 
-INSERT INTO users (
-    fullname,
-    username,
-    email,
-    password,
-    role,
-    status
-)
-SELECT
-    'Administrator',
-    'admin',
-    'admin@localhost',
-    'admin123',
-    'ADMIN',
-    'ACTIVE'
-WHERE NOT EXISTS (
-    SELECT 1 FROM users WHERE username = 'admin'
-);
+-- Admin sengaja tidak dibuat di migration. Gunakan `npm run admin:create`
+-- agar password tidak pernah disimpan sebagai teks biasa atau masuk Git.

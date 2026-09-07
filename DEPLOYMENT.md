@@ -55,6 +55,7 @@ DB_USER=tools_app
 DB_PASSWORD=PASSWORD_MYSQL_KAMU
 DB_NAME=tools
 CORS_ORIGINS=http://localhost:4200,https://YOUR_USERNAME.github.io
+TRUST_CLOUDFLARE_IP_HEADER=true
 ```
 
 User database harus sudah dibuat dan punya izin pada database aplikasi, termasuk untuk migrasi. Jika memakai XAMPP, nyalakan MySQL melalui XAMPP Control Panel. Jika memakai Windows Service, cari nama service di PowerShell:
@@ -68,13 +69,16 @@ Untuk service yang berhenti, jalankan PowerShell sebagai Administrator lalu `Sta
 Di terminal pertama, dari root proyek:
 
 ```powershell
+npm run admin:create
 npm start
 ```
+
+Perintah `admin:create` menjalankan migrasi keamanan lalu meminta username, nama, dan password admin. Password harus 14-128 karakter, tidak ditampilkan saat diketik, dan disimpan sebagai hash scrypt dengan salt acak. Jalankan perintah yang sama untuk mengganti password admin; semua sesi login lama akan otomatis dicabut. Akun lama `admin/admin123` tidak lagi dapat dipakai.
 
 Biarkan terminal ini terbuka. Di terminal lain, periksa:
 
 ```powershell
-Invoke-RestMethod http://localhost:3000/
+Invoke-RestMethod http://localhost:3000/health
 ```
 
 Atur origin frontend di `.env`, lalu restart backend:
@@ -93,7 +97,7 @@ Panduan resmi: https://developers.cloudflare.com/tunnel/setup/
 
 Tunnel menyediakan akses ke service lokal tanpa membuka port router. Jangan membuka port MySQL 3306 ke internet.
 
-**Sebelum mempublikasikan backend:** endpoint proyek saat ini belum memiliki autentikasi, termasuk impor, input manual, dan undo. Siapa pun yang bisa menjangkau API dapat memanggilnya. CORS hanya mengatur akses browser, bukan autentikasi. Tambahkan autentikasi dan otorisasi yang sesuai sebelum memakai data asli. Jangan menaruh password database atau secret API di frontend.
+Endpoint data sekarang dilindungi login admin. Tetap jangan menaruh password database, token sesi, atau secret API di frontend maupun repository GitHub.
 
 Untuk uji sementara dengan data dummy, setelah memahami akses publik tersebut, jalankan di terminal kedua dari root proyek:
 
@@ -106,7 +110,7 @@ Gunakan URL HTTPS `trycloudflare.com` yang ditampilkan. URL sementara berubah sa
 Tes URL yang keluar, ganti contoh berikut dengan URL kamu:
 
 ```powershell
-Invoke-RestMethod https://NAMA-ACAK.trycloudflare.com/
+Invoke-RestMethod https://NAMA-ACAK.trycloudflare.com/health
 ```
 
 Quick Tunnel hanya untuk pengujian, bukan server produksi. Untuk pemakaian rutin dengan URL tetap, gunakan domain di Cloudflare dan named tunnel. Dari root proyek:
@@ -149,7 +153,7 @@ Perintah commit dan push dari root proyek (perintah ini memilih file konfigurasi
 
 ```powershell
 git status --short
-git add .gitignore .env.example DEPLOYMENT.md .github/workflows/pages.yml package.json server.js frontend/src/app/app.config.ts frontend/src/app/services/api-config.ts frontend/src/app/services/booked-product.ts frontend/src/app/services/product.ts frontend/src/app/services/search.ts frontend/src/app/services/supplier.ts frontend/src/index.html frontend/public/api-config.js frontend/scripts/configure-pages.mjs
+git add .gitignore .env.example DEPLOYMENT.md .github/workflows/pages.yml package.json server.js Security scripts Database/migrations frontend/src/app frontend/src/index.html frontend/public/api-config.js frontend/scripts/configure-pages.mjs Controller/data_analyst/excel
 git diff --cached --name-status
 git commit -m "Prepare PC backend and GitHub Pages deployment; stop tracking env"
 git push origin main
@@ -170,3 +174,13 @@ Panduan workflow resmi: https://docs.github.com/en/pages/getting-started-with-gi
 PC harus menyala, tersambung internet, dan tidak sleep selama backend dibutuhkan. Atur MySQL, backend, dan connector tunnel agar berjalan otomatis saat Windows menyala (Windows Service atau Task Scheduler, dengan working directory root proyek untuk backend). Konfigurasi autostart belum dipasang oleh perubahan ini. Jika PC mati, halaman Pages tetap terbuka tetapi operasi data gagal. Backup database secara berkala.
 
 Jika koneksi gagal, periksa JSON di URL publik backend, proses MySQL/Express/tunnel, nilai `API_URL` dalam `api-config.js` pada situs Pages, dan kecocokan `CORS_ORIGINS`. URL `localhost` pada browser pengunjung menunjuk perangkat pengunjung, bukan PC server.
+
+## 5. Keamanan login admin
+
+Semua endpoint supplier, product, booked product, dan pencarian membutuhkan sesi admin. Hanya `/health` dan `/auth/login` yang dapat diakses tanpa login. Sesi memakai token acak 256-bit, token asli hanya berada di tab browser, database menyimpan SHA-256 token, dan sesi habis setelah 8 jam. Menutup tab menghapus token dari browser. Lima kegagalan pada username yang sama mengunci akun selama 15 menit; backend juga membatasi percobaan per alamat IP dan jumlah pemeriksaan password bersamaan.
+
+Password memakai scrypt dengan konfigurasi memory-hard. Respons gagal login tidak mengungkap apakah username ada. Upload dibatasi 10 MB dan satu file per request. Backend menolak origin browser di luar `CORS_ORIGINS` dan mengirim header keamanan dasar.
+
+Set `TRUST_CLOUDFLARE_IP_HEADER=true` hanya jika port 3000 tidak dibuka ke jaringan/internet dan backend hanya dipublikasikan melalui Cloudflare Tunnel. Jika port backend juga dapat diakses langsung oleh perangkat lain, set `false` agar header IP tidak dapat dipalsukan.
+
+Login melindungi aplikasi, tetapi tidak membuat PC kebal serangan. Gunakan named tunnel, jangan port-forward 3000 atau 3306, aktifkan update Windows/Node/MySQL, gunakan password admin unik dari password manager, dan backup database. Untuk tingkat perlindungan lebih tinggi, langkah berikutnya adalah MFA atau Cloudflare Access di depan hostname API.
