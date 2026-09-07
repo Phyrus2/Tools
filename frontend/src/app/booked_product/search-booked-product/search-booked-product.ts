@@ -424,7 +424,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         doc.text(`${rows.length} booking   •   Exported ${this.formatTimestamp()}`, margin, 46);
       };
 
-      const drawFooter = (pageNumber: number, pageCount: number) => {
+      const drawFooter = (pageNumber: number, pageCount: number) => {   
         doc.setDrawColor(...COLOR_BORDER);
         doc.setLineWidth(0.5);
         doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30);

@@ -1,3 +1,4 @@
+import { API_URL } from './api-config';
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -122,7 +123,7 @@ export interface BookedProductImportResult {
 })
 
 export class BookedProduct {
-  private apiUrl = 'http://localhost:3000';
+  private apiUrl = API_URL;
  
   constructor(private http: HttpClient) {}
  

@@ -21,7 +21,11 @@ const booked_product = require("./Controller/data_analyst/excel/Booked_Product/u
 const search = require("./Controller/search_booking/search");
 
 const app = express();
-app.use(cors());
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:4200')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+app.use(cors({ origin: allowedOrigins }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3000;

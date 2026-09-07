@@ -1,0 +1,12 @@
+# Dependencies
+node_modules/
+# Local environment files at any directory depth; only the dummy template is public.
+.env
+.env.*
+!.env.example
+# Local data and tunnel credentials
+uploads/
+cloudflare/*.exe
+cloudflare/*.json
+cloudflare/*.pem
+.cloudflared/

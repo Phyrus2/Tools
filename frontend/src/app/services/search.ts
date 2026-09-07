@@ -1,3 +1,4 @@
+import { API_URL } from './api-config';
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
@@ -151,7 +152,7 @@ export interface BookedProductSearchParams {
   providedIn: 'root',
 })
 export class Search {
-  private apiUrl = 'http://localhost:3000';
+  private apiUrl = API_URL;
  
   constructor(private http: HttpClient) {}
  
