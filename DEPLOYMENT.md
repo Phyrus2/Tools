@@ -165,6 +165,8 @@ Tidak perlu mengunggah folder `dist` secara manual atau menjalankan `ng deploy`.
 
 Workflow hanya berjalan manual. Workflow membangun folder `frontend`, menyesuaikan base path Pages, lalu mengunggah hanya `frontend/dist/frontend/browser`. Backend dan `.env` tidak menjadi bagian artifact. `API_URL` wajib HTTPS; konfigurasi yang kosong/tidak valid menggagalkan deployment.
 
+Setiap deployment memberi versi unik pada `api-config.js`, sehingga browser tidak terus memakai URL Quick Tunnel lama dari cache. Jika tab sudah terbuka saat URL tunnel berubah, lakukan hard refresh (`Ctrl+F5`) setelah deployment selesai.
+
 Routing Angular menggunakan hash, misalnya `/Tools/#/...`, supaya refresh halaman tidak memerlukan rewrite server di GitHub Pages. Pengembangan lokal tetap memakai `http://localhost:3000` dari `frontend/public/api-config.js`.
 
 Panduan workflow resmi: https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages

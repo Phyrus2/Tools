@@ -32,6 +32,7 @@ jobs:
         working-directory: frontend
         env:
           API_URL: ${{ vars.API_URL }}
+          BUILD_ID: ${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-pages-artifact@v4
         with:
           path: frontend/dist/frontend/browser
