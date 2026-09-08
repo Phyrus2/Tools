@@ -19,7 +19,6 @@ import { DatePicker } from '../../shared/date-picker/date-picker';
 
 type DateMode = 'none' | 'single' | 'from' | 'until' | 'range';
 type ExportKind = 'pdf' | 'excel' | 'copy';
-type ExportVariant = 'standard' | 'unit-price';
 
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
@@ -42,10 +41,19 @@ const INDONESIAN_MONTH_NAMES = [
 // Limit maksimum per-request yang sudah diizinkan backend (lihat searchBookedProduct.js).
 // Dipakai saat export supaya kita bisa menyapu semua halaman dengan request sesedikit mungkin.
 const EXPORT_FETCH_LIMIT = 200;
+const PDF_FONT_NAME = 'Sansation';
 
 interface ExportColumn {
   label: string;
   key: string;
+}
+
+interface ExportTemplate {
+  id: string;
+  label: string;
+  columns: ExportColumn[];
+  filenameSuffix: string;
+  includeUnitAndPrice: boolean;
 }
 
 // Kolom & urutan yang SAMA dipakai untuk export PDF, Excel, maupun Copy.
@@ -67,6 +75,24 @@ const UNIT_PRICE_EXPORT_COLUMNS: ExportColumn[] = [
   ...STANDARD_EXPORT_COLUMNS,
   { label: 'Unit', key: 'unit' },
   { label: 'Price', key: 'price' },
+];
+
+// Tambahkan template export baru di sini agar otomatis muncul di dropdown.
+const EXPORT_TEMPLATES: readonly ExportTemplate[] = [
+  {
+    id: 'standard',
+    label: 'Standar — data booking utama',
+    columns: STANDARD_EXPORT_COLUMNS,
+    filenameSuffix: '',
+    includeUnitAndPrice: false,
+  },
+  {
+    id: 'unit-price',
+    label: 'Lengkap — termasuk unit & price',
+    columns: UNIT_PRICE_EXPORT_COLUMNS,
+    filenameSuffix: '-unit-price',
+    includeUnitAndPrice: true,
+  },
 ];
 
 @Component({
@@ -104,7 +130,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   // --- Export & copy state ---
   exporting: ExportKind | null = null;
-  exportVariant: ExportVariant = 'standard';
+  exportVariant = EXPORT_TEMPLATES[0].id;
   exportError: string | null = null;
   copyFeedback = false;
   private copyFeedbackTimeout?: ReturnType<typeof setTimeout>;
@@ -392,13 +418,18 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   // seluruh halaman lewat endpoint search yang sama.
 
   setExportVariant(value: string): void {
-    this.exportVariant = value === 'unit-price' ? 'unit-price' : 'standard';
+    if (EXPORT_TEMPLATES.some((template) => template.id === value)) {
+      this.exportVariant = value;
+    }
   }
 
   private get exportColumns(): ExportColumn[] {
-    return this.exportVariant === 'unit-price'
-      ? UNIT_PRICE_EXPORT_COLUMNS
-      : STANDARD_EXPORT_COLUMNS;
+    return this.selectedExportTemplate.columns;
+  }
+
+  private get selectedExportTemplate(): ExportTemplate {
+    return EXPORT_TEMPLATES.find((template) => template.id === this.exportVariant)
+      ?? EXPORT_TEMPLATES[0];
   }
 
   async exportPdf(): Promise<void> {
@@ -416,9 +447,10 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+      await this.registerPdfFonts(doc);
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
-      const margin = 40;
+      const margin = 24;
 
       // Palet warna brand
       const COLOR_FOREST: [number, number, number] = [53, 86, 77]; // var(--bp-forest)
@@ -433,11 +465,11 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         doc.rect(0, 0, pageWidth, 58, 'F');
 
         doc.setTextColor(255, 255, 255);
-        doc.setFont('helvetica', 'bold');
+        doc.setFont(PDF_FONT_NAME, 'bold');
         doc.setFontSize(15);
         doc.text(this.buildPdfTitle(), margin, 30);
 
-        doc.setFont('helvetica', 'normal');
+        doc.setFont(PDF_FONT_NAME, 'normal');
         doc.setFontSize(9);
         doc.setTextColor(220, 230, 226);
         doc.text(`${rows.length} booking   •   Exported ${this.formatTimestamp()}`, margin, 46);
@@ -448,7 +480,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         doc.setLineWidth(0.5);
         doc.line(margin, pageHeight - 30, pageWidth - margin, pageHeight - 30);
 
-        doc.setFont('helvetica', 'normal');
+        doc.setFont(PDF_FONT_NAME, 'normal');
         doc.setFontSize(8);
         doc.setTextColor(...COLOR_MUTED);
         doc.text('Booking Report', margin, pageHeight - 18);
@@ -469,9 +501,9 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         theme: 'grid',
         margin: { left: margin, right: margin, top: 76, bottom: 40 },
         styles: {
-          font: 'helvetica',
+          font: PDF_FONT_NAME,
           fontSize: 8.5,
-          cellPadding: { top: 6, bottom: 6, left: 8, right: 8 },
+          cellPadding: { top: 6, bottom: 6, left: 5, right: 5 },
           textColor: COLOR_TEXT,
           lineColor: COLOR_BORDER,
           lineWidth: 0.5,
@@ -491,12 +523,15 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         // — sesuaikan key ini dengan key asli di EXPORT_COLUMNS milikmu
         columnStyles: columns.reduce(
           (acc, c, i) => {
+            const style: Record<string, unknown> = {};
+
             if (['total', 'amount', 'price'].includes(c.key)) {
-              acc[i] = { halign: 'right' };
+              style['halign'] = 'right';
             }
             if (c.key === 'status') {
-              acc[i] = { halign: 'center' };
+              style['halign'] = 'center';
             }
+            acc[i] = style;
             return acc;
           },
           {} as Record<number, any>,
@@ -683,7 +718,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       const blocks = rows.map((row, index) => this.buildWhatsAppBlock(
         row as any,
         index + 1,
-        this.exportVariant === 'unit-price',
+        this.selectedExportTemplate.includeUnitAndPrice,
       ));
       const text = [header.join('\n'), '', blocks.join('\n\n')].join('\n');
 
@@ -760,7 +795,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       hasQty ? `Qty: ${row.quantity}` : null,
       includeUnitAndPrice && row.unit ? `Unit: ${row.unit}` : null,
       includeUnitAndPrice && row.price !== null && row.price !== undefined && row.price !== ''
-        ? `Price: ${row.price}`
+        ? `Price: ${this.formatRupiah(row.price)}`
         : null,
     ].filter((line): line is string => Boolean(line));
 
@@ -780,7 +815,20 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   private exportCell(row: BookedProductSearchResult, key: string): string {
     if (key === 'duration') return this.formatDuration(row);
+    if (key === 'price') return this.formatRupiah(row.price);
     return this.stringifyCell((row as any)[key]);
+  }
+
+  private formatRupiah(value: unknown): string {
+    if (value === null || value === undefined || value === '') return '';
+
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) return this.stringifyCell(value);
+
+    const amount = new Intl.NumberFormat('id-ID', {
+      maximumFractionDigits: 0,
+    }).format(numericValue);
+    return `Rp\u00a0${amount}`;
   }
 
   /**
@@ -854,6 +902,36 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private stringifyCell(value: unknown): string {
     if (value === null || value === undefined) return '';
     return String(value).replace(/\t/g, ' ').replace(/\r?\n/g, ' ');
+  }
+
+  private async registerPdfFonts(doc: jsPDF): Promise<void> {
+    const [regular, bold] = await Promise.all([
+      this.loadFontAsBinary('fonts/Sansation-Regular.ttf'),
+      this.loadFontAsBinary('fonts/Sansation-Bold.ttf'),
+    ]);
+
+    doc.addFileToVFS('Sansation-Regular.ttf', regular);
+    doc.addFont('Sansation-Regular.ttf', PDF_FONT_NAME, 'normal');
+    doc.addFileToVFS('Sansation-Bold.ttf', bold);
+    doc.addFont('Sansation-Bold.ttf', PDF_FONT_NAME, 'bold');
+  }
+
+  private async loadFontAsBinary(relativePath: string): Promise<string> {
+    const fontUrl = new URL(relativePath, document.baseURI);
+    const response = await fetch(fontUrl);
+    if (!response.ok) {
+      throw new Error(`Gagal memuat font PDF: ${response.status} ${fontUrl.pathname}`);
+    }
+
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const chunkSize = 0x8000;
+    let binary = '';
+
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+
+    return binary;
   }
 
   private async writeClipboard(text: string): Promise<void> {
@@ -969,8 +1047,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private buildExportFilename(ext: string): string {
     const now = new Date();
     const stamp = `${now.getFullYear()}${this.pad2(now.getMonth() + 1)}${this.pad2(now.getDate())}-${this.pad2(now.getHours())}${this.pad2(now.getMinutes())}`;
-    const variant = this.exportVariant === 'unit-price' ? '-unit-price' : '';
-    return `booked-product${variant}-${stamp}.${ext}`;
+    return `booked-product${this.selectedExportTemplate.filenameSuffix}-${stamp}.${ext}`;
   }
 
   private pad2(n: number): string {
