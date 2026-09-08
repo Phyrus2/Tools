@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS booked_products (
 
     duration INT,
 
+    duration_unit ENUM('D', 'N') NULL,
+
     travel_date DATE,
 
     end_date DATE,

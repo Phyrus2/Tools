@@ -194,19 +194,32 @@ function normalizeInteger(value) {
  *
  * Contoh:
  *
- * "3 N" -> 3
- * "3N"  -> 3
- * "3"   -> 3
+ * "3 N" -> { value: 3, unit: "N" }
+ * "4D"  -> { value: 4, unit: "D" }
  */
 
-function normalizeDuration(value) {
+function normalizeDuration(value, explicitUnit = null) {
   if (value === null || value === undefined || value === "") {
-    return null;
+    return { value: null, unit: null };
   }
 
-  const match = String(value).match(/\d+/);
+  const text = String(value).trim().toUpperCase();
+  if (!text) return { value: null, unit: null };
+  const match = text.match(/^(\d+)\s*(D|DAY|DAYS|N|NIGHT|NIGHTS)?$/);
+  const suppliedUnit = String(explicitUnit || "").trim().toUpperCase();
 
-  return match ? parseInt(match[0], 10) : null;
+  if (!match) return null;
+
+  const duration = Number(match[1]);
+  const rawUnit = suppliedUnit || match[2] || "";
+  const unit = rawUnit === "D" || rawUnit === "DAY" || rawUnit === "DAYS"
+    ? "D"
+    : rawUnit === "N" || rawUnit === "NIGHT" || rawUnit === "NIGHTS"
+      ? "N"
+      : null;
+
+  if (!Number.isSafeInteger(duration) || duration < 1 || duration > 2147483647 || !unit) return null;
+  return { value: duration, unit };
 }
 
 /**
@@ -464,6 +477,7 @@ function normalizeTransport(value) {
 }
 
 function buildManualBookedProductData(mapped) {
+  const parsedDuration = normalizeDuration(mapped.duration);
   return {
     booked_product_id: normalizeInteger(mapped.id),
     original_product_id: normalizeInteger(mapped.product_id),
@@ -474,7 +488,8 @@ function buildManualBookedProductData(mapped) {
     product_type: null,
     booking_status: mapped.status || null,
     code: mapped.code || null,
-    duration: normalizeDuration(mapped.duration),
+    duration: parsedDuration?.value ?? null,
+    duration_unit: parsedDuration?.unit ?? null,
     travel_date: normalizeDate(mapped.travel_date),
     end_date: normalizeDate(mapped.end_date),
     sales: mapped.sales || null,
@@ -833,6 +848,15 @@ async function importBookedProduct(req, res) {
        */
 
       const normalizedPrice = normalizePrice(mapped.price);
+      const normalizedDuration = normalizeDuration(mapped.duration);
+
+      if (mapped.duration !== null && mapped.duration !== undefined && mapped.duration !== "" && !normalizedDuration) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `duration tidak valid: "${mapped.duration}". Gunakan format seperti 4 D atau 4 N`,
+        });
+        return;
+      }
 
       if (
         normalizedPrice !== null &&
@@ -858,7 +882,8 @@ async function importBookedProduct(req, res) {
         product_name: mapped.product_name,
         status: mapped.status || null,
         code: mapped.code || null,
-        duration: normalizeDuration(mapped.duration),
+        duration: normalizedDuration?.value ?? null,
+        duration_unit: normalizedDuration?.unit ?? null,
         travel_date: travelDate,
         end_date: endDate,
         sales: mapped.sales || null,
@@ -933,6 +958,7 @@ async function importBookedProduct(req, res) {
           status,
           code,
           duration,
+          duration_unit,
           travel_date,
           end_date,
           sales,
@@ -1051,6 +1077,7 @@ async function importBookedProduct(req, res) {
       { key: "status", type: "text" },
       { key: "code", type: "text" },
       { key: "duration", type: "number" },
+      { key: "duration_unit", type: "text" },
       { key: "travel_date", type: "date" },
       { key: "end_date", type: "date" },
       { key: "sales", type: "text" },
@@ -1165,6 +1192,7 @@ async function importBookedProduct(req, res) {
       r.status,
       r.code,
       r.duration,
+      r.duration_unit,
       r.travel_date,
       r.end_date,
       r.sales,
@@ -1194,6 +1222,7 @@ async function importBookedProduct(req, res) {
           status,
           code,
           duration,
+          duration_unit,
           travel_date,
           end_date,
           sales,
@@ -1239,6 +1268,9 @@ async function importBookedProduct(req, res) {
 
           duration =
             VALUES(duration),
+
+          duration_unit =
+            VALUES(duration_unit),
 
           travel_date =
             VALUES(travel_date),
@@ -1338,6 +1370,8 @@ async function importBookedProduct(req, res) {
         product_id: r.product_id,
         product_name: r.product_name,
         status: r.status,
+        duration: r.duration,
+        duration_unit: r.duration_unit,
         travel_date: r.travel_date,
         price: r.price,
       })),
@@ -1351,6 +1385,8 @@ async function importBookedProduct(req, res) {
         product_id: r.product_id,
         product_name: r.product_name,
         status: r.status,
+        duration: r.duration,
+        duration_unit: r.duration_unit,
         travel_date: r.travel_date,
         price: r.price,
         changes: r.changes,
@@ -1419,6 +1455,14 @@ async function createManualBookedProduct(req, res) {
     const travelDate = normalizeDate(booking.travelDate);
     const endDate = normalizeDate(booking.endDate);
     const price = normalizePrice(booking.price);
+    const duration = normalizeDuration(booking.duration, booking.durationUnit);
+
+    if (booking.duration !== null && booking.duration !== undefined && booking.duration !== "" && !duration) {
+      return res.status(400).json({
+        success: false,
+        message: "Duration wajib berupa angka positif dengan unit D atau N.",
+      });
+    }
 
     if (booking.travelDate && !travelDate) {
       return res.status(400).json({ success: false, message: "Travel Date tidak valid." });
@@ -1503,10 +1547,10 @@ async function createManualBookedProduct(req, res) {
     await connection.query(
       `INSERT INTO booked_products (
         id, dossier_id, dossier_name, supplier_id, product_id, product_name,
-        status, code, duration, travel_date, end_date, sales, operational,
+        status, code, duration, duration_unit, travel_date, end_date, sales, operational,
         quantity, unit, price, description, info, instructions,
         transport_pickup, transport_dropoff
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         bookedProductId,
         booking.dossierId || null,
@@ -1516,7 +1560,8 @@ async function createManualBookedProduct(req, res) {
         productName,
         booking.status || null,
         booking.code || null,
-        normalizeDuration(booking.duration),
+        duration?.value ?? null,
+        duration?.unit ?? null,
         travelDate,
         endDate,
         booking.sales || null,
@@ -1547,6 +1592,8 @@ async function createManualBookedProduct(req, res) {
         product_id: productId,
         product_name: productName,
         status: booking.status || null,
+        duration: duration?.value ?? null,
+        duration_unit: duration?.unit ?? null,
         travel_date: travelDate,
         price,
       },

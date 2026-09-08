@@ -12,6 +12,8 @@ export interface BookedProductRow {
   product_id: number;
   product_name: string;
   status: string | null;
+  duration: number | null;
+  duration_unit: 'D' | 'N' | null;
   travel_date: string | null;
   price: number | null;
   changes?: BookedProductChange[];
@@ -48,6 +50,7 @@ export interface SkippedBookedProduct {
     booking_status: string | null;
     code: string | null;
     duration: number | null;
+    duration_unit: 'D' | 'N' | null;
     travel_date: string | null;
     end_date: string | null;
     sales: string | null;
@@ -78,6 +81,7 @@ export interface ManualBookedProductPayload {
     status: string;
     code: string;
     duration: number | null;
+    durationUnit: 'D' | 'N';
     travelDate: string;
     endDate: string;
     sales: string;

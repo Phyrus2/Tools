@@ -191,6 +191,18 @@
   <div class="bp-toolbar" *ngIf="!loading && hasSearched && results.length > 0">
     <span class="bp-toolbar__label">{{ total }} hasil ditemukan. Pilih booking untuk PDF atau Excel:</span>
 
+    <label class="bp-toolbar__variant">
+      <span>Isi export</span>
+      <select
+        [value]="exportVariant"
+        (change)="setExportVariant($any($event.target).value)"
+        [disabled]="!!exporting"
+      >
+        <option value="standard">Standar</option>
+        <option value="unit-price">Standar + Unit &amp; Price</option>
+      </select>
+    </label>
+
     <button
       type="button"
       class="bp-toolbar__btn"
@@ -438,6 +450,16 @@
         <div class="bp-row">
           <dt>Operational</dt>
           <dd>{{ selectedItem.operational || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Duration</dt>
+          <dd>{{ formatDuration(selectedItem) || '—' }}</dd>
+        </div>
+
+        <div class="bp-row">
+          <dt>Quantity</dt>
+          <dd>{{ selectedItem.quantity ?? '—' }}</dd>
         </div>
 
         <div class="bp-row bp-row--block">

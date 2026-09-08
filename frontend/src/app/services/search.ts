@@ -100,7 +100,9 @@ export interface BookedProductSearchResult {
   sales: string | null;        // 👈 tambahan
   operational: string | null; 
   duration: number | null;
+  duration_unit: 'D' | 'N' | null;
   quantity: number | null;
+  unit: string | null;
 }
  
 export interface BookedProductSearchFilters {

@@ -446,7 +446,15 @@
 
               <label class="bp-form-field">
                 <span>Duration</span>
-                <input type="number" name="duration" [(ngModel)]="form.booking.duration" />
+                <input type="number" name="duration" min="1" [(ngModel)]="form.booking.duration" />
+              </label>
+
+              <label class="bp-form-field">
+                <span>Duration Unit</span>
+                <select name="durationUnit" [(ngModel)]="form.booking.durationUnit" required>
+                  <option value="D">D — Day</option>
+                  <option value="N">N — Night</option>
+                </select>
               </label>
 
               <label class="bp-form-field">

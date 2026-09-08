@@ -19,6 +19,7 @@ import { DatePicker } from '../../shared/date-picker/date-picker';
 
 type DateMode = 'none' | 'single' | 'from' | 'until' | 'range';
 type ExportKind = 'pdf' | 'excel' | 'copy';
+type ExportVariant = 'standard' | 'unit-price';
 
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
@@ -48,7 +49,7 @@ interface ExportColumn {
 }
 
 // Kolom & urutan yang SAMA dipakai untuk export PDF, Excel, maupun Copy.
-const EXPORT_COLUMNS: ExportColumn[] = [
+const STANDARD_EXPORT_COLUMNS: ExportColumn[] = [
   { label: 'Dossier ID', key: 'dossier_id' },
   { label: 'Dossier Name', key: 'dossier_name' },
   { label: 'Status', key: 'status' },
@@ -60,6 +61,12 @@ const EXPORT_COLUMNS: ExportColumn[] = [
   { label: 'Sales', key: 'sales' },
   { label: 'Operational', key: 'operational' },
   { label: 'Quantity', key: 'quantity' },
+];
+
+const UNIT_PRICE_EXPORT_COLUMNS: ExportColumn[] = [
+  ...STANDARD_EXPORT_COLUMNS,
+  { label: 'Unit', key: 'unit' },
+  { label: 'Price', key: 'price' },
 ];
 
 @Component({
@@ -97,6 +104,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   // --- Export & copy state ---
   exporting: ExportKind | null = null;
+  exportVariant: ExportVariant = 'standard';
   exportError: string | null = null;
   copyFeedback = false;
   private copyFeedbackTimeout?: ReturnType<typeof setTimeout>;
@@ -383,6 +391,16 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   // saat ini (bukan cuma halaman yang sedang tampil di layar), dengan menyapu
   // seluruh halaman lewat endpoint search yang sama.
 
+  setExportVariant(value: string): void {
+    this.exportVariant = value === 'unit-price' ? 'unit-price' : 'standard';
+  }
+
+  private get exportColumns(): ExportColumn[] {
+    return this.exportVariant === 'unit-price'
+      ? UNIT_PRICE_EXPORT_COLUMNS
+      : STANDARD_EXPORT_COLUMNS;
+  }
+
   async exportPdf(): Promise<void> {
     if (this.exporting) return;
 
@@ -394,6 +412,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     const rows = await this.prepareExportRows('pdf');
     if (!rows) return;
+    const columns = this.exportColumns;
 
     try {
       const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
@@ -445,8 +464,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
       autoTable(doc, {
         startY: 76,
-        head: [EXPORT_COLUMNS.map((c) => c.label)],
-        body: rows.map((row) => EXPORT_COLUMNS.map((c) => this.stringifyCell((row as any)[c.key]))),
+        head: [columns.map((c) => c.label)],
+        body: rows.map((row) => columns.map((c) => this.exportCell(row, c.key))),
         theme: 'grid',
         margin: { left: margin, right: margin, top: 76, bottom: 40 },
         styles: {
@@ -470,7 +489,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         },
         // Rata kanan untuk kolom nominal/angka, rata tengah untuk status
         // — sesuaikan key ini dengan key asli di EXPORT_COLUMNS milikmu
-        columnStyles: EXPORT_COLUMNS.reduce(
+        columnStyles: columns.reduce(
           (acc, c, i) => {
             if (['total', 'amount', 'price'].includes(c.key)) {
               acc[i] = { halign: 'right' };
@@ -486,7 +505,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         // Beri warna teks pada kolom status sesuai nilainya
         didParseCell: (data) => {
           if (data.section !== 'body') return;
-          const columnKey = EXPORT_COLUMNS[data.column.index]?.key;
+          const columnKey = columns[data.column.index]?.key;
           if (columnKey !== 'status') return;
 
           const value = String(data.cell.raw ?? '').toLowerCase();
@@ -540,12 +559,13 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     const rows = await this.prepareExportRows('excel');
     if (!rows) return;
+    const columns = this.exportColumns;
 
     try {
       const sheetData = rows.map((row) => {
         const record: Record<string, unknown> = {};
-        for (const col of EXPORT_COLUMNS) {
-          record[col.label] = (row as any)[col.key] ?? '';
+        for (const col of columns) {
+          record[col.label] = this.exportCell(row, col.key);
         }
         return record;
       });
@@ -557,14 +577,14 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       ]);
       XLSX.utils.sheet_add_json(worksheet, sheetData, { origin: 'A4', skipHeader: false });
 
-      const columnWidths = [14, 28, 15, 34, 38, 12, 14, 14, 16, 16, 11];
-      worksheet['!cols'] = columnWidths.map((wch) => ({ wch }));
+      const columnWidths = [14, 28, 15, 34, 38, 12, 14, 14, 16, 16, 11, 14, 18];
+      worksheet['!cols'] = columnWidths.slice(0, columns.length).map((wch) => ({ wch }));
       worksheet['!rows'] = [{ hpt: 28 }, { hpt: 18 }, { hpt: 8 }, { hpt: 25 }];
       worksheet['!merges'] = [
-        XLSX.utils.decode_range(`A1:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}1`),
-        XLSX.utils.decode_range(`A2:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}2`),
+        XLSX.utils.decode_range(`A1:${XLSX.utils.encode_col(columns.length - 1)}1`),
+        XLSX.utils.decode_range(`A2:${XLSX.utils.encode_col(columns.length - 1)}2`),
       ];
-      worksheet['!autofilter'] = { ref: `A4:${XLSX.utils.encode_col(EXPORT_COLUMNS.length - 1)}${rows.length + 4}` };
+      worksheet['!autofilter'] = { ref: `A4:${XLSX.utils.encode_col(columns.length - 1)}${rows.length + 4}` };
       (worksheet as any)['!freeze'] = { xSplit: 0, ySplit: 4, topLeftCell: 'A5', activePane: 'bottomLeft', state: 'frozen' };
 
       const titleStyle = {
@@ -592,7 +612,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       worksheet['A1']!.s = titleStyle;
       worksheet['A2']!.s = metadataStyle;
 
-      for (let column = 0; column < EXPORT_COLUMNS.length; column++) {
+      for (let column = 0; column < columns.length; column++) {
         worksheet[XLSX.utils.encode_cell({ r: 3, c: column })]!.s = headerStyle;
       }
 
@@ -600,7 +620,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         const excelRow = rowIndex + 4;
         const isAlternateRow = rowIndex % 2 === 1;
 
-        for (let column = 0; column < EXPORT_COLUMNS.length; column++) {
+        for (let column = 0; column < columns.length; column++) {
           const cell = worksheet[XLSX.utils.encode_cell({ r: excelRow, c: column })];
           if (!cell) continue;
 
@@ -660,7 +680,11 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       if (this.form.value.keyword) header.push(`Keyword: "${this.form.value.keyword}"`);
       header.push(`Diekspor ${this.formatTimestamp()}`);
 
-      const blocks = rows.map((row, index) => this.buildWhatsAppBlock(row as any, index + 1));
+      const blocks = rows.map((row, index) => this.buildWhatsAppBlock(
+        row as any,
+        index + 1,
+        this.exportVariant === 'unit-price',
+      ));
       const text = [header.join('\n'), '', blocks.join('\n\n')].join('\n');
 
       await this.writeClipboard(text);
@@ -714,7 +738,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
    * sebagai "1. *Nama*"); dikosongkan untuk copy satu item dari tabel
    * (tanpa nomor urut).
    */
-  private buildWhatsAppBlock(row: any, index?: number): string {
+  private buildWhatsAppBlock(row: any, index?: number, includeUnitAndPrice = false): string {
     const dateRange = this.buildDateRangeText(
       this.formatDateForExport(row.travel_date),
       this.formatDateForExport(row.end_date),
@@ -729,11 +753,15 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         : null,
       row.status ? `Status: ${row.status}` : null,
       row.company_name ? `Supplier: ${row.company_name}` : null,
-      row.duration ? `Duration: ${row.duration}` : null,
+      row.duration ? `Duration: ${this.formatDuration(row)}` : null,
       dateRange ? `Tanggal: ${dateRange}` : null,
       row.sales ? `Sales: ${row.sales}` : null,
       row.operational ? `Operational: ${row.operational}` : null,
       hasQty ? `Qty: ${row.quantity}` : null,
+      includeUnitAndPrice && row.unit ? `Unit: ${row.unit}` : null,
+      includeUnitAndPrice && row.price !== null && row.price !== undefined && row.price !== ''
+        ? `Price: ${row.price}`
+        : null,
     ].filter((line): line is string => Boolean(line));
 
     return lines.join('\n');
@@ -743,6 +771,16 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     if (!travelDate && !endDate) return '';
     if (travelDate && endDate && travelDate !== endDate) return `${travelDate} - ${endDate}`;
     return travelDate || endDate;
+  }
+
+  formatDuration(row: Pick<BookedProductSearchResult, 'duration' | 'duration_unit'>): string {
+    if (row.duration === null || row.duration === undefined) return '';
+    return `${row.duration}${row.duration_unit ? ` ${row.duration_unit}` : ''}`;
+  }
+
+  private exportCell(row: BookedProductSearchResult, key: string): string {
+    if (key === 'duration') return this.formatDuration(row);
+    return this.stringifyCell((row as any)[key]);
   }
 
   /**
@@ -931,7 +969,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private buildExportFilename(ext: string): string {
     const now = new Date();
     const stamp = `${now.getFullYear()}${this.pad2(now.getMonth() + 1)}${this.pad2(now.getDate())}-${this.pad2(now.getHours())}${this.pad2(now.getMinutes())}`;
-    return `booked-product-${stamp}.${ext}`;
+    const variant = this.exportVariant === 'unit-price' ? '-unit-price' : '';
+    return `booked-product${variant}-${stamp}.${ext}`;
   }
 
   private pad2(n: number): string {
