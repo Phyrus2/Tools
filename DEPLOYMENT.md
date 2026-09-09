@@ -1,5 +1,8 @@
 # Backend di PC Windows, frontend di GitHub Pages
 
+Untuk perpindahan otomatis antara PC kantor dan PC rumah menggunakan backup Google
+Drive, lihat [SERVER_AUTOMATION.md](SERVER_AUTOMATION.md).
+
 Alur koneksi: browser → GitHub Pages (Angular) → URL HTTPS backend → Cloudflare Tunnel → Express di PC → MySQL di PC.
 
 ## 0. Pastikan .env tidak ikut GitHub
@@ -58,7 +61,7 @@ CORS_ORIGINS=http://localhost:4200,https://YOUR_USERNAME.github.io
 TRUST_CLOUDFLARE_IP_HEADER=true
 ```
 
-User database harus sudah dibuat dan punya izin pada database aplikasi, termasuk untuk migrasi. Jika memakai XAMPP, nyalakan MySQL melalui XAMPP Control Panel. Jika memakai Windows Service, cari nama service di PowerShell:
+User database harus sudah dibuat dan punya izin pada database aplikasi, termasuk untuk migrasi. Jika memakai Laragon, buka Laragon lalu tekan **Start All**. Jika memakai Windows Service, cari nama service di PowerShell:
 
 ```powershell
 Get-Service -Name '*mysql*','*maria*' -ErrorAction SilentlyContinue

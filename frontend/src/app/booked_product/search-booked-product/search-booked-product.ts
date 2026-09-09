@@ -117,6 +117,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   results: BookedProductSearchResult[] = [];
   readonly selectedBookingIds = new Set<number>();
+  private readonly deselectedBookingIds = new Set<number>();
+  private allSearchResultsSelected = false;
   page = 1;
   totalPages = 1;
   total = 0;
@@ -359,27 +361,33 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   }
 
   get selectedBookingCount(): number {
-    return this.selectedBookingIds.size;
+    return this.allSearchResultsSelected
+      ? Math.max(0, this.total - this.deselectedBookingIds.size)
+      : this.selectedBookingIds.size;
   }
 
-  get areAllVisibleBookingsSelected(): boolean {
-    return this.results.length > 0 && this.results.every((item) => this.selectedBookingIds.has(item.id));
+  get areAllSearchResultsSelected(): boolean {
+    return this.total > 0 && this.selectedBookingCount === this.total;
+  }
+
+  get isBookingSelectionIndeterminate(): boolean {
+    return this.selectedBookingCount > 0 && this.selectedBookingCount < this.total;
   }
 
   isBookingSelected(item: BookedProductSearchResult): boolean {
-    return this.selectedBookingIds.has(item.id);
+    return this.allSearchResultsSelected
+      ? !this.deselectedBookingIds.has(item.id)
+      : this.selectedBookingIds.has(item.id);
   }
 
   toggleBookingSelection(item: BookedProductSearchResult, selected: boolean): void {
-    if (selected) {
-      this.selectedBookingIds.add(item.id);
+    if (this.allSearchResultsSelected) {
+      if (selected) {
+        this.deselectedBookingIds.delete(item.id);
+      } else {
+        this.deselectedBookingIds.add(item.id);
+      }
     } else {
-      this.selectedBookingIds.delete(item.id);
-    }
-  }
-
-  toggleVisibleBookingSelection(selected: boolean): void {
-    for (const item of this.results) {
       if (selected) {
         this.selectedBookingIds.add(item.id);
       } else {
@@ -388,8 +396,16 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     }
   }
 
-  private clearBookingSelection(): void {
+  toggleAllSearchResultsSelection(selected: boolean): void {
+    this.allSearchResultsSelected = selected;
     this.selectedBookingIds.clear();
+    this.deselectedBookingIds.clear();
+  }
+
+  private clearBookingSelection(): void {
+    this.allSearchResultsSelected = false;
+    this.selectedBookingIds.clear();
+    this.deselectedBookingIds.clear();
   }
 
   matchedFieldLabel(field: string): string {
@@ -850,7 +866,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     try {
       const allRows = await this.fetchAllResults();
       const rowsToExport = kind === 'pdf' || kind === 'excel'
-        ? allRows.filter((row) => this.selectedBookingIds.has(row.id))
+        ? allRows.filter((row) => this.isBookingSelected(row))
         : allRows;
 
       return rowsToExport.map((row) => ({

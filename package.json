@@ -1,7 +1,11 @@
 {
   "scripts": {
     "start": "node server.js",
-    "admin:create": "node scripts/create-admin.js"
+    "admin:create": "node scripts/create-admin.js",
+    "server:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1 -CheckOnly",
+    "server:up": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1",
+    "server:down": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/stop-server.ps1",
+    "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/backup-database.ps1"
   },
   "dependencies": {
     "cors": "^2.8.6",

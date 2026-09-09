@@ -285,10 +285,11 @@
             <input
               type="checkbox"
               class="bp-record__checkbox"
-              [checked]="areAllVisibleBookingsSelected"
-              (change)="toggleVisibleBookingSelection($any($event.target).checked)"
-              aria-label="Pilih semua booking pada halaman ini"
-              title="Pilih semua booking pada halaman ini"
+              [checked]="areAllSearchResultsSelected"
+              [indeterminate]="isBookingSelectionIndeterminate"
+              (change)="toggleAllSearchResultsSelection($any($event.target).checked)"
+              aria-label="Pilih semua booking dari hasil pencarian"
+              title="Pilih semua booking dari hasil pencarian"
             />
           </th>
           <th scope="col">Dossier &amp; produk</th>
@@ -309,7 +310,7 @@
               class="bp-record__checkbox"
               [checked]="isBookingSelected(item)"
               (change)="toggleBookingSelection(item, $any($event.target).checked)"
-              [attr.aria-label]="'Pilih ' + (item.product_name || 'booking') + ' untuk PDF'"
+              [attr.aria-label]="'Pilih ' + (item.product_name || 'booking') + ' untuk export'"
             />
           </td>
           <td data-label="Dossier & produk">

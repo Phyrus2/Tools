@@ -10,3 +10,7 @@ cloudflare/*.exe
 cloudflare/*.json
 cloudflare/*.pem
 .cloudflared/
+# Runtime state, logs, and temporary database backups from server scripts
+.server-state/
+.server-logs/
+rclone.conf
