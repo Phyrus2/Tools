@@ -109,6 +109,8 @@ npm run server:up
 5. Menjalankan Node dan TryCloudflare sebagai proses tersembunyi.
 6. Membaca URL `trycloudflare.com` dari log.
 7. Menjalankan `gh variable set API_URL` dan `gh workflow run pages.yml`.
+8. Menunggu workflow selesai dan memastikan `api-config.js` publik sudah memakai
+   URL tunnel terbaru sebelum menyatakan frontend siap digunakan.
 
 Log disimpan secara lokal di `.server-logs`. PID proses dan versi database disimpan
 di `.server-state`; kedua folder sudah diabaikan Git.

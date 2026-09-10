@@ -240,10 +240,55 @@ try {
   }
 
   if (-not $SkipDeploy) {
+    if (-not $repository) {
+      $repository = [string](@(& $gh repo view '--json' 'nameWithOwner' '--jq' '.nameWithOwner') | Select-Object -Last 1)
+      if ($LASTEXITCODE -ne 0 -or -not $repository) { throw 'Repository GitHub tidak dapat dikenali.' }
+    }
     Write-Host "Memperbarui API_URL menjadi $tunnelUrl..."
-    $repoArguments = if ($repository) { @('--repo', $repository) } else { @() }
+    $repoArguments = @('--repo', $repository)
     Invoke-CheckedCommand $gh (@('variable', 'set', 'API_URL', '--body', $tunnelUrl) + $repoArguments) 'Gagal memperbarui API_URL.'
-    Invoke-CheckedCommand $gh (@('workflow', 'run', 'pages.yml') + $repoArguments) 'Gagal memicu deploy GitHub Pages.'
+
+    $workflowStartedAt = [DateTimeOffset]::UtcNow.AddSeconds(-5)
+    $workflowArguments = @('workflow', 'run', 'pages.yml') + $repoArguments
+    $workflowOutput = @(& $gh @workflowArguments)
+    if ($LASTEXITCODE -ne 0) { throw 'Gagal memicu deploy GitHub Pages.' }
+    $workflowText = $workflowOutput -join [Environment]::NewLine
+    $runMatch = [regex]::Match($workflowText, '/actions/runs/(\d+)')
+    $runId = if ($runMatch.Success) { $runMatch.Groups[1].Value } else { '' }
+
+    $runDeadline = [DateTime]::UtcNow.AddSeconds(45)
+    while (-not $runId -and [DateTime]::UtcNow -lt $runDeadline) {
+      Start-Sleep -Seconds 2
+      $runListArguments = @('run', 'list', '--repo', $repository, '--workflow', 'pages.yml', '--event', 'workflow_dispatch', '--limit', '5', '--json', 'databaseId,createdAt')
+      $runListJson = @(& $gh @runListArguments) -join [Environment]::NewLine
+      if ($LASTEXITCODE -ne 0) { continue }
+      $recentRun = @($runListJson | ConvertFrom-Json) |
+        Where-Object { [DateTimeOffset]::Parse($_.createdAt) -ge $workflowStartedAt } |
+        Sort-Object { [DateTimeOffset]::Parse($_.createdAt) } -Descending |
+        Select-Object -First 1
+      if ($recentRun) { $runId = [string]$recentRun.databaseId }
+    }
+    if (-not $runId) { throw 'ID workflow GitHub Pages tidak ditemukan.' }
+
+    Write-Host "Menunggu deployment GitHub Pages selesai (run $runId)..."
+    Invoke-CheckedCommand $gh @('run', 'watch', $runId, '--repo', $repository, '--exit-status') 'Deployment GitHub Pages gagal.'
+
+    $pagesUrl = [string](@(& $gh api "repos/$repository/pages" '--jq' '.html_url') | Select-Object -Last 1)
+    if ($LASTEXITCODE -ne 0 -or -not $pagesUrl) { throw 'URL GitHub Pages tidak dapat dibaca.' }
+    $configUrl = ([Uri]::new([Uri]$pagesUrl, "api-config.js?run=$runId")).AbsoluteUri
+    $configDeadline = [DateTime]::UtcNow.AddSeconds(180)
+    $frontendReady = $false
+    do {
+      try {
+        $configResponse = Invoke-WebRequest -UseBasicParsing -Uri $configUrl -Headers @{ 'Cache-Control' = 'no-cache' } -TimeoutSec 10
+        if ($configResponse.Content -match [regex]::Escape($tunnelUrl)) {
+          $frontendReady = $true
+          break
+        }
+      } catch {}
+      Start-Sleep -Seconds 2
+    } while ([DateTime]::UtcNow -lt $configDeadline)
+    if (-not $frontendReady) { throw 'GitHub Pages selesai deploy, tetapi konfigurasi API terbaru belum terlihat.' }
   }
 
   Write-JsonFile -Value ([ordered]@{
@@ -255,7 +300,7 @@ try {
 
   Write-Host 'Server berhasil dijalankan.' -ForegroundColor Green
   Write-Host "Backend publik: $tunnelUrl"
-  if (-not $SkipDeploy) { Write-Host 'Workflow GitHub Pages sudah dipicu.' }
+  if (-not $SkipDeploy) { Write-Host 'Frontend GitHub Pages sudah siap digunakan.' -ForegroundColor Green }
 } catch {
   if ($tunnelProcess -and -not $tunnelProcess.HasExited) { Stop-Process -Id $tunnelProcess.Id -Force }
   if ($nodeProcess -and -not $nodeProcess.HasExited) { Stop-Process -Id $nodeProcess.Id -Force }
