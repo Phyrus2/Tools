@@ -56,6 +56,30 @@ if (Test-Path -LiteralPath $processStatePath) {
   Remove-Item -LiteralPath $processStatePath -Force
 }
 
+if (-not $SkipDeploy) {
+  $repoArguments = if ($repository) { @('--repo', $repository) } else { @() }
+  $apiUrlArguments = @('variable', 'get', 'API_URL') + $repoArguments
+  $previousPreference = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try {
+    $publishedApiUrl = [string](@(& $gh @apiUrlArguments 2>$null) | Select-Object -Last 1)
+    $apiUrlReadExitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+
+  if ($apiUrlReadExitCode -eq 0 -and $publishedApiUrl -match '^https://') {
+    $publishedServerIsActive = $false
+    try {
+      $activeResponse = Invoke-WebRequest -UseBasicParsing -Uri "$($publishedApiUrl.TrimEnd('/'))/health" -TimeoutSec 8
+      $publishedServerIsActive = $activeResponse.StatusCode -ge 200 -and $activeResponse.StatusCode -lt 300
+    } catch {}
+    if ($publishedServerIsActive) {
+      throw "Server lain masih aktif di $publishedApiUrl. Jalankan server:down pada PC tersebut sebelum menyalakan PC ini."
+    }
+  }
+}
+
 if (-not $SkipGitPull) {
   Write-Host 'Mengambil kode terbaru dari GitHub...'
   Push-Location $directories.Root
