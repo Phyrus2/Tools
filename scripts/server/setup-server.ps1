@@ -29,8 +29,15 @@ if ($availableRemotes -notcontains "${remoteName}:") {
   }
 }
 
-& $gh auth status *> $null
-if ($LASTEXITCODE -ne 0) {
+$previousErrorActionPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+  & $gh auth status *> $null
+  $githubAuthExitCode = $LASTEXITCODE
+} finally {
+  $ErrorActionPreference = $previousErrorActionPreference
+}
+if ($githubAuthExitCode -ne 0) {
   Write-Host 'GitHub CLI belum login. Membuka autentikasi GitHub...'
   & $gh auth login
   if ($LASTEXITCODE -ne 0) { throw 'Login GitHub belum berhasil.' }
