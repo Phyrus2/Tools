@@ -251,6 +251,69 @@ function Restore-DatabaseDump {
   }
 }
 
+function Get-DatabaseBackupMarker {
+  param(
+    [Parameter(Mandatory = $true)][hashtable]$Settings,
+    [Parameter(Mandatory = $true)][string]$TemporaryDirectory
+  )
+
+  $databaseName = Get-Setting $Settings 'DB_NAME' -Required
+  Assert-DatabaseName $databaseName
+  $mysqlTool = Resolve-MySqlTool -Executable 'mysql' -Settings $Settings
+  $defaultsFile = New-MySqlDefaultsFile -Settings $Settings -Directory $TemporaryDirectory
+  try {
+    $commonArguments = @(
+      "--defaults-extra-file=$($defaultsFile.Replace('\', '/'))",
+      '--batch', '--skip-column-names'
+    )
+    $tableCount = @(& $mysqlTool @commonArguments '--execute' (
+      "SELECT COUNT(*) FROM information_schema.tables " +
+      "WHERE table_schema='$databaseName' AND table_name='_server_backup_state';"
+    ))
+    if ($LASTEXITCODE -ne 0) { throw 'Status database lokal tidak dapat diperiksa.' }
+    if ([int]($tableCount | Select-Object -Last 1) -eq 0) { return '' }
+
+    $marker = @(& $mysqlTool @commonArguments '--execute' (
+      "SELECT backup_id FROM ``$databaseName``.``_server_backup_state`` WHERE id=1 LIMIT 1;"
+    ))
+    if ($LASTEXITCODE -ne 0) { throw 'Penanda backup database lokal tidak dapat dibaca.' }
+    return [string]($marker | Select-Object -Last 1)
+  } finally {
+    Remove-Item -LiteralPath $defaultsFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
+function Set-DatabaseBackupMarker {
+  param(
+    [Parameter(Mandatory = $true)][hashtable]$Settings,
+    [Parameter(Mandatory = $true)][string]$BackupId,
+    [Parameter(Mandatory = $true)][string]$TemporaryDirectory
+  )
+
+  if ($BackupId -notmatch '^[A-Za-z0-9_-]+$') { throw 'Format backup_id tidak valid.' }
+  $databaseName = Get-Setting $Settings 'DB_NAME' -Required
+  Assert-DatabaseName $databaseName
+  $mysqlTool = Resolve-MySqlTool -Executable 'mysql' -Settings $Settings
+  $defaultsFile = New-MySqlDefaultsFile -Settings $Settings -Directory $TemporaryDirectory
+  try {
+    $query = @(
+      "CREATE TABLE IF NOT EXISTS ``$databaseName``.``_server_backup_state`` (",
+      'id TINYINT UNSIGNED NOT NULL PRIMARY KEY,',
+      'backup_id VARCHAR(160) NOT NULL,',
+      'updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+      ') ENGINE=InnoDB;',
+      "INSERT INTO ``$databaseName``.``_server_backup_state`` (id, backup_id) VALUES (1, '$BackupId')",
+      'ON DUPLICATE KEY UPDATE backup_id=VALUES(backup_id), updated_at=CURRENT_TIMESTAMP;'
+    ) -join ' '
+    Invoke-CheckedCommand $mysqlTool @(
+      "--defaults-extra-file=$($defaultsFile.Replace('\', '/'))",
+      '--execute', $query
+    ) 'Penanda backup database lokal tidak dapat disimpan.'
+  } finally {
+    Remove-Item -LiteralPath $defaultsFile -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Start-ConfiguredMySqlService {
   param([hashtable]$Settings)
   $serviceName = Get-Setting $Settings 'MYSQL_SERVICE_NAME'
@@ -286,11 +349,12 @@ function Stop-RecordedProcess {
     [string]$ExpectedName
   )
   if (-not $Id) { return }
-  $process = Get-Process -Id $Id.Value -ErrorAction SilentlyContinue
+  $recordedId = [int]$Id
+  $process = Get-Process -Id $recordedId -ErrorAction SilentlyContinue
   if (-not $process) { return }
   if ($ExpectedName -and $process.ProcessName -ne $ExpectedName) {
-    throw "PID $Id sekarang dimiliki proses $($process.ProcessName), bukan $ExpectedName."
+    throw "PID $recordedId sekarang dimiliki proses $($process.ProcessName), bukan $ExpectedName."
   }
-  Stop-Process -Id $Id.Value -Force
-  $process.WaitForExit(10000)
+  Stop-Process -Id $recordedId -Force
+  [void]$process.WaitForExit(10000)
 }

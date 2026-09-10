@@ -13,4 +13,5 @@ cloudflare/*.pem
 # Runtime state, logs, and temporary database backups from server scripts
 .server-state/
 .server-logs/
+.server-tools/
 rclone.conf

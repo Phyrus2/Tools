@@ -7,13 +7,24 @@ param(
 
 . (Join-Path $PSScriptRoot 'Common.ps1')
 
+trap {
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  exit 1
+}
+
 $directories = Initialize-ServerDirectories
 $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $remote = (Get-Setting $settings 'BACKUP_REMOTE' -Default 'gdrive:C2I-Server-Backup').TrimEnd('/')
 $repository = Get-Setting $settings 'GITHUB_REPOSITORY'
 $port = Get-Setting $settings 'PORT' -Default '3000'
-$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH')
+$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH') -Candidates @(
+  (Join-Path $directories.Root '.server-tools\rclone.exe')
+)
 $git = Resolve-GitPath $settings
+$gitDirectory = Split-Path -Parent $git
+if (($env:PATH -split ';') -notcontains $gitDirectory) {
+  $env:PATH = "$gitDirectory;$env:PATH"
+}
 $node = Resolve-ToolPath -Name 'node' -ConfiguredPath (Get-Setting $settings 'NODE_PATH')
 $npm = Resolve-ToolPath -Name 'npm.cmd' -ConfiguredPath (Get-Setting $settings 'NPM_PATH')
 $cloudflared = Resolve-ToolPath -Name 'cloudflared' -ConfiguredPath (Get-Setting $settings 'CLOUDFLARED_PATH' -Default 'cloudflare/cloudflared.exe')
@@ -21,11 +32,20 @@ $null = Resolve-MySqlTool -Executable 'mysql' -Settings $settings
 $null = Resolve-MySqlTool -Executable 'mysqldump' -Settings $settings
 $gh = $null
 if (-not $SkipDeploy -or $CheckOnly) {
-  $gh = Resolve-ToolPath -Name 'gh' -ConfiguredPath (Get-Setting $settings 'GH_PATH')
+  $gh = Resolve-ToolPath -Name 'gh' -ConfiguredPath (Get-Setting $settings 'GH_PATH') -Candidates @(
+    (Join-Path $directories.Root '.server-tools\gh.exe'),
+    "$env:ProgramFiles\GitHub CLI\gh.exe",
+    "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
+  )
 }
 
 if ($CheckOnly) {
-  Invoke-CheckedCommand $rclone @('listremotes') 'rclone belum siap.'
+  $availableRemotes = @(& $rclone listremotes)
+  if ($LASTEXITCODE -ne 0) { throw 'rclone belum siap.' }
+  $remoteName = ($remote -split ':', 2)[0]
+  if ($availableRemotes -notcontains "${remoteName}:") {
+    throw "Remote rclone '${remoteName}' belum dibuat. Jalankan: .\.server-tools\rclone.exe config"
+  }
   if ($gh) { Invoke-CheckedCommand $gh @('auth', 'status') 'GitHub CLI belum login.' }
   Write-Host 'Konfigurasi start server valid.' -ForegroundColor Green
   exit 0
@@ -52,7 +72,26 @@ if (-not $SkipGitPull) {
 
 Start-ConfiguredMySqlService $settings
 
+$createdInitialBackup = $false
 if (-not $SkipRestore) {
+  # Pastikan koneksi remote valid dan folder backup tersedia. Jika belum ada
+  # manifest, database lokal pada PC pertama dijadikan backup awal otomatis.
+  Invoke-CheckedCommand $rclone @('mkdir', $remote) 'Folder backup Google Drive tidak dapat diakses.'
+  $remoteFiles = @(& $rclone lsf $remote '--files-only' '--max-depth' '1')
+  if ($LASTEXITCODE -ne 0) { throw 'Daftar backup Google Drive tidak dapat dibaca.' }
+
+  if (-not ($remoteFiles | Where-Object { $_.Trim() -eq 'latest.json' })) {
+    Write-Host 'Backup Google Drive belum ada. Membuat backup awal dari database lokal...'
+    $powershell = Join-Path $PSHOME 'powershell.exe'
+    Invoke-CheckedCommand $powershell @(
+      '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File',
+      (Join-Path $PSScriptRoot 'backup-database.ps1')
+    ) 'Pembuatan backup awal gagal.'
+    $createdInitialBackup = $true
+  }
+}
+
+if (-not $SkipRestore -and -not $createdInitialBackup) {
   $temporaryDirectory = Join-Path $directories.State ("restore-{0}" -f [guid]::NewGuid().ToString('N'))
   $manifestPath = Join-Path $temporaryDirectory 'latest.json'
   $archivePath = Join-Path $temporaryDirectory 'database.sql.gz'
@@ -85,9 +124,14 @@ if (-not $SkipRestore) {
       }
     }
 
-    if ($localBackupId -eq [string]$manifest.backup_id) {
+    $databaseMarker = Get-DatabaseBackupMarker -Settings $settings -TemporaryDirectory $temporaryDirectory
+    if ($localBackupId -eq [string]$manifest.backup_id -and
+        $databaseMarker -eq [string]$manifest.backup_id) {
       Write-Host "Database sudah memakai backup terbaru: $localBackupId"
     } else {
+      if ($localBackupId -eq [string]$manifest.backup_id) {
+        Write-Host 'Penanda database hilang atau tidak cocok. Restore tetap dijalankan.' -ForegroundColor Yellow
+      }
       Write-Host "Mengunduh backup $($manifest.backup_id)..."
       Invoke-CheckedCommand $rclone @('copyto', "$remote/archives/$($manifest.file)", $archivePath, '--retries', '3') 'File backup tidak dapat diunduh.'
       $actualChecksum = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -98,6 +142,7 @@ if (-not $SkipRestore) {
       Expand-GzipFile -Source $archivePath -Destination $sqlPath
       Write-Host 'Merestore database terbaru...'
       Restore-DatabaseDump -Settings $settings -SqlPath $sqlPath -TemporaryDirectory $temporaryDirectory
+      Set-DatabaseBackupMarker -Settings $settings -BackupId ([string]$manifest.backup_id) -TemporaryDirectory $temporaryDirectory
       Write-JsonFile -Value $manifest -Path $localStatePath
       Write-Host "Restore selesai: $($manifest.backup_id)" -ForegroundColor Green
     }

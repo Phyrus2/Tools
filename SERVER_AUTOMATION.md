@@ -19,20 +19,23 @@ winget install --id GitHub.cli --exact --source winget
 Tutup dan buka kembali PowerShell setelah instalasi agar PATH diperbarui. Jika
 `winget` gagal, unduh arsip Windows dari situs resmi rclone dan halaman release
 GitHub CLI, lalu isi `RCLONE_PATH` dan `GH_PATH` dengan lokasi file `.exe`.
+Keduanya juga dapat disimpan secara portabel di folder `.server-tools`; folder ini
+tidak ikut masuk ke GitHub.
 
 1. Instal Node.js, Laragon, Git, GitHub CLI, dan rclone.
-2. Jalankan `rclone config`, buat remote Google Drive bernama `gdrive`, dan login
+2. Jalankan `.\.server-tools\rclone.exe config`, buat remote Google Drive bernama
+   `gdrive`, dan login
    ke akun Google yang sama pada kedua PC. Gunakan folder biasa di **My Drive**.
-3. Jalankan `gh auth login` dengan akun yang dapat mengubah Actions variables dan
-   menjalankan workflow repository.
+3. Jalankan `.\.server-tools\gh.exe auth login` dengan akun yang dapat mengubah
+   Actions variables dan menjalankan workflow repository.
 4. Pastikan `.env` lokal berisi konfigurasi berikut:
 
 ```dotenv
 SERVER_ID=office
 BACKUP_REMOTE=gdrive:C2I-Server-Backup
 GITHUB_REPOSITORY=phyrus2/Tools
-RCLONE_PATH=rclone.exe
-GH_PATH=gh.exe
+RCLONE_PATH=.server-tools/rclone.exe
+GH_PATH=.server-tools/gh.exe
 NODE_PATH=node.exe
 NPM_PATH=npm.cmd
 CLOUDFLARED_PATH=cloudflare/cloudflared.exe
@@ -70,30 +73,28 @@ Periksa semua dependency tanpa restore, upload, atau deploy:
 npm run server:check
 ```
 
+Jika pemeriksaan menyebut remote `gdrive` belum dibuat atau GitHub CLI belum
+login, selesaikan langkah 2 atau 3 lalu jalankan pemeriksaan yang sama lagi.
+
 ## Pemakaian pertama
 
-Database yang sekarang paling baru harus diunggah terlebih dahulu. Pada PC sumber:
-
-```powershell
-git pull origin main
-npm run db:backup
-```
-
-Setelah backup berhasil, PC lain dapat mengambilnya otomatis.
+Jalankan `npm run server:up` pada PC yang memiliki database paling baru. Jika
+folder Google Drive belum memiliki `latest.json`, script otomatis membuat dan
+mengunggah backup awal dari database Laragon pada PC tersebut. Setelah itu PC
+lain dapat mengambilnya otomatis.
 
 ## Menyalakan server
 
 ```powershell
-git pull origin main
 npm run server:up
 ```
 
-`server:up` juga menjalankan `git pull --ff-only`, sehingga `git pull` manual boleh
-dilewati. Script kemudian:
+`server:up` menjalankan `git pull --ff-only` secara otomatis. Script kemudian:
 
 1. Mengunduh `latest.json` dan arsip SQL terbaru dari Drive.
 2. Memeriksa SHA-256 sebelum restore.
-3. Tidak melakukan restore bila backup yang sama sudah digunakan.
+3. Tidak melakukan restore bila backup yang sama sudah digunakan dan penanda di
+   dalam database masih cocok. Jika semua tabel terhapus, restore dijalankan ulang.
 4. Menjalankan migrasi melalui startup `server.js`.
 5. Menjalankan Node dan TryCloudflare sebagai proses tersembunyi.
 6. Membaca URL `trycloudflare.com` dari log.
@@ -112,7 +113,8 @@ Tunggu sampai muncul `Server aman dimatikan atau dipindahkan ke PC lain`. Jangan
 mematikan PC jika upload gagal. Script menghentikan tunnel terlebih dahulu supaya
 tidak ada request baru selama backup terakhir dibuat.
 
-Untuk backup tambahan tanpa menghentikan server:
+Perintah `npm run db:backup` tetap tersedia untuk backup tambahan tanpa
+menghentikan server, tetapi tidak diperlukan dalam alur normal:
 
 ```powershell
 npm run db:backup

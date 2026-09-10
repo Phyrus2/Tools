@@ -2,6 +2,11 @@ param([switch]$CheckOnly)
 
 . (Join-Path $PSScriptRoot 'Common.ps1')
 
+trap {
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  exit 1
+}
+
 $directories = Initialize-ServerDirectories
 $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $processStatePath = Join-Path $directories.State 'processes.json'
@@ -24,7 +29,7 @@ if (Test-Path -LiteralPath $processStatePath) {
   Stop-RecordedProcess -Id $processState.node_pid -ExpectedName 'node'
   Remove-Item -LiteralPath $processStatePath -Force
 } else {
-  Write-Warning 'processes.json tidak ditemukan. Tidak ada proses yang dihentikan otomatis.'
+  Write-Host 'Server tidak sedang berjalan. Melanjutkan backup database terbaru.'
 }
 
 try {

@@ -2,11 +2,18 @@ param([switch]$CheckOnly)
 
 . (Join-Path $PSScriptRoot 'Common.ps1')
 
+trap {
+  Write-Host $_.Exception.Message -ForegroundColor Red
+  exit 1
+}
+
 $directories = Initialize-ServerDirectories
 $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $remote = (Get-Setting $settings 'BACKUP_REMOTE' -Default 'gdrive:C2I-Server-Backup').TrimEnd('/')
 $serverId = Get-Setting $settings 'SERVER_ID' -Default $env:COMPUTERNAME
-$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH')
+$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH') -Candidates @(
+  (Join-Path $directories.Root '.server-tools\rclone.exe')
+)
 $null = Resolve-MySqlTool -Executable 'mysqldump' -Settings $settings
 
 if ($serverId -notmatch '^[A-Za-z0-9_-]+$') {
@@ -46,9 +53,19 @@ try {
   Write-JsonFile -Value $manifest -Path $manifestPath
 
   Write-Host 'Mengunggah backup ke Google Drive...'
+  Invoke-CheckedCommand $rclone @('mkdir', "$remote/archives") 'Folder arsip Google Drive tidak dapat dibuat.'
   Invoke-CheckedCommand $rclone @('copyto', $archivePath, "$remote/archives/$archiveName", '--retries', '3') 'Upload arsip database gagal.'
+
+  $remoteInfoJson = @(& $rclone lsjson "$remote/archives/$archiveName" '--files-only') -join [Environment]::NewLine
+  if ($LASTEXITCODE -ne 0) { throw 'Arsip yang diunggah tidak dapat diverifikasi.' }
+  $remoteInfo = @($remoteInfoJson | ConvertFrom-Json)
+  if ($remoteInfo.Count -ne 1 -or [long]$remoteInfo[0].Size -ne $archiveSize) {
+    throw 'Ukuran arsip di Google Drive tidak cocok. latest.json tidak diperbarui.'
+  }
+
   Invoke-CheckedCommand $rclone @('copyto', $manifestPath, "$remote/latest.json", '--retries', '3') 'Upload latest.json gagal.'
 
+  Set-DatabaseBackupMarker -Settings $settings -BackupId $backupId -TemporaryDirectory $temporaryDirectory
   Write-JsonFile -Value $manifest -Path (Join-Path $directories.State 'local-database-state.json')
   Write-Host "Backup berhasil: $backupId" -ForegroundColor Green
   Write-Host "SHA-256: $checksum"
