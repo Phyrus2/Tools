@@ -76,6 +76,16 @@ npm run server:check
 Jika pemeriksaan menyebut remote `gdrive` belum dibuat atau GitHub CLI belum
 login, selesaikan langkah 2 atau 3 lalu jalankan pemeriksaan yang sama lagi.
 
+Pada PC baru, setelah rclone dan GitHub CLI dipasang, langkah 2 dan 3 juga dapat
+dijalankan melalui satu perintah yang mencari instalasi WinGet secara otomatis:
+
+```powershell
+npm run server:setup
+```
+
+Jika perintah `rclone` belum dikenali setelah instalasi WinGet, tutup lalu buka
+PowerShell atau langsung gunakan `server:setup`; script tidak bergantung pada PATH.
+
 ## Pemakaian pertama
 
 Jalankan `npm run server:up` pada PC yang memiliki database paling baru. Jika

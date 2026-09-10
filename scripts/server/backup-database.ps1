@@ -11,9 +11,7 @@ $directories = Initialize-ServerDirectories
 $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $remote = (Get-Setting $settings 'BACKUP_REMOTE' -Default 'gdrive:C2I-Server-Backup').TrimEnd('/')
 $serverId = Get-Setting $settings 'SERVER_ID' -Default $env:COMPUTERNAME
-$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH') -Candidates @(
-  (Join-Path $directories.Root '.server-tools\rclone.exe')
-)
+$rclone = Resolve-RclonePath $settings
 $null = Resolve-MySqlTool -Executable 'mysqldump' -Settings $settings
 
 if ($serverId -notmatch '^[A-Za-z0-9_-]+$') {

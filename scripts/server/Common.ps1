@@ -83,6 +83,35 @@ function Resolve-GitPath {
   return Resolve-ToolPath -Name 'git' -ConfiguredPath (Get-Setting $Settings 'GIT_PATH') -Candidates $desktopCandidates
 }
 
+function Resolve-RclonePath {
+  param([hashtable]$Settings)
+
+  $root = Get-ProjectRoot
+  $candidates = @(
+    (Join-Path $root '.server-tools\rclone.exe'),
+    "$env:LOCALAPPDATA\Microsoft\WinGet\Links\rclone.exe",
+    "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Rclone.Rclone_*\rclone-*\rclone.exe",
+    "$env:ProgramFiles\WinGet\Links\rclone.exe",
+    "$env:ProgramFiles\rclone\rclone.exe"
+  )
+  return Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $Settings 'RCLONE_PATH') -Candidates $candidates
+}
+
+function Resolve-GitHubCliPath {
+  param([hashtable]$Settings)
+
+  $root = Get-ProjectRoot
+  $candidates = @(
+    (Join-Path $root '.server-tools\gh.exe'),
+    "$env:LOCALAPPDATA\Microsoft\WinGet\Links\gh.exe",
+    "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\GitHub.cli_*\gh_*\bin\gh.exe",
+    "$env:ProgramFiles\WinGet\Links\gh.exe",
+    "$env:ProgramFiles\GitHub CLI\gh.exe",
+    "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
+  )
+  return Resolve-ToolPath -Name 'gh' -ConfiguredPath (Get-Setting $Settings 'GH_PATH') -Candidates $candidates
+}
+
 function Resolve-MySqlTool {
   param(
     [Parameter(Mandatory = $true)][string]$Executable,

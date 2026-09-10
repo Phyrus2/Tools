@@ -17,9 +17,7 @@ $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $remote = (Get-Setting $settings 'BACKUP_REMOTE' -Default 'gdrive:C2I-Server-Backup').TrimEnd('/')
 $repository = Get-Setting $settings 'GITHUB_REPOSITORY'
 $port = Get-Setting $settings 'PORT' -Default '3000'
-$rclone = Resolve-ToolPath -Name 'rclone' -ConfiguredPath (Get-Setting $settings 'RCLONE_PATH') -Candidates @(
-  (Join-Path $directories.Root '.server-tools\rclone.exe')
-)
+$rclone = Resolve-RclonePath $settings
 $git = Resolve-GitPath $settings
 $gitDirectory = Split-Path -Parent $git
 if (($env:PATH -split ';') -notcontains $gitDirectory) {
@@ -32,11 +30,7 @@ $null = Resolve-MySqlTool -Executable 'mysql' -Settings $settings
 $null = Resolve-MySqlTool -Executable 'mysqldump' -Settings $settings
 $gh = $null
 if (-not $SkipDeploy -or $CheckOnly) {
-  $gh = Resolve-ToolPath -Name 'gh' -ConfiguredPath (Get-Setting $settings 'GH_PATH') -Candidates @(
-    (Join-Path $directories.Root '.server-tools\gh.exe'),
-    "$env:ProgramFiles\GitHub CLI\gh.exe",
-    "$env:LOCALAPPDATA\Programs\GitHub CLI\gh.exe"
-  )
+  $gh = Resolve-GitHubCliPath $settings
 }
 
 if ($CheckOnly) {

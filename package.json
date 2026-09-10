@@ -2,6 +2,7 @@
   "scripts": {
     "start": "node server.js",
     "admin:create": "node scripts/create-admin.js",
+    "server:setup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/setup-server.ps1",
     "server:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1 -CheckOnly",
     "server:up": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1",
     "server:down": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/stop-server.ps1",
