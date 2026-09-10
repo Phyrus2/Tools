@@ -195,24 +195,49 @@ try {
   $nodeProcess = Start-Process -FilePath $node -ArgumentList 'server.js' -WorkingDirectory $directories.Root -RedirectStandardOutput $nodeOut -RedirectStandardError $nodeErr -WindowStyle Hidden -PassThru
   Wait-ForHttpSuccess -Uri "http://127.0.0.1:$port/health" -TimeoutSeconds 60
 
-  Write-Host 'Menjalankan TryCloudflare...'
-  $tunnelProcess = Start-Process -FilePath $cloudflared -ArgumentList @('tunnel', '--url', "http://127.0.0.1:$port") -WorkingDirectory $directories.Root -RedirectStandardOutput $tunnelOut -RedirectStandardError $tunnelErr -WindowStyle Hidden -PassThru
-
-  $deadline = [DateTime]::UtcNow.AddSeconds(75)
   $tunnelUrl = $null
-  do {
-    if ($tunnelProcess.HasExited) { throw 'cloudflared berhenti sebelum URL tersedia.' }
-    $logText = @(
-      (Get-Content -LiteralPath $tunnelOut -Raw -ErrorAction SilentlyContinue),
-      (Get-Content -LiteralPath $tunnelErr -Raw -ErrorAction SilentlyContinue)
-    ) -join [Environment]::NewLine
-    $match = [regex]::Match($logText, 'https://[a-z0-9-]+\.trycloudflare\.com')
-    if ($match.Success) { $tunnelUrl = $match.Value; break }
-    Start-Sleep -Milliseconds 750
-  } while ([DateTime]::UtcNow -lt $deadline)
+  $tunnelReady = $false
+  for ($attempt = 1; $attempt -le 3 -and -not $tunnelReady; $attempt++) {
+    Write-Host "Menjalankan TryCloudflare (percobaan $attempt/3)..."
+    Remove-Item -LiteralPath $tunnelOut, $tunnelErr -Force -ErrorAction SilentlyContinue
+    $tunnelArguments = @('tunnel', '--url', "http://127.0.0.1:$port")
+    if ($attempt -gt 1) { $tunnelArguments += @('--protocol', 'http2') }
+    $tunnelProcess = Start-Process -FilePath $cloudflared -ArgumentList $tunnelArguments -WorkingDirectory $directories.Root -RedirectStandardOutput $tunnelOut -RedirectStandardError $tunnelErr -WindowStyle Hidden -PassThru
 
-  if (-not $tunnelUrl) { throw 'URL TryCloudflare tidak ditemukan dalam 75 detik.' }
-  Wait-ForHttpSuccess -Uri "$tunnelUrl/health" -TimeoutSeconds 60
+    $deadline = [DateTime]::UtcNow.AddSeconds(90)
+    $tunnelUrl = $null
+    do {
+      if ($tunnelProcess.HasExited) { break }
+      $logText = @(
+        (Get-Content -LiteralPath $tunnelOut -Raw -ErrorAction SilentlyContinue),
+        (Get-Content -LiteralPath $tunnelErr -Raw -ErrorAction SilentlyContinue)
+      ) -join [Environment]::NewLine
+      $match = [regex]::Match($logText, 'https://[a-z0-9-]+\.trycloudflare\.com')
+      if ($match.Success) { $tunnelUrl = $match.Value; break }
+      Start-Sleep -Milliseconds 750
+    } while ([DateTime]::UtcNow -lt $deadline)
+
+    if ($tunnelUrl) {
+      try {
+        Wait-ForHttpSuccess -Uri "$tunnelUrl/health" -TimeoutSeconds 120
+        $tunnelReady = $true
+      } catch {
+        Write-Host "URL TryCloudflare belum dapat diakses: $tunnelUrl" -ForegroundColor Yellow
+      }
+    }
+
+    if (-not $tunnelReady) {
+      if ($tunnelProcess -and -not $tunnelProcess.HasExited) {
+        Stop-Process -Id $tunnelProcess.Id -Force
+        [void]$tunnelProcess.WaitForExit(10000)
+      }
+      if ($attempt -lt 3) { Write-Host 'Membuat Quick Tunnel baru...' -ForegroundColor Yellow }
+    }
+  }
+
+  if (-not $tunnelReady) {
+    throw 'TryCloudflare gagal diakses setelah 3 percobaan. Periksa koneksi internet dan log cloudflared.'
+  }
 
   if (-not $SkipDeploy) {
     Write-Host "Memperbarui API_URL menjadi $tunnelUrl..."
