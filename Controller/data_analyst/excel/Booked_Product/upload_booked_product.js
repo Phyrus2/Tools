@@ -581,12 +581,18 @@ async function importBookedProduct(req, res) {
      */
 
     const [suppliers] = await pool.query(`
-        SELECT supplier_id
+        SELECT supplier_id, company_name
         FROM suppliers
       `);
 
     const validSupplierIds = new Set(
       suppliers.map((supplier) => String(supplier.supplier_id)),
+    );
+    const supplierNameById = new Map(
+      suppliers.map((supplier) => [
+        String(supplier.supplier_id),
+        supplier.company_name,
+      ]),
     );
 
     /**
@@ -596,12 +602,15 @@ async function importBookedProduct(req, res) {
      */
 
     const [products] = await pool.query(`
-        SELECT product_id
+        SELECT product_id, name
         FROM products
       `);
 
     const validProductIds = new Set(
       products.map((product) => String(product.product_id)),
+    );
+    const productNameById = new Map(
+      products.map((product) => [String(product.product_id), product.name]),
     );
 
     /**
@@ -878,7 +887,10 @@ async function importBookedProduct(req, res) {
         dossier_id: mapped.dossier_id || null,
         dossier_name: mapped.dossier_name || null,
         supplier_id: normalizeInteger(mapped.supplier_id),
+        supplier_name: supplierNameById.get(String(mapped.supplier_id)) || null,
         product_id: normalizeInteger(mapped.product_id),
+        original_product_name:
+          productNameById.get(String(mapped.product_id)) || null,
         product_name: mapped.product_name,
         status: mapped.status || null,
         code: mapped.code || null,
@@ -1105,6 +1117,18 @@ async function importBookedProduct(req, res) {
       }
     }
 
+    function displayReferenceValue(field, value) {
+      if (field === "supplier_id") {
+        return supplierNameById.get(String(value)) || value;
+      }
+
+      if (field === "product_id") {
+        return productNameById.get(String(value)) || value;
+      }
+
+      return value;
+    }
+
     const insertedRows = [];
     const updatedRows = [];
     const unchangedRows = [];
@@ -1146,8 +1170,8 @@ async function importBookedProduct(req, res) {
         if (oldNorm !== newNorm) {
           changes.push({
             field: field.key,
-            old: oldValue,
-            new: newValue,
+            old: displayReferenceValue(field.key, oldValue),
+            new: displayReferenceValue(field.key, newValue),
           });
 
           if (DEBUG_COMPARE && debugCount < DEBUG_LIMIT) {
@@ -1367,7 +1391,9 @@ async function importBookedProduct(req, res) {
         dossier_id: r.dossier_id,
         dossier_name: r.dossier_name,
         supplier_id: r.supplier_id,
+        supplier_name: r.supplier_name,
         product_id: r.product_id,
+        original_product_name: r.original_product_name,
         product_name: r.product_name,
         status: r.status,
         duration: r.duration,
@@ -1382,7 +1408,9 @@ async function importBookedProduct(req, res) {
         dossier_id: r.dossier_id,
         dossier_name: r.dossier_name,
         supplier_id: r.supplier_id,
+        supplier_name: r.supplier_name,
         product_id: r.product_id,
+        original_product_name: r.original_product_name,
         product_name: r.product_name,
         status: r.status,
         duration: r.duration,
@@ -1397,6 +1425,8 @@ async function importBookedProduct(req, res) {
         id: r.booked_product_id,
         dossier_id: r.dossier_id,
         dossier_name: r.dossier_name,
+        supplier_name: r.supplier_name,
+        original_product_name: r.original_product_name,
         product_name: r.product_name,
       })),
 

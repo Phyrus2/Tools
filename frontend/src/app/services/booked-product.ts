@@ -9,7 +9,9 @@ export interface BookedProductRow {
   dossier_id: string | null;
   dossier_name: string | null;
   supplier_id: number;
+  supplier_name: string | null;
   product_id: number;
+  original_product_name: string | null;
   product_name: string;
   status: string | null;
   duration: number | null;
@@ -30,6 +32,8 @@ export interface UnchangedBookedProduct {
   id: number;
   dossier_id: string | null;
   dossier_name: string | null;
+  supplier_name: string | null;
+  original_product_name: string | null;
   product_name: string;
 }
  

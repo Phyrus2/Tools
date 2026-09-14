@@ -333,9 +333,9 @@ export class BookedProductImport implements OnInit {
     const labels: Record<string, string> = {
       dossier_id: 'Dossier ID',
       dossier_name: 'Dossier Name',
-      supplier_id: 'Supplier ID',
-      product_id: 'Product ID',
-      product_name: 'Product Name',
+      supplier_id: 'Supplier',
+      product_id: 'Produk Asli',
+      product_name: 'Nama Produk Booking',
       status: 'Status',
       code: 'Code',
       duration: 'Duration',

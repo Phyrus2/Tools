@@ -166,9 +166,9 @@
                   <th>Baris Excel</th>
                   <th>ID Sold Product</th>
                   <th>Dossier</th>
-                  <th>ID Supplier</th>
-                  <th>ID Produk</th>
-                  <th>Nama Produk</th>
+                  <th>Supplier</th>
+                  <th>Produk Asli</th>
+                  <th>Nama Produk Booking</th>
                   <th>Status</th>
                   <th>Tanggal Travel</th>
                   <th>Harga</th>
@@ -182,9 +182,9 @@
                     {{ displayValue(b.dossier_id) }}
                     <div class="bp-table__secondary" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
                   </td>
-                  <td data-label="ID Supplier">{{ b.supplier_id }}</td>
-                  <td data-label="ID Produk">{{ b.product_id }}</td>
-                  <td data-label="Nama Produk"><span class="bp-table__primary">{{ b.product_name }}</span></td>
+                  <td data-label="Supplier">{{ displayValue(b.supplier_name) }}</td>
+                  <td data-label="Produk Asli">{{ displayValue(b.original_product_name) }}</td>
+                  <td data-label="Nama Produk Booking"><span class="bp-table__primary">{{ b.product_name }}</span></td>
                   <td data-label="Status">{{ displayValue(b.status) }}</td>
                   <td data-label="Tanggal Travel">{{ formatDate(b.travel_date) }}</td>
                   <td data-label="Harga">{{ displayValue(b.price) }}</td>
@@ -206,6 +206,10 @@
             <div class="bp-diff-card__header">
               <div>
                 <strong>{{ displayValue(b.product_name) }}</strong>
+                <span>
+                  Supplier: {{ displayValue(b.supplier_name) }}
+                  &middot; Produk asli: {{ displayValue(b.original_product_name) }}
+                </span>
                 <span>
                   ID Sold Product: {{ b.id }}
                   &middot; Dossier: {{ displayValue(b.dossier_id) }}
@@ -256,7 +260,9 @@
                   <th>Baris Excel</th>
                   <th>ID Sold Product</th>
                   <th>Dossier</th>
-                  <th>Nama Produk</th>
+                  <th>Supplier</th>
+                  <th>Produk Asli</th>
+                  <th>Nama Produk Booking</th>
                 </tr>
               </thead>
               <tbody>
@@ -267,7 +273,9 @@
                     {{ displayValue(b.dossier_id) }}
                     <div class="bp-table__secondary" *ngIf="b.dossier_name">{{ b.dossier_name }}</div>
                   </td>
-                  <td data-label="Nama Produk">{{ b.product_name }}</td>
+                  <td data-label="Supplier">{{ displayValue(b.supplier_name) }}</td>
+                  <td data-label="Produk Asli">{{ displayValue(b.original_product_name) }}</td>
+                  <td data-label="Nama Produk Booking">{{ b.product_name }}</td>
                 </tr>
               </tbody>
             </table>
