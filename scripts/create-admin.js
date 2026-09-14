@@ -53,7 +53,7 @@ async function main() {
     const username = (await terminal.question('Username admin [admin]: ')).trim() || 'admin';
     const fullname = (await terminal.question('Nama lengkap [Administrator]: ')).trim() || 'Administrator';
     terminal.close();
-    const password = await hiddenQuestion('Password baru (minimal 14 karakter): ');
+    const password = await hiddenQuestion('Password baru (minimal 8 karakter): ');
     const confirmation = await hiddenQuestion('Ulangi password: ');
     if (password !== confirmation) throw new Error('Konfirmasi password tidak sama.');
     if (!/^[A-Za-z0-9._-]{3,100}$/.test(username)) {

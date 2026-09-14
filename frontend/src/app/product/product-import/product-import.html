@@ -161,6 +161,12 @@
                   <th>ID Supplier</th>
                   <th>Tipe</th>
                   <th>Status</th>
+                  <th>Info</th>
+                  <th>Not on offer</th>
+                  <th>Services included</th>
+                  <th>Services excluded</th>
+                  <th>Instructions</th>
+                  <th>Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -171,6 +177,12 @@
                   <td data-label="ID Supplier">{{ p.supplier_id }}</td>
                   <td data-label="Tipe">{{ p.type || '—' }}</td>
                   <td data-label="Status">{{ p.status || 'Regular Product' }}</td>
+                  <td data-label="Info">{{ p.info || '—' }}</td>
+                  <td data-label="Not on offer">{{ p.not_on_offer || '—' }}</td>
+                  <td data-label="Services included">{{ p.services_included || '—' }}</td>
+                  <td data-label="Services excluded">{{ p.services_excluded || '—' }}</td>
+                  <td data-label="Instructions">{{ p.instructions || '—' }}</td>
+                  <td data-label="Description">{{ p.description || '—' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -185,29 +197,35 @@
 
         <!-- UPDATED PRODUCTS -->
         <ng-container *ngIf="activeSection === 'updated'">
-          <div class="bp-table-wrap">
-            <table class="bp-table">
-              <thead>
-                <tr>
-                  <th>Baris Excel</th>
-                  <th>ID Produk</th>
-                  <th>Nama</th>
-                  <th>ID Supplier</th>
-                  <th>Tipe</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr *ngFor="let p of updated.pageItems; trackBy: trackByRow">
-                  <td data-label="Baris Excel">{{ p.row }}</td>
-                  <td data-label="ID Produk">{{ p.product_id }}</td>
-                  <td data-label="Nama"><span class="bp-table__primary">{{ p.name }}</span></td>
-                  <td data-label="ID Supplier">{{ p.supplier_id }}</td>
-                  <td data-label="Tipe">{{ p.type || '—' }}</td>
-                  <td data-label="Status">{{ p.status || 'Regular Product' }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="bp-diff-card" *ngFor="let p of updated.pageItems; trackBy: trackByRow">
+            <div class="bp-diff-card__header">
+              <div>
+                <strong>{{ displayValue(p.name) }}</strong>
+                <span>ID Produk: {{ p.product_id }}</span>
+              </div>
+              <span class="bp-diff-card__row-tag">Baris Excel {{ p.row }}</span>
+            </div>
+
+            <div class="bp-diff-list">
+              <div
+                class="bp-diff-row"
+                *ngFor="let change of p.changes; trackBy: trackByField"
+              >
+                <div class="bp-diff-row__field">{{ formatChangeField(change.field) }}</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sebelum</span>
+                  <div class="bp-value bp-value--old">{{ displayValue(change.old) }}</div>
+                </div>
+
+                <div class="bp-diff-row__arrow" aria-hidden="true">&rarr;</div>
+
+                <div class="bp-diff-row__value">
+                  <span class="bp-diff-row__label">Sesudah</span>
+                  <div class="bp-value bp-value--new">{{ displayValue(change.new) }}</div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="bp-pager" *ngIf="updated.totalPages > 1">
@@ -229,6 +247,12 @@
                   <th>ID Supplier</th>
                   <th>Tipe</th>
                   <th>Status</th>
+                  <th>Info</th>
+                  <th>Not on offer</th>
+                  <th>Services included</th>
+                  <th>Services excluded</th>
+                  <th>Instructions</th>
+                  <th>Description</th>
                 </tr>
               </thead>
               <tbody>
@@ -239,6 +263,12 @@
                   <td data-label="ID Supplier">{{ p.supplier_id }}</td>
                   <td data-label="Tipe">{{ p.type || 'â€”' }}</td>
                   <td data-label="Status">{{ p.status || 'Regular Product' }}</td>
+                  <td data-label="Info">{{ p.info || '—' }}</td>
+                  <td data-label="Not on offer">{{ p.not_on_offer || '—' }}</td>
+                  <td data-label="Services included">{{ p.services_included || '—' }}</td>
+                  <td data-label="Services excluded">{{ p.services_excluded || '—' }}</td>
+                  <td data-label="Instructions">{{ p.instructions || '—' }}</td>
+                  <td data-label="Description">{{ p.description || '—' }}</td>
                 </tr>
               </tbody>
             </table>

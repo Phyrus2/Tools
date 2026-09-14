@@ -10,6 +10,18 @@ CREATE TABLE IF NOT EXISTS products (
 
     status VARCHAR(50) NOT NULL DEFAULT 'Regular Product',
 
+    info TEXT,
+
+    not_on_offer TEXT,
+
+    services_included TEXT,
+
+    services_excluded TEXT,
+
+    instructions TEXT,
+
+    description TEXT,
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

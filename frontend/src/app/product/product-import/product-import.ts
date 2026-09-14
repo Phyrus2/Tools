@@ -160,6 +160,31 @@ export class ProductImport {
       this.activeSection = null;
       this.cdr.markForCheck();
     }
+
+    displayValue(value: unknown): string {
+      if (value === null || value === undefined || value === '') {
+        return '-';
+      }
+
+      return String(value);
+    }
+
+    formatChangeField(field: string): string {
+      const labels: Record<string, string> = {
+        supplier_id: 'Supplier ID',
+        name: 'Nama produk',
+        type: 'Tipe',
+        status: 'Status',
+        info: 'Info',
+        not_on_offer: 'Not on offer',
+        services_included: 'Services included',
+        services_excluded: 'Services excluded',
+        instructions: 'Instructions',
+        description: 'Description',
+      };
+
+      return labels[field] ?? field;
+    }
    
     // ==========================================
     // TRACK BY
@@ -167,5 +192,9 @@ export class ProductImport {
    
     trackByRow(_index: number, item: any): any {
       return item.product_id ?? item.row;
+    }
+
+    trackByField(_index: number, item: any): string {
+      return item.field;
     }
 }

@@ -378,7 +378,11 @@
 // ---------------------------------------------------------------
 
 .bp-table-wrap {
-  overflow-x: auto;
+  max-height: calc(85vh - 190px);
+  overflow: auto;
+  scrollbar-gutter: stable;
+  border: 1px solid var(--bp-hairline);
+  border-radius: 7px;
 }
 
 .bp-table {
@@ -396,6 +400,10 @@
   }
 
   th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--bp-surface);
     font-weight: 500;
     font-size: 0.75rem;
     color: var(--bp-ink-faint);
@@ -450,7 +458,7 @@
 .bp-modal {
   background: var(--bp-surface);
   width: 100%;
-  max-width: 880px;
+  max-width: 1180px;
   max-height: 85vh;
   border-radius: 10px;
   box-shadow: 0 16px 40px rgba(32, 38, 31, 0.2);
@@ -552,12 +560,119 @@
 }
 
 // ---------------------------------------------------------------
+// Perubahan pada product yang diperbarui
+// ---------------------------------------------------------------
+
+.bp-diff-card {
+  background: var(--bp-surface);
+  border: 1px solid var(--bp-hairline);
+  border-radius: 8px;
+  margin-bottom: var(--bp-space-3);
+  overflow: hidden;
+}
+
+.bp-diff-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--bp-space-3);
+  padding: var(--bp-space-3) var(--bp-space-4);
+  background: var(--bp-paper);
+  border-bottom: 1px solid var(--bp-hairline);
+
+  strong,
+  span {
+    display: block;
+  }
+
+  span {
+    color: var(--bp-ink-faint);
+    font-size: 0.78rem;
+  }
+}
+
+.bp-diff-card__row-tag {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.bp-diff-list {
+  padding: var(--bp-space-2) var(--bp-space-4);
+}
+
+.bp-diff-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 32px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--bp-space-3);
+  padding: var(--bp-space-3) 0;
+  border-bottom: 1px solid var(--bp-hairline);
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+.bp-diff-row__field {
+  color: var(--bp-ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.bp-diff-row__label {
+  display: block;
+  margin-bottom: 0.3rem;
+  color: var(--bp-ink-faint);
+  font-size: 0.68rem;
+}
+
+.bp-value {
+  min-height: 1.2rem;
+  padding: var(--bp-space-2) var(--bp-space-3);
+  border-radius: 5px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bp-value--old {
+  background: var(--bp-red-wash);
+  color: var(--bp-red);
+}
+
+.bp-value--new {
+  background: var(--bp-forest-wash);
+  color: var(--bp-forest-deep);
+}
+
+.bp-diff-row__arrow {
+  padding-top: 1.45rem;
+  color: var(--bp-ink-faint);
+  font-size: 1.1rem;
+  text-align: center;
+}
+
+// ---------------------------------------------------------------
 // Responsive
 // ---------------------------------------------------------------
 
 @media (max-width: 640px) {
   .bp-app {
     padding: var(--bp-space-5) var(--bp-space-4) var(--bp-space-6);
+  }
+
+  .bp-diff-row {
+    grid-template-columns: 1fr;
+    gap: var(--bp-space-2);
+  }
+
+  .bp-diff-row__arrow {
+    display: none;
+  }
+
+  .bp-diff-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--bp-space-1);
   }
 
   .bp-table {

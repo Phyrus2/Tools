@@ -3,6 +3,12 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
  
+export interface ProductChange {
+  field: string;
+  old: unknown;
+  new: unknown;
+}
+
 export interface ProductRow {
   row: number;
   product_id: string;
@@ -10,6 +16,13 @@ export interface ProductRow {
   name: string;
   type: string | null;
   status: string;
+  info: string | null;
+  not_on_offer: string | null;
+  services_included: string | null;
+  services_excluded: string | null;
+  instructions: string | null;
+  description: string | null;
+  changes?: ProductChange[];
 }
  
 export interface SkippedProduct {

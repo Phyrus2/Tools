@@ -17,7 +17,19 @@ const upload = multer({
 // KOLOM EXCEL YANG DIGUNAKAN
 // =====================================================
 
-const ALLOWED_COLUMNS = ["id", "product", "supplier", "type", "status"];
+const ALLOWED_COLUMNS = [
+  "id",
+  "product",
+  "supplier",
+  "type",
+  "status",
+  "info",
+  "not_on_offer",
+  "services_included",
+  "services_excluded",
+  "instructions",
+  "description",
+];
 
 const HEADER_ALIASES = {
   id: "id",
@@ -25,6 +37,12 @@ const HEADER_ALIASES = {
   supplier: "supplier",
   type: "type",
   status: "status",
+  info: "info",
+  notonoffer: "not_on_offer",
+  servicesincluded: "services_included",
+  servicesexcluded: "services_excluded",
+  instructions: "instructions",
+  description: "description",
 };
 
 // =====================================================
@@ -195,6 +213,12 @@ async function importProduct(req, res) {
         name: mapped.product,
         type: mapped.type || null,
         status: mapped.status || "Regular Product",
+        info: mapped.info || null,
+        not_on_offer: mapped.not_on_offer || null,
+        services_included: mapped.services_included || null,
+        services_excluded: mapped.services_excluded || null,
+        instructions: mapped.instructions || null,
+        description: mapped.description || null,
       });
     });
 
@@ -223,7 +247,8 @@ async function importProduct(req, res) {
     const productIds = dataToInsert.map((r) => r.product_id);
 
     const [existingProducts] = await pool.query(
-      `SELECT product_id, supplier_id, name, type, status
+      `SELECT product_id, supplier_id, name, type, status, info, not_on_offer,
+              services_included, services_excluded, instructions, description
        FROM products
        WHERE product_id IN (?)`,
       [productIds],
@@ -237,6 +262,19 @@ async function importProduct(req, res) {
     const updatedRows = [];
     const unchangedRows = [];
 
+    const comparableFields = [
+      "supplier_id",
+      "name",
+      "type",
+      "status",
+      "info",
+      "not_on_offer",
+      "services_included",
+      "services_excluded",
+      "instructions",
+      "description",
+    ];
+
     dataToInsert.forEach((row) => {
       const existing = existingProductMap.get(String(row.product_id));
 
@@ -245,14 +283,19 @@ async function importProduct(req, res) {
         return;
       }
 
-      const hasChanges =
-        normalizeValue(existing.supplier_id) !== normalizeValue(row.supplier_id) ||
-        normalizeValue(existing.name) !== normalizeValue(row.name) ||
-        normalizeValue(existing.type) !== normalizeValue(row.type) ||
-        normalizeValue(existing.status) !== normalizeValue(row.status);
+      const changes = comparableFields.flatMap((field) => {
+        const oldValue = existing[field];
+        const newValue = row[field];
 
-      if (hasChanges) {
-        updatedRows.push(row);
+        if (normalizeValue(oldValue) === normalizeValue(newValue)) {
+          return [];
+        }
+
+        return [{ field, old: oldValue, new: newValue }];
+      });
+
+      if (changes.length > 0) {
+        updatedRows.push({ ...row, changes });
       } else {
         unchangedRows.push(row);
       }
@@ -269,18 +312,33 @@ async function importProduct(req, res) {
       r.name,
       r.type,
       r.status,
+      r.info,
+      r.not_on_offer,
+      r.services_included,
+      r.services_excluded,
+      r.instructions,
+      r.description,
     ]);
 
     if (values.length > 0) {
       await pool.query(
         `
-        INSERT INTO products (product_id, supplier_id, name, type, status)
+        INSERT INTO products (
+          product_id, supplier_id, name, type, status, info, not_on_offer,
+          services_included, services_excluded, instructions, description
+        )
         VALUES ?
         ON DUPLICATE KEY UPDATE
           supplier_id = VALUES(supplier_id),
           name = VALUES(name),
           type = VALUES(type),
-          status = VALUES(status)
+          status = VALUES(status),
+          info = VALUES(info),
+          not_on_offer = VALUES(not_on_offer),
+          services_included = VALUES(services_included),
+          services_excluded = VALUES(services_excluded),
+          instructions = VALUES(instructions),
+          description = VALUES(description)
         `,
         [values],
       );
@@ -325,6 +383,12 @@ async function importProduct(req, res) {
         name: r.name,
         type: r.type,
         status: r.status,
+        info: r.info,
+        not_on_offer: r.not_on_offer,
+        services_included: r.services_included,
+        services_excluded: r.services_excluded,
+        instructions: r.instructions,
+        description: r.description,
       })),
 
       updatedRows: updatedRows.map((r) => ({
@@ -334,6 +398,13 @@ async function importProduct(req, res) {
         name: r.name,
         type: r.type,
         status: r.status,
+        info: r.info,
+        not_on_offer: r.not_on_offer,
+        services_included: r.services_included,
+        services_excluded: r.services_excluded,
+        instructions: r.instructions,
+        description: r.description,
+        changes: r.changes,
       })),
 
       unchangedRows: unchangedRows.map((r) => ({
@@ -343,6 +414,12 @@ async function importProduct(req, res) {
         name: r.name,
         type: r.type,
         status: r.status,
+        info: r.info,
+        not_on_offer: r.not_on_offer,
+        services_included: r.services_included,
+        services_excluded: r.services_excluded,
+        instructions: r.instructions,
+        description: r.description,
       })),
 
       skippedRows,

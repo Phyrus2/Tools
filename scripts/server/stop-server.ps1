@@ -10,6 +10,7 @@ trap {
 $directories = Initialize-ServerDirectories
 $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $processStatePath = Join-Path $directories.State 'processes.json'
+$backupStopSignal = Join-Path $directories.State 'stop-backup-worker'
 
 if ($CheckOnly) {
   & (Join-Path $PSScriptRoot 'backup-database.ps1') -CheckOnly
@@ -27,6 +28,14 @@ if (Test-Path -LiteralPath $processStatePath) {
   Start-Sleep -Seconds 2
   Write-Host 'Menghentikan backend Node.js...'
   Stop-RecordedProcess -Id $processState.node_pid -ExpectedName 'node'
+
+  $backupWorkerPid = if ($processState.PSObject.Properties.Name -contains 'backup_worker_pid') {
+    $processState.backup_worker_pid
+  } else { $null }
+  if ($backupWorkerPid) {
+    Write-Host 'Menghentikan worker backup otomatis...'
+    Stop-BackupWorker -Id $backupWorkerPid -StopSignalPath $backupStopSignal
+  }
   Remove-Item -LiteralPath $processStatePath -Force
 } else {
   Write-Host 'Server tidak sedang berjalan. Melanjutkan backup database terbaru.'

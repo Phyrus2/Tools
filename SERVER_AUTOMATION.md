@@ -1,11 +1,12 @@
 # Otomatisasi perpindahan PC server
 
-Script ini memakai Google Drive sebagai penyimpanan backup database. `server:down`
-menutup tunnel dan backend, membuat dump MySQL, mengompresnya, menghitung SHA-256,
-lalu mengunggah arsip dan `latest.json`. `server:up` mengambil kode serta backup
-terbaru, memverifikasi checksum, merestore database bila diperlukan, menjalankan
-Node.js dan TryCloudflare, memperbarui variable GitHub `API_URL`, lalu memicu
-workflow GitHub Pages.
+Script ini memakai Google Drive sebagai penyimpanan backup database. Selama server
+aktif, worker membuat backup otomatis setiap 60 menit. `server:down` menghentikan
+worker, menutup tunnel dan backend, lalu tetap membuat backup final. Setiap backup
+membuat dump MySQL, mengompresnya, menghitung SHA-256, lalu mengunggah arsip dan
+`latest.json`. `server:up` mengambil kode serta backup terbaru, memverifikasi
+checksum, merestore database bila diperlukan, menjalankan Node.js dan TryCloudflare,
+memperbarui variable GitHub `API_URL`, lalu memicu workflow GitHub Pages.
 
 ## Persiapan satu kali pada setiap PC  
 
@@ -33,6 +34,7 @@ tidak ikut masuk ke GitHub.
 ```dotenv
 SERVER_ID=office
 BACKUP_REMOTE=gdrive:C2I-Server-Backup
+BACKUP_INTERVAL_MINUTES=60
 GITHUB_REPOSITORY=phyrus2/Tools
 RCLONE_PATH=.server-tools/rclone.exe
 GH_PATH=.server-tools/gh.exe
@@ -111,6 +113,7 @@ npm run server:up
 7. Menjalankan `gh variable set API_URL` dan `gh workflow run pages.yml`.
 8. Menunggu workflow selesai dan memastikan `api-config.js` publik sudah memakai
    URL tunnel terbaru sebelum menyatakan frontend siap digunakan.
+9. Menjalankan worker backup otomatis sesuai `BACKUP_INTERVAL_MINUTES`.
 
 Log disimpan secara lokal di `.server-logs`. PID proses dan versi database disimpan
 di `.server-state`; kedua folder sudah diabaikan Git.
@@ -125,8 +128,13 @@ Tunggu sampai muncul `Server aman dimatikan atau dipindahkan ke PC lain`. Jangan
 mematikan PC jika upload gagal. Script menghentikan tunnel terlebih dahulu supaya
 tidak ada request baru selama backup terakhir dibuat.
 
+Log backup otomatis tersedia di `.server-logs/backup-worker.out.log` dan
+`.server-logs/backup-worker.err.log`. Jika satu jadwal gagal, worker tetap hidup
+dan mencoba lagi pada jadwal berikutnya. Backup yang berjalan bersamaan akan
+diserialkan agar tidak saling menimpa.
+
 Perintah `npm run db:backup` tetap tersedia untuk backup tambahan tanpa
-menghentikan server, tetapi tidak diperlukan dalam alur normal:
+menghentikan server:
 
 ```powershell
 npm run db:backup

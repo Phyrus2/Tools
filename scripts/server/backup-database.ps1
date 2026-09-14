@@ -23,51 +23,68 @@ if ($CheckOnly) {
   exit 0
 }
 
-$timestamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
-$backupId = "$timestamp-$serverId"
-$archiveName = "c2i-data-$backupId.sql.gz"
-$temporaryDirectory = Join-Path $directories.State ("backup-{0}" -f [guid]::NewGuid().ToString('N'))
-$sqlPath = Join-Path $temporaryDirectory 'database.sql'
-$archivePath = Join-Path $temporaryDirectory $archiveName
-$manifestPath = Join-Path $temporaryDirectory 'latest.json'
-New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
+$backupMutex = [Threading.Mutex]::new($false, "Local\C2I-DatabaseBackup-$serverId")
+$backupLockTaken = $false
 
 try {
-  Write-Host 'Membuat backup MySQL yang konsisten...'
-  Invoke-DatabaseDump -Settings $settings -OutputPath $sqlPath -TemporaryDirectory $temporaryDirectory
-  Compress-GzipFile -Source $sqlPath -Destination $archivePath
-  $checksum = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
-  $archiveSize = (Get-Item -LiteralPath $archivePath).Length
-
-  $manifest = [ordered]@{
-    backup_id = $backupId
-    created_at = [DateTime]::UtcNow.ToString('o')
-    server_id = $serverId
-    database = Get-Setting $settings 'DB_NAME' -Required
-    file = $archiveName
-    sha256 = $checksum
-    size = $archiveSize
+  try {
+    $backupLockTaken = $backupMutex.WaitOne([TimeSpan]::FromMinutes(15))
+  } catch [Threading.AbandonedMutexException] {
+    $backupLockTaken = $true
   }
-  Write-JsonFile -Value $manifest -Path $manifestPath
-
-  Write-Host 'Mengunggah backup ke Google Drive...'
-  Invoke-CheckedCommand $rclone @('mkdir', "$remote/archives") 'Folder arsip Google Drive tidak dapat dibuat.'
-  Invoke-CheckedCommand $rclone @('copyto', $archivePath, "$remote/archives/$archiveName", '--retries', '3') 'Upload arsip database gagal.'
-
-  $remoteInfoJson = @(& $rclone lsjson "$remote/archives/$archiveName" '--files-only') -join [Environment]::NewLine
-  if ($LASTEXITCODE -ne 0) { throw 'Arsip yang diunggah tidak dapat diverifikasi.' }
-  $remoteInfo = @($remoteInfoJson | ConvertFrom-Json)
-  if ($remoteInfo.Count -ne 1 -or [long]$remoteInfo[0].Size -ne $archiveSize) {
-    throw 'Ukuran arsip di Google Drive tidak cocok. latest.json tidak diperbarui.'
+  if (-not $backupLockTaken) {
+    throw 'Backup lain masih berjalan setelah ditunggu selama 15 menit.'
   }
 
-  Invoke-CheckedCommand $rclone @('copyto', $manifestPath, "$remote/latest.json", '--retries', '3') 'Upload latest.json gagal.'
+  $timestamp = [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ')
+  $backupId = "$timestamp-$serverId"
+  $archiveName = "c2i-data-$backupId.sql.gz"
+  $temporaryDirectory = Join-Path $directories.State ("backup-{0}" -f [guid]::NewGuid().ToString('N'))
+  $sqlPath = Join-Path $temporaryDirectory 'database.sql'
+  $archivePath = Join-Path $temporaryDirectory $archiveName
+  $manifestPath = Join-Path $temporaryDirectory 'latest.json'
+  New-Item -ItemType Directory -Path $temporaryDirectory | Out-Null
 
-  Set-DatabaseBackupMarker -Settings $settings -BackupId $backupId -TemporaryDirectory $temporaryDirectory
-  Write-JsonFile -Value $manifest -Path (Join-Path $directories.State 'local-database-state.json')
-  Write-Host "Backup berhasil: $backupId" -ForegroundColor Green
-  Write-Host "SHA-256: $checksum"
+  try {
+    Write-Host 'Membuat backup MySQL yang konsisten...'
+    Invoke-DatabaseDump -Settings $settings -OutputPath $sqlPath -TemporaryDirectory $temporaryDirectory
+    Compress-GzipFile -Source $sqlPath -Destination $archivePath
+    $checksum = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $archiveSize = (Get-Item -LiteralPath $archivePath).Length
+
+    $manifest = [ordered]@{
+      backup_id = $backupId
+      created_at = [DateTime]::UtcNow.ToString('o')
+      server_id = $serverId
+      database = Get-Setting $settings 'DB_NAME' -Required
+      file = $archiveName
+      sha256 = $checksum
+      size = $archiveSize
+    }
+    Write-JsonFile -Value $manifest -Path $manifestPath
+
+    Write-Host 'Mengunggah backup ke Google Drive...'
+    Invoke-CheckedCommand $rclone @('mkdir', "$remote/archives") 'Folder arsip Google Drive tidak dapat dibuat.'
+    Invoke-CheckedCommand $rclone @('copyto', $archivePath, "$remote/archives/$archiveName", '--retries', '3') 'Upload arsip database gagal.'
+
+    $remoteInfoJson = @(& $rclone lsjson "$remote/archives/$archiveName" '--files-only') -join [Environment]::NewLine
+    if ($LASTEXITCODE -ne 0) { throw 'Arsip yang diunggah tidak dapat diverifikasi.' }
+    $remoteInfo = @($remoteInfoJson | ConvertFrom-Json)
+    if ($remoteInfo.Count -ne 1 -or [long]$remoteInfo[0].Size -ne $archiveSize) {
+      throw 'Ukuran arsip di Google Drive tidak cocok. latest.json tidak diperbarui.'
+    }
+
+    Invoke-CheckedCommand $rclone @('copyto', $manifestPath, "$remote/latest.json", '--retries', '3') 'Upload latest.json gagal.'
+
+    Set-DatabaseBackupMarker -Settings $settings -BackupId $backupId -TemporaryDirectory $temporaryDirectory
+    Write-JsonFile -Value $manifest -Path (Join-Path $directories.State 'local-database-state.json')
+    Write-Host "Backup berhasil: $backupId" -ForegroundColor Green
+    Write-Host "SHA-256: $checksum"
+  } finally {
+    Remove-Item -LiteralPath $sqlPath, $archivePath, $manifestPath -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $temporaryDirectory -Force -ErrorAction SilentlyContinue
+  }
 } finally {
-  Remove-Item -LiteralPath $sqlPath, $archivePath, $manifestPath -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $temporaryDirectory -Force -ErrorAction SilentlyContinue
+  if ($backupLockTaken) { $backupMutex.ReleaseMutex() }
+  $backupMutex.Dispose()
 }

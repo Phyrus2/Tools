@@ -17,6 +17,12 @@ $settings = Read-DotEnvFile (Join-Path $directories.Root '.env')
 $remote = (Get-Setting $settings 'BACKUP_REMOTE' -Default 'gdrive:C2I-Server-Backup').TrimEnd('/')
 $repository = Get-Setting $settings 'GITHUB_REPOSITORY'
 $port = Get-Setting $settings 'PORT' -Default '3000'
+$backupIntervalText = Get-Setting $settings 'BACKUP_INTERVAL_MINUTES' -Default '60'
+[int]$backupIntervalMinutes = 0
+if (-not [int]::TryParse($backupIntervalText, [ref]$backupIntervalMinutes) -or
+    $backupIntervalMinutes -lt 5 -or $backupIntervalMinutes -gt 1440) {
+  throw 'BACKUP_INTERVAL_MINUTES harus berupa angka antara 5 dan 1440.'
+}
 $rclone = Resolve-RclonePath $settings
 $git = Resolve-GitPath $settings
 $gitDirectory = Split-Path -Parent $git
@@ -50,7 +56,13 @@ if (Test-Path -LiteralPath $processStatePath) {
   $existingState = Get-Content -LiteralPath $processStatePath -Raw | ConvertFrom-Json
   $nodeStillRuns = Get-Process -Id $existingState.node_pid -ErrorAction SilentlyContinue
   $tunnelStillRuns = Get-Process -Id $existingState.cloudflared_pid -ErrorAction SilentlyContinue
-  if ($nodeStillRuns -or $tunnelStillRuns) {
+  $existingBackupWorkerPid = if ($existingState.PSObject.Properties.Name -contains 'backup_worker_pid') {
+    $existingState.backup_worker_pid
+  } else { $null }
+  $backupWorkerStillRuns = if ($existingBackupWorkerPid) {
+    Get-Process -Id $existingBackupWorkerPid -ErrorAction SilentlyContinue
+  } else { $null }
+  if ($nodeStillRuns -or $tunnelStillRuns -or $backupWorkerStillRuns) {
     throw 'Server masih berjalan. Jalankan stop-server.ps1 terlebih dahulu.'
   }
   Remove-Item -LiteralPath $processStatePath -Force
@@ -186,10 +198,14 @@ $nodeOut = Join-Path $directories.Logs 'node.out.log'
 $nodeErr = Join-Path $directories.Logs 'node.err.log'
 $tunnelOut = Join-Path $directories.Logs 'cloudflared.out.log'
 $tunnelErr = Join-Path $directories.Logs 'cloudflared.err.log'
-Remove-Item -LiteralPath $nodeOut, $nodeErr, $tunnelOut, $tunnelErr -Force -ErrorAction SilentlyContinue
+$backupWorkerOut = Join-Path $directories.Logs 'backup-worker.out.log'
+$backupWorkerErr = Join-Path $directories.Logs 'backup-worker.err.log'
+$backupStopSignal = Join-Path $directories.State 'stop-backup-worker'
+Remove-Item -LiteralPath $nodeOut, $nodeErr, $tunnelOut, $tunnelErr, $backupWorkerOut, $backupWorkerErr, $backupStopSignal -Force -ErrorAction SilentlyContinue
 
 $nodeProcess = $null
 $tunnelProcess = $null
+$backupWorkerProcess = $null
 try {
   Write-Host 'Menjalankan backend Node.js...'
   $nodeProcess = Start-Process -FilePath $node -ArgumentList 'server.js' -WorkingDirectory $directories.Root -RedirectStandardOutput $nodeOut -RedirectStandardError $nodeErr -WindowStyle Hidden -PassThru
@@ -291,9 +307,21 @@ try {
     if (-not $frontendReady) { throw 'GitHub Pages selesai deploy, tetapi konfigurasi API terbaru belum terlihat.' }
   }
 
+  Write-Host "Menjalankan backup otomatis setiap $backupIntervalMinutes menit..."
+  $backupWorkerScript = Join-Path $PSScriptRoot 'backup-worker.ps1'
+  $powershell = Join-Path $PSHOME 'powershell.exe'
+  $backupWorkerArguments = "-NoProfile -ExecutionPolicy Bypass -File `"$backupWorkerScript`" -IntervalMinutes $backupIntervalMinutes"
+  $backupWorkerProcess = Start-Process -FilePath $powershell -ArgumentList $backupWorkerArguments -WorkingDirectory $directories.Root -RedirectStandardOutput $backupWorkerOut -RedirectStandardError $backupWorkerErr -WindowStyle Hidden -PassThru
+  Start-Sleep -Seconds 1
+  if ($backupWorkerProcess.HasExited) {
+    throw 'Worker backup otomatis gagal dijalankan. Periksa backup-worker.err.log.'
+  }
+
   Write-JsonFile -Value ([ordered]@{
     node_pid = $nodeProcess.Id
     cloudflared_pid = $tunnelProcess.Id
+    backup_worker_pid = $backupWorkerProcess.Id
+    backup_interval_minutes = $backupIntervalMinutes
     tunnel_url = $tunnelUrl
     started_at = [DateTime]::UtcNow.ToString('o')
   }) -Path $processStatePath
@@ -302,6 +330,9 @@ try {
   Write-Host "Backend publik: $tunnelUrl"
   if (-not $SkipDeploy) { Write-Host 'Frontend GitHub Pages sudah siap digunakan.' -ForegroundColor Green }
 } catch {
+  if ($backupWorkerProcess -and -not $backupWorkerProcess.HasExited) {
+    Stop-BackupWorker -Id $backupWorkerProcess.Id -StopSignalPath $backupStopSignal -TimeoutSeconds 30
+  }
   if ($tunnelProcess -and -not $tunnelProcess.HasExited) { Stop-Process -Id $tunnelProcess.Id -Force }
   if ($nodeProcess -and -not $nodeProcess.HasExited) { Stop-Process -Id $nodeProcess.Id -Force }
   throw

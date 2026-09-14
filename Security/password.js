@@ -7,8 +7,8 @@ const SCRYPT_OPTIONS = { N: 131072, r: 8, p: 1, maxmem: 256 * 1024 * 1024 };
 const DUMMY_HASH = 'scrypt$131072$8$1$STpvR2RBMkJWYVFxTkg3d1VWaA$UvkUExbsqvCYx0qZ8Lkd4fI5oW0V2gVBCcH3xbklgWYlpeDFU4bDEi7G+Wt59kEExZJKtDnk0s+8RWjbrI25pA';
 
 function validatePassword(password) {
-  if (typeof password !== 'string' || password.length < 14 || password.length > 128) {
-    throw new Error('Password harus terdiri dari 14 sampai 128 karakter.');
+  if (typeof password !== 'string' || password.length < 8 || password.length > 128) {
+    throw new Error('Password harus terdiri dari 8 sampai 128 karakter.');
   }
   const common = ['password', 'admin123', 'qwerty', 'letmein'];
   const lowered = password.toLowerCase();

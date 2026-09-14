@@ -387,3 +387,32 @@ function Stop-RecordedProcess {
   Stop-Process -Id $recordedId -Force
   [void]$process.WaitForExit(10000)
 }
+
+function Stop-BackupWorker {
+  param(
+    [Nullable[int]]$Id,
+    [Parameter(Mandatory = $true)][string]$StopSignalPath,
+    [int]$TimeoutSeconds = 900
+  )
+
+  Remove-Item -LiteralPath $StopSignalPath -Force -ErrorAction SilentlyContinue
+  if (-not $Id) { return }
+
+  $recordedId = [int]$Id
+  $process = Get-Process -Id $recordedId -ErrorAction SilentlyContinue
+  if (-not $process) { return }
+  if ($process.ProcessName -notin @('powershell', 'pwsh')) {
+    throw "PID $recordedId sekarang dimiliki proses $($process.ProcessName), bukan worker PowerShell."
+  }
+
+  [IO.File]::WriteAllText($StopSignalPath, [DateTimeOffset]::UtcNow.ToString('o'), [Text.UTF8Encoding]::new($false))
+  try {
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+      Stop-Process -Id $recordedId -Force
+      [void]$process.WaitForExit(10000)
+      Write-Warning "Worker backup tidak berhenti dalam $TimeoutSeconds detik dan dihentikan paksa."
+    }
+  } finally {
+    Remove-Item -LiteralPath $StopSignalPath -Force -ErrorAction SilentlyContinue
+  }
+}
