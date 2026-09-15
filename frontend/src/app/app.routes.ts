@@ -6,6 +6,7 @@ import { SearchBookedProduct } from './booked_product/search-booked-product/sear
 import { LandingPage } from './landing/landing-page';
 import { Login } from './auth/login/login';
 import { adminGuard } from './auth/auth.guard';
+import { CatalogSearch } from './catalog/catalog-search/catalog-search';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -14,5 +15,6 @@ export const routes: Routes = [
   { path: 'product', component: ProductImport, canActivate: [adminGuard] },
   { path: 'bookedProduct', component: BookedProductImport, canActivate: [adminGuard] },
   { path: 'search', component: SearchBookedProduct, canActivate: [adminGuard] },
+  { path: 'catalog-search', component: CatalogSearch, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' },
 ];

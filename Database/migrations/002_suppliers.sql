@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
     category_supplier JSON NOT NULL,
 
+    status VARCHAR(20) NOT NULL DEFAULT 'Active',
+
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

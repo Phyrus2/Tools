@@ -23,6 +23,7 @@ const ALLOWED_COLUMNS = [
   "town",
   "region",
   "location",
+  "status",
 ];
 
 // =====================================================
@@ -44,6 +45,7 @@ const HEADER_ALIASES = {
   town: "town",
   region: "region",
   location: "location",
+  status: "status",
 };
 
 // =====================================================
@@ -88,6 +90,14 @@ function normalizeValue(value) {
   }
 
   return String(value).trim();
+}
+
+function parseSupplierStatus(value, fallback = "Active") {
+  if (value === undefined || value === null || value === "") return fallback;
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "active") return "Active";
+  if (normalized === "inactive") return "Inactive";
+  return fallback;
 }
 
 // =====================================================
@@ -171,7 +181,8 @@ async function loadExistingSuppliers(connection, supplierIds) {
         town,
         region,
         location,
-        category_supplier
+        category_supplier,
+        status
       FROM suppliers
       WHERE supplier_id IN (?)
       `,
@@ -196,6 +207,7 @@ async function saveSuppliers(connection, suppliers) {
       supplier.region,
       supplier.location,
       JSON.stringify(normalizeCategories(parseCategories(supplier.category_supplier))),
+      supplier.status,
     ]);
 
     await connection.query(
@@ -208,7 +220,8 @@ async function saveSuppliers(connection, suppliers) {
         town,
         region,
         location,
-        category_supplier
+        category_supplier,
+        status
       )
       VALUES ?
       ON DUPLICATE KEY UPDATE
@@ -217,7 +230,8 @@ async function saveSuppliers(connection, suppliers) {
         town = VALUES(town),
         region = VALUES(region),
         location = VALUES(location),
-        category_supplier = VALUES(category_supplier)
+        category_supplier = VALUES(category_supplier),
+        status = VALUES(status)
       `,
       [values],
     );
@@ -464,6 +478,7 @@ async function importSupplier(req, res) {
 
       if (!existing) {
         const categories = [supplierCategory];
+        const status = parseSupplierStatus(mapped.status, "Active");
 
         recordCategoryChange(categoryChanges, supplierId, [], categories);
 
@@ -475,6 +490,7 @@ async function importSupplier(req, res) {
           region: mapped.region,
           location: mapped.location,
           category_supplier: categories,
+          status,
         });
         dirtySupplierIds.add(supplierKey);
 
@@ -496,6 +512,7 @@ async function importSupplier(req, res) {
           location: mapped.location,
 
           category_supplier: categories,
+          status,
         });
 
         continue;
@@ -511,6 +528,10 @@ async function importSupplier(req, res) {
         ...oldCategories,
         supplierCategory,
       ]);
+      const newStatus = parseSupplierStatus(
+        mapped.status,
+        existing.status || "Active",
+      );
 
       // =================================================
       // COMPARE DATA
@@ -606,6 +627,18 @@ async function importSupplier(req, res) {
         });
       }
 
+      // -----------------------------------------------
+      // STATUS ACTIVE / INACTIVE
+      // -----------------------------------------------
+
+      if (existing.status !== newStatus) {
+        changes.push({
+          field: "status",
+          old: existing.status,
+          new: newStatus,
+        });
+      }
+
       // =================================================
       // TIDAK ADA PERUBAHAN
       // =================================================
@@ -636,6 +669,7 @@ async function importSupplier(req, res) {
         region: mapped.region,
         location: mapped.location,
         category_supplier: newCategories,
+        status: newStatus,
       });
       dirtySupplierIds.add(supplierKey);
 

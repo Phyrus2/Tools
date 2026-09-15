@@ -1,0 +1,218 @@
+<main class="catalog-shell">
+  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
+
+  <header class="catalog-header">
+    <p class="catalog-eyebrow">Master Database</p>
+    <h1>Search Supplier &amp; Product</h1>
+    <p>Pilih jenis data terlebih dahulu agar hasil pencarian tidak tercampur.</p>
+  </header>
+
+  <section class="search-panel" aria-labelledby="search-mode-title">
+    <div class="mode-heading">
+      <div>
+        <span class="step-number">01</span>
+        <h2 id="search-mode-title">Mau mencari apa?</h2>
+      </div>
+      <p>Mode aktif: <strong>{{ modeTitle }}</strong></p>
+    </div>
+
+    <div class="mode-switch" role="tablist" aria-label="Jenis pencarian">
+      <button
+        type="button"
+        role="tab"
+        class="mode-button"
+        [class.mode-button--active]="mode === 'supplier'"
+        [attr.aria-selected]="mode === 'supplier'"
+        (click)="selectMode('supplier')"
+      >
+        <span class="mode-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <path d="M5.5 23V10.5L14 5l8.5 5.5V23M10 14h8M10 18h8M11.5 23v-2.5h5V23" />
+          </svg>
+        </span>
+        <span><strong>Supplier</strong><small>Nama, kategori &amp; lokasi supplier</small></span>
+        <i aria-hidden="true"></i>
+      </button>
+
+      <button
+        type="button"
+        role="tab"
+        class="mode-button"
+        [class.mode-button--active]="mode === 'product'"
+        [attr.aria-selected]="mode === 'product'"
+        (click)="selectMode('product')"
+      >
+        <span class="mode-button__icon" aria-hidden="true">
+          <svg viewBox="0 0 28 28" fill="none">
+            <path d="m5 10 9-5 9 5-9 5-9-5Z" />
+            <path d="m5 10 9 5 9-5v9l-9 5-9-5v-9ZM14 15v9" />
+          </svg>
+        </span>
+        <span><strong>Product</strong><small>Nama, detail &amp; lokasi product</small></span>
+        <i aria-hidden="true"></i>
+      </button>
+    </div>
+
+    <form class="search-form" (ngSubmit)="search()">
+      <div class="catalog-filters" aria-label="Filter pencarian">
+        <div class="category-filter">
+          <label for="catalog-category">Category</label>
+          <select
+            id="catalog-category"
+            name="catalogCategory"
+            [(ngModel)]="category"
+            (change)="onCategoryChange()"
+            [disabled]="loadingCategories"
+          >
+            <option value="">Semua category</option>
+            <option *ngFor="let item of categories" [value]="item">{{ item }}</option>
+          </select>
+          <small *ngIf="loadingCategories">Memuat&hellip;</small>
+        </div>
+
+        <div class="category-filter status-filter">
+          <label for="catalog-status">
+            {{ mode === 'supplier' ? 'Status' : 'Availability' }}
+          </label>
+          <select
+            id="catalog-status"
+            name="catalogStatus"
+            [(ngModel)]="statusFilter"
+            (change)="onStatusChange()"
+          >
+            <option value="">Semua status</option>
+            <ng-container *ngIf="mode === 'supplier'">
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </ng-container>
+            <ng-container *ngIf="mode === 'product'">
+              <option value="offer">On offer</option>
+              <option value="not_on_offer">Not on offer</option>
+            </ng-container>
+          </select>
+        </div>
+      </div>
+
+      <label for="catalog-keyword">Keyword <span>(opsional jika filter dipilih)</span></label>
+      <div class="search-control">
+        <span class="search-control__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none">
+            <circle cx="10.5" cy="10.5" r="6.5" />
+            <path d="m15.5 15.5 5 5" />
+          </svg>
+        </span>
+        <input
+          id="catalog-keyword"
+          name="catalogKeyword"
+          type="search"
+          [(ngModel)]="keyword"
+          [placeholder]="placeholder"
+          maxlength="100"
+          autocomplete="off"
+        />
+        <button type="submit" [disabled]="loading">
+          <span *ngIf="!loading">Cari {{ modeTitle }}</span>
+          <span *ngIf="loading">Mencari&hellip;</span>
+        </button>
+      </div>
+      <p class="search-hint" *ngIf="mode === 'supplier'">
+        Mencari pada nama supplier, address, town, region, location, dan kategori.
+      </p>
+      <p class="search-hint" *ngIf="mode === 'product'">
+        Mencari pada nama product, supplier, lokasi, kategori, info, deskripsi, instruksi, inclusion, exclusion, dan not on offer.
+      </p>
+    </form>
+
+    <p class="catalog-alert" role="alert" *ngIf="errorMessage">{{ errorMessage }}</p>
+  </section>
+
+  <section class="results" *ngIf="hasSearched" aria-live="polite">
+    <header class="results-header">
+      <div>
+        <p>Hasil Search {{ modeTitle }}</p>
+        <h2>&ldquo;{{ searchTitle }}&rdquo;</h2>
+      </div>
+      <strong>{{ pagination.total }} hasil</strong>
+    </header>
+
+    <div class="empty-state" *ngIf="pagination.total === 0">
+      <span aria-hidden="true">0</span>
+      <h3>Tidak ada {{ modeTitle | lowercase }} ditemukan</h3>
+      <p>Coba gunakan nama, lokasi, atau kata kunci yang lebih umum.</p>
+    </div>
+
+    <div class="result-list" *ngIf="mode === 'supplier' && supplierResults.length">
+      <article class="result-card" *ngFor="let row of supplierResults; trackBy: trackSupplier">
+        <div class="result-card__main">
+          <div class="result-card__topline">
+            <div class="result-type result-type--supplier">Supplier</div>
+            <span class="status-badge status-badge--active" *ngIf="row.status === 'Active'">Active</span>
+            <span class="status-badge status-badge--inactive" *ngIf="row.status === 'Inactive'">Inactive</span>
+          </div>
+          <h3>{{ row.company_name }}</h3>
+          <p class="result-location">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 17s5-4.5 5-9a5 5 0 1 0-10 0c0 4.5 5 9 5 9Z" /><circle cx="10" cy="8" r="1.7" /></svg>
+            {{ locationOf(row) }}
+          </p>
+          <p class="result-address" *ngIf="row.address">{{ row.address }}</p>
+          <div class="chips" *ngIf="row.category_supplier.length">
+            <span *ngFor="let category of row.category_supplier">{{ category }}</span>
+          </div>
+        </div>
+        <aside class="result-card__meta">
+          <strong>{{ row.product_count }}</strong>
+          <span>product</span>
+          <small>Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+        </aside>
+      </article>
+    </div>
+
+    <div class="result-list" *ngIf="mode === 'product' && productResults.length">
+      <article class="result-card result-card--product" *ngFor="let row of productResults; trackBy: trackProduct">
+        <div class="result-card__main">
+          <div class="result-card__topline">
+            <div class="result-type result-type--product">Product</div>
+            <span class="status-badge status-badge--dinner" *ngIf="row.has_compulsory_dinner === true">Compulsory dinner</span>
+            <span class="status-badge status-badge--offer" *ngIf="row.not_on_offer">Not on offer</span>
+            <span class="status-badge status-badge--active" *ngIf="row.not_on_offer === false">On offer</span>
+          </div>
+          <h3>{{ row.name }}</h3>
+          <p class="product-supplier">{{ row.company_name }}</p>
+          <p class="result-location">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 17s5-4.5 5-9a5 5 0 1 0-10 0c0 4.5 5 9 5 9Z" /><circle cx="10" cy="8" r="1.7" /></svg>
+            {{ locationOf(row) }}
+          </p>
+          <div class="chips">
+            <span class="chip--type" *ngIf="row.type">{{ row.type }}</span>
+            <span *ngFor="let category of row.category_supplier">{{ category }}</span>
+          </div>
+
+          <details class="product-details" *ngIf="row.info || row.description || row.instructions || row.services_included || row.services_excluded">
+            <summary>Lihat detail product</summary>
+            <dl>
+              <div *ngIf="row.info"><dt>Info</dt><dd>{{ row.info }}</dd></div>
+              <div *ngIf="row.description"><dt>Description</dt><dd>{{ row.description }}</dd></div>
+              <div *ngIf="row.instructions"><dt>Instruction</dt><dd>{{ row.instructions }}</dd></div>
+              <div *ngIf="row.services_included"><dt>Inclusion</dt><dd>{{ row.services_included }}</dd></div>
+              <div *ngIf="row.services_excluded"><dt>Exclusion</dt><dd>{{ row.services_excluded }}</dd></div>
+            </dl>
+          </details>
+        </div>
+        <aside class="result-card__meta result-card__meta--product">
+          <small>Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+        </aside>
+      </article>
+    </div>
+
+    <nav class="pagination" aria-label="Pagination hasil pencarian" *ngIf="pagination.totalPages > 1">
+      <button type="button" (click)="previousPage()" [disabled]="pagination.page === 1 || loading">&larr; Sebelumnya</button>
+      <span>Halaman <strong>{{ pagination.page }}</strong> dari {{ pagination.totalPages }}</span>
+      <button type="button" (click)="nextPage()" [disabled]="pagination.page === pagination.totalPages || loading">Berikutnya &rarr;</button>
+    </nav>
+  </section>
+</main>

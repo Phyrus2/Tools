@@ -254,6 +254,7 @@
                   <th>Wilayah</th>
                   <th>Lokasi</th>
                   <th>Kategori</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <!-- Only the current page (default 50 rows) is ever rendered,
@@ -273,6 +274,11 @@
                       *ngFor="let category of supplier.category_supplier; trackBy: trackByCategory"
                     >
                       {{ category }}
+                    </span>
+                  </td>
+                  <td data-label="Status">
+                    <span class="bp-badge" [class.bp-badge--inactive]="supplier.status === 'Inactive'">
+                      {{ supplier.status }}
                     </span>
                   </td>
                 </tr>

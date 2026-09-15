@@ -2,6 +2,7 @@ const xlsx = require("xlsx");
 const fs = require("fs");
 const multer = require("multer");
 const pool = require("../../../../Database/connection");
+const { normalizeProductText } = require("../../../../Utils/normalize_product_text");
 require("dotenv").config();
 
 // =====================================================
@@ -45,6 +46,15 @@ const HEADER_ALIASES = {
   description: "description",
 };
 
+const PRODUCT_TEXT_COLUMNS = new Set([
+  "info",
+  "not_on_offer",
+  "services_included",
+  "services_excluded",
+  "instructions",
+  "description",
+]);
+
 // =====================================================
 // NORMALIZE HEADER
 // =====================================================
@@ -84,6 +94,45 @@ function normalizeValue(value) {
 }
 
 // =====================================================
+// NORMALIZE STATUS
+// Excel kadang menyimpan kolom status sebagai boolean/checkbox
+// (true/false) atau variasi teks (TRUE/FALSE, 1/0, Aktif/Nonaktif, dst).
+// Fungsi ini memastikan hasil akhirnya selalu string "active" / "inactive".
+// =====================================================
+
+const ACTIVE_VALUES = new Set(["active", "true", "1", "yes", "y", "aktif"]);
+const INACTIVE_VALUES = new Set([
+  "inactive",
+  "false",
+  "0",
+  "no",
+  "n",
+  "nonaktif",
+  "tidak aktif",
+]);
+
+function normalizeStatus(value) {
+  // Kolom status kosong / tidak ada di excel -> default "active".
+  // Ubah default ini ke "inactive" kalau memang itu perilaku yang diinginkan.
+  if (value === undefined || value === null || value === "") {
+    return "active";
+  }
+
+  if (typeof value === "boolean") {
+    return value ? "active" : "inactive";
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+
+  if (ACTIVE_VALUES.has(normalized)) return "active";
+  if (INACTIVE_VALUES.has(normalized)) return "inactive";
+
+  // Nilai tidak dikenali (mis. typo di excel) -> biarkan apa adanya
+  // supaya tidak diam-diam disalahartikan sebagai active/inactive.
+  return normalized;
+}
+
+// =====================================================
 // MAPPING ROW EXCEL
 // =====================================================
 
@@ -91,7 +140,13 @@ function mapRowToColumns(row) {
   const mapped = {};
   for (const [header, value] of Object.entries(row)) {
     const column = HEADER_ALIASES[normalizeHeader(header)];
-    if (column && ALLOWED_COLUMNS.includes(column)) {
+    if (!column || !ALLOWED_COLUMNS.includes(column)) continue;
+
+    if (column === "status") {
+      mapped[column] = normalizeStatus(value);
+    } else if (PRODUCT_TEXT_COLUMNS.has(column)) {
+      mapped[column] = normalizeProductText(value);
+    } else {
       mapped[column] =
         value === undefined || value === null || value === ""
           ? null
@@ -212,7 +267,7 @@ async function importProduct(req, res) {
         supplier_id: supplierId,
         name: mapped.product,
         type: mapped.type || null,
-        status: mapped.status || "Regular Product",
+        status: mapped.status || "active",
         info: mapped.info || null,
         not_on_offer: mapped.not_on_offer || null,
         services_included: mapped.services_included || null,

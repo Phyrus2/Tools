@@ -20,6 +20,7 @@ const booked_product = require("./Controller/data_analyst/excel/Booked_Product/u
 
 // // SEARCH BOOKED PRODUCT API
 const search = require("./Controller/search_booking/search");
+const catalogSearch = require("./Controller/search_catalog/search_catalog");
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:4200')
@@ -78,6 +79,10 @@ app.get(
 
 //SEARCH BOOKED PRODUCT
 app.get("/booked-product/search", search.searchBookedProduct);
+
+// SEARCH MASTER SUPPLIER / PRODUCT
+app.get("/catalog/search", catalogSearch.searchCatalog);
+app.get("/catalog/categories", catalogSearch.getCatalogCategories);
 
 
 app.get('/', (req, res) => {

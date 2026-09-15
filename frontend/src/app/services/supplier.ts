@@ -17,6 +17,7 @@ export interface InsertedSupplier {
   region: string | null;
   location: string | null;
   category_supplier: string[];
+  status: 'Active' | 'Inactive';
 }
 
 export interface UpdatedSupplier {
