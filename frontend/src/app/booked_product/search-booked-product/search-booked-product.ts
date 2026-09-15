@@ -23,6 +23,17 @@ type ExportKind = 'pdf' | 'excel' | 'copy';
 const PAGE_SIZE = 25;
 const MIN_KEYWORD_LENGTH = 2;
 const BOOKING_TIME_ZONE = 'Asia/Makassar';
+function todayInBookingTimeZone(): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: BOOKING_TIME_ZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes): string =>
+    parts.find((part) => part.type === type)?.value || '';
+  return `${value('year')}-${value('month')}-${value('day')}`;
+}
 const INDONESIAN_MONTH_NAMES = [
   'Januari',
   'Februari',
@@ -106,11 +117,12 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private bookedProductService = inject(Search);
   private bookedProductImportService = inject(BookedProduct);
   private cdr = inject(ChangeDetectorRef);
+  private readonly todayDate = todayInBookingTimeZone();
 
   form = this.fb.group({
     keyword: [''],
-    dateMode: ['none' as DateMode],
-    date: [''],
+    dateMode: ['single' as DateMode],
+    date: [this.todayDate],
     startDate: [''],
     endDate: [''],
   });
@@ -223,6 +235,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
           },
         }),
     );
+
+    this.triggerSearch();
   }
 
   openDetail(item: BookedProductSearchResult): void {
@@ -343,13 +357,16 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   }
 
   clearSearch(): void {
-    this.form.reset({
-      keyword: '',
-      dateMode: 'none',
-      date: '',
-      startDate: '',
-      endDate: '',
-    });
+    this.form.reset(
+      {
+        keyword: '',
+        dateMode: 'single',
+        date: this.todayDate,
+        startDate: '',
+        endDate: '',
+      },
+      { emitEvent: false },
+    );
     this.results = [];
     this.hasSearched = false;
     this.errorMessage = null;
@@ -358,6 +375,29 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     this.totalPages = 1;
     this.total = 0;
     this.clearBookingSelection();
+    this.triggerSearch();
+  }
+
+  get selectedDateRangeTitle(): string {
+    const { dateMode, date, startDate, endDate } = this.form.getRawValue();
+
+    if (dateMode === 'single' && date) {
+      return `Booking tanggal ${this.formatDisplayDate(date)}`;
+    }
+    if (dateMode === 'from' && date) {
+      return `Booking mulai ${this.formatDisplayDate(date)}`;
+    }
+    if (dateMode === 'until' && date) {
+      return `Booking sampai ${this.formatDisplayDate(date)}`;
+    }
+    if (dateMode === 'range') {
+      if (startDate && endDate) {
+        return `${this.formatDisplayDate(startDate)} – ${this.formatDisplayDate(endDate)}`;
+      }
+      if (startDate) return `Booking mulai ${this.formatDisplayDate(startDate)}`;
+      if (endDate) return `Booking sampai ${this.formatDisplayDate(endDate)}`;
+    }
+    return 'Semua tanggal booking';
   }
 
   get selectedBookingCount(): number {

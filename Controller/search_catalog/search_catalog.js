@@ -164,13 +164,6 @@ async function searchCatalog(req, res) {
       });
     }
 
-    if (!keyword && !category && !status) {
-      return res.status(400).json({
-        success: false,
-        message: "Isi keyword atau pilih salah satu filter.",
-      });
-    }
-
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(
       100,
@@ -213,7 +206,7 @@ async function searchCatalog(req, res) {
         conditions.push(status === "not_on_offer" ? notOnOfferSql : `NOT (${notOnOfferSql})`);
       }
     }
-    const filterSql = conditions.join(" AND ");
+    const filterSql = conditions.length ? conditions.join(" AND ") : "1 = 1";
 
     const [countRows] = await pool.query(
       `SELECT COUNT(*) AS total ${fromSql} WHERE ${filterSql}`,

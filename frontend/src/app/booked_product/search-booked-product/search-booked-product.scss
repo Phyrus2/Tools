@@ -338,6 +338,30 @@
 // Meta line / alerts / blank states
 // ---------------------------------------------------------------
 
+.bp-period-heading {
+  margin: var(--bp-space-4) 0 var(--bp-space-2);
+  padding-bottom: var(--bp-space-3);
+  border-bottom: 1px solid var(--bp-hairline);
+
+  span {
+    display: block;
+    margin-bottom: 0.25rem;
+    color: var(--bp-ink-faint);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0;
+    color: var(--bp-forest-deep);
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: clamp(1.2rem, 2.5vw, 1.55rem);
+    font-weight: 600;
+  }
+}
+
 .bp-meta-line {
   min-height: 1.3rem;
   font-size: 0.83rem;

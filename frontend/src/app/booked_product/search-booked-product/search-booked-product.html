@@ -175,6 +175,11 @@
     </div>
   </fieldset>
 
+  <header class="bp-period-heading" *ngIf="hasSearched || loading">
+    <span>Periode booked product</span>
+    <h2>{{ selectedDateRangeTitle }}</h2>
+  </header>
+
   <div class="bp-meta-line" aria-live="polite">
     <span *ngIf="loading">Mencari&hellip;</span>
     <span *ngIf="!loading && hasSearched && !errorMessage"> {{ total }} hasil ditemukan </span>

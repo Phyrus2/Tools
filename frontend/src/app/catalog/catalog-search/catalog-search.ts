@@ -46,6 +46,7 @@ export class CatalogSearch implements OnDestroy {
     private readonly cdr: ChangeDetectorRef,
   ) {
     this.loadCategories();
+    this.search();
   }
 
   ngOnDestroy(): void {
@@ -55,7 +56,6 @@ export class CatalogSearch implements OnDestroy {
 
   selectMode(mode: CatalogSearchType): void {
     if (this.mode === mode) return;
-    const repeatSearch = this.hasSearched && this.keyword.trim().length >= 2;
     this.mode = mode;
     this.category = '';
     this.statusFilter = '';
@@ -70,24 +70,19 @@ export class CatalogSearch implements OnDestroy {
     this.request?.unsubscribe();
     this.loading = false;
     this.loadCategories();
-    if (repeatSearch) this.search(1);
+    this.search(1);
   }
 
   onCategoryChange(): void {
-    if (this.category || this.statusFilter || this.keyword.trim().length >= 2) this.search(1);
+    this.search(1);
   }
 
   onStatusChange(): void {
-    if (this.statusFilter || this.category || this.keyword.trim().length >= 2) this.search(1);
+    this.search(1);
   }
 
   search(page = 1): void {
     const keyword = this.keyword.trim();
-    if (!keyword && !this.category && !this.statusFilter) {
-      this.errorMessage = 'Masukkan keyword atau pilih category/status untuk mulai mencari.';
-      this.hasSearched = false;
-      return;
-    }
     if (keyword && keyword.length < 2) {
       this.errorMessage = 'Keyword minimal 2 karakter.';
       this.hasSearched = false;
@@ -156,11 +151,12 @@ export class CatalogSearch implements OnDestroy {
       offer: 'On offer',
       not_on_offer: 'Not on offer',
     };
-    return [
+    const parts = [
       this.searchedKeyword,
       this.searchedCategory,
       statusLabel[this.searchedStatus] || '',
-    ].filter(Boolean).join(' / ');
+    ].filter(Boolean);
+    return parts.join(' / ') || `Semua ${this.modeTitle}`;
   }
 
   private loadCategories(): void {
