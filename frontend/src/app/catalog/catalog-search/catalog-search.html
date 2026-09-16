@@ -167,7 +167,7 @@
         <aside class="result-card__meta">
           <strong>{{ row.product_count }}</strong>
           <span>product</span>
-          <small>Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+          <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
         </aside>
       </article>
     </div>
@@ -203,7 +203,7 @@
             </dl>
           </details>
         </div>
-        <aside class="result-card__meta result-card__meta--product">
+        <aside class="result-card__meta result-card__meta--product" *ngIf="row.matched_field !== 'all'">
           <small>Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
         </aside>
       </article>

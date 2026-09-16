@@ -175,7 +175,7 @@ async function searchCatalog(req, res) {
     const where = buildSearchWhere(fields, terms);
     const matched = terms.length
       ? buildMatchedField(fields, terms)
-      : { sql: "'category'", params: [] };
+      : { sql: "'all'", params: [] };
 
     const fromSql =
       type === "supplier"

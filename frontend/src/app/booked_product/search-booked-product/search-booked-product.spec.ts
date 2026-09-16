@@ -21,4 +21,9 @@ describe('SearchBookedProduct', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('starts with a single-date filter for today', () => {
+    expect(component.form.controls.dateMode.value).toBe('single');
+    expect(component.form.controls.date.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
 });

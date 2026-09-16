@@ -1,6 +1,6 @@
 import { CommonModule } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { Observable, Subscription } from 'rxjs';
@@ -20,7 +20,7 @@ import {
   styleUrl: './catalog-search.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class CatalogSearch implements OnDestroy {
+export class CatalogSearch implements OnInit, OnDestroy {
   readonly pageSize = 20;
   mode: CatalogSearchType = 'supplier';
   keyword = '';
@@ -44,9 +44,11 @@ export class CatalogSearch implements OnDestroy {
   constructor(
     private readonly catalogSearch: CatalogSearchService,
     private readonly cdr: ChangeDetectorRef,
-  ) {
+  ) {}
+
+  ngOnInit(): void {
     this.loadCategories();
-    this.search();
+    this.search(1);
   }
 
   ngOnDestroy(): void {
