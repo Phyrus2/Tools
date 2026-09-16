@@ -84,21 +84,17 @@ function mapRowToColumns(row) {
 // FILTER DATA DUMMY / TIDAK DIGUNAKAN
 // =====================================================
 
-const BLOCKED_ROW_KEYWORDS = ["unused", "test"];
+const BLOCKED_COMPANY_NAME_KEYWORDS = ["unused", "test"];
 
-function findBlockedRowKeyword(row) {
-  for (const value of Object.values(row)) {
-    if (value === undefined || value === null) continue;
+function findBlockedCompanyNameKeyword(companyName) {
+  if (companyName === undefined || companyName === null) return null;
 
-    const normalized = String(value).trim().toLowerCase();
-    const keyword = BLOCKED_ROW_KEYWORDS.find((item) =>
-      normalized.includes(item),
-    );
-
-    if (keyword) return keyword;
-  }
-
-  return null;
+  const normalized = String(companyName).trim().toLowerCase();
+  return (
+    BLOCKED_COMPANY_NAME_KEYWORDS.find((keyword) =>
+      normalized.includes(keyword),
+    ) || null
+  );
 }
 
 // =====================================================
@@ -447,7 +443,6 @@ async function importSupplier(req, res) {
 
     const mappedRows = rows.map((row, index) => ({
       excelRow: index + 2,
-      source: row,
       mapped: mapRowToColumns(row),
     }));
 
@@ -490,7 +485,7 @@ async function importSupplier(req, res) {
     // PROCESS ROW
     // =================================================
 
-    for (const { excelRow, source, mapped } of mappedRows) {
+    for (const { excelRow, mapped } of mappedRows) {
 
       const supplierKey = String(mapped.id);
 
@@ -507,7 +502,9 @@ async function importSupplier(req, res) {
       // FILTER DATA UNUSED / TEST
       // ===============================================
 
-      const blockedKeyword = findBlockedRowKeyword(source);
+      const blockedKeyword = findBlockedCompanyNameKeyword(
+        mapped.company_name,
+      );
 
       if (blockedKeyword) {
         skippedRows.push({
