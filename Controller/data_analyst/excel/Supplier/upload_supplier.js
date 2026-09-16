@@ -81,6 +81,27 @@ function mapRowToColumns(row) {
 }
 
 // =====================================================
+// FILTER DATA DUMMY / TIDAK DIGUNAKAN
+// =====================================================
+
+const BLOCKED_ROW_KEYWORDS = ["unused", "test"];
+
+function findBlockedRowKeyword(row) {
+  for (const value of Object.values(row)) {
+    if (value === undefined || value === null) continue;
+
+    const normalized = String(value).trim().toLowerCase();
+    const keyword = BLOCKED_ROW_KEYWORDS.find((item) =>
+      normalized.includes(item),
+    );
+
+    if (keyword) return keyword;
+  }
+
+  return null;
+}
+
+// =====================================================
 // NORMALIZE VALUE
 // =====================================================
 
@@ -417,6 +438,7 @@ async function importSupplier(req, res) {
 
     const mappedRows = rows.map((row, index) => ({
       excelRow: index + 2,
+      source: row,
       mapped: mapRowToColumns(row),
     }));
 
@@ -435,7 +457,22 @@ async function importSupplier(req, res) {
     // PROCESS ROW
     // =================================================
 
-    for (const { excelRow, mapped } of mappedRows) {
+    for (const { excelRow, source, mapped } of mappedRows) {
+
+      // ===============================================
+      // FILTER DATA UNUSED / TEST
+      // ===============================================
+
+      const blockedKeyword = findBlockedRowKeyword(source);
+
+      if (blockedKeyword) {
+        skippedRows.push({
+          row: excelRow,
+          reason: `mengandung kata ${blockedKeyword}`,
+        });
+
+        continue;
+      }
 
       // ===============================================
       // VALIDASI COMPANY NAME
