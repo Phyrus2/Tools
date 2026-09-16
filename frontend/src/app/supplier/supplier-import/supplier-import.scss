@@ -397,6 +397,10 @@
   border-left-color: var(--bp-blue);
 }
 
+.bp-stat--deleted {
+  border-left-color: var(--bp-red);
+}
+
 .bp-stat--unchanged {
   border-left-color: var(--bp-ink-faint);
 }

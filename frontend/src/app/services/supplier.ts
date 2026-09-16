@@ -49,6 +49,7 @@ export interface ImportResult {
     totalRows: number;
     inserted: number;
     updated: number;
+    deleted: number;
     unchanged: number;
     skipped: number;
   };
@@ -57,6 +58,7 @@ export interface ImportResult {
   updatedRows: UpdatedSupplier[];
   unchangedRows: UnchangedSupplier[];
   skippedRows: SkippedSupplier[];
+  deletedSupplierIds: string[];
 }
 
 export interface SupplierImportHistory {

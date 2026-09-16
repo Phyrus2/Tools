@@ -218,6 +218,15 @@ async function loadExistingSuppliers(connection, supplierIds) {
   return suppliers;
 }
 
+async function deleteSuppliers(connection, supplierIds) {
+  for (const idChunk of chunk([...new Set(supplierIds)])) {
+    await connection.query(
+      "DELETE FROM suppliers WHERE supplier_id IN (?)",
+      [idChunk],
+    );
+  }
+}
+
 async function saveSuppliers(connection, suppliers) {
   for (const supplierChunk of chunk(suppliers)) {
     const values = supplierChunk.map((supplier) => [
@@ -453,11 +462,46 @@ async function importSupplier(req, res) {
     const dirtySupplierIds = new Set();
     const categoryChanges = new Map();
 
+    // Jika file menandai nama supplier lama sebagai "unused", hapus supplier
+    // berdasarkan ID sebelum memproses perubahan lain. Semua baris dengan ID
+    // yang sama dilewati agar supplier tidak dibuat kembali dalam import ini.
+    const supplierIdsToDelete = new Set(
+      mappedRows
+        .filter(({ mapped }) => {
+          const supplierKey = String(mapped.id);
+          const companyName = String(mapped.company_name || "").toLowerCase();
+
+          return (
+            mapped.id &&
+            companyName.includes("unused") &&
+            suppliersById.has(supplierKey)
+          );
+        })
+        .map(({ mapped }) => String(mapped.id)),
+    );
+
+    await deleteSuppliers(connection, [...supplierIdsToDelete]);
+
+    for (const supplierId of supplierIdsToDelete) {
+      suppliersById.delete(supplierId);
+    }
+
     // =================================================
     // PROCESS ROW
     // =================================================
 
     for (const { excelRow, source, mapped } of mappedRows) {
+
+      const supplierKey = String(mapped.id);
+
+      if (supplierIdsToDelete.has(supplierKey)) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "supplier dihapus karena company_name mengandung kata unused",
+        });
+
+        continue;
+      }
 
       // ===============================================
       // FILTER DATA UNUSED / TEST
@@ -506,7 +550,6 @@ async function importSupplier(req, res) {
       // CARI SUPPLIER
       // ===============================================
 
-      const supplierKey = String(supplierId);
       const existing = suppliersById.get(supplierKey);
 
       // =================================================
@@ -748,6 +791,7 @@ async function importSupplier(req, res) {
     console.log(
       `Supplier import selesai dalam ${Date.now() - startedAt} ms: ` +
         `${inserted} baru, ${updated} diperbarui, ` +
+        `${supplierIdsToDelete.size} dihapus, ` +
         `${unchanged} tidak berubah, ${skippedRows.length} dilewati.`,
     );
 
@@ -782,6 +826,8 @@ async function importSupplier(req, res) {
 
         updated,
 
+        deleted: supplierIdsToDelete.size,
+
         unchanged,
 
         skipped: skippedRows.length,
@@ -794,6 +840,8 @@ async function importSupplier(req, res) {
       unchangedRows,
 
       skippedRows,
+
+      deletedSupplierIds: [...supplierIdsToDelete],
     });
   } catch (error) {
     console.error("Import supplier error:", error);

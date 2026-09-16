@@ -153,6 +153,11 @@
         <span class="bp-stat__hint" *ngIf="updated.total > 0">Lihat list &rsaquo;</span>
       </button>
 
+      <div class="bp-stat bp-stat--deleted">
+        <span class="bp-stat__label">Supplier dihapus</span>
+        <strong class="bp-stat__value">{{ result.summary.deleted }}</strong>
+      </div>
+
       <button
         type="button"
         class="bp-stat bp-stat--unchanged bp-stat--clickable"
