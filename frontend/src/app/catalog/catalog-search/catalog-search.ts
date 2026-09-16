@@ -26,11 +26,13 @@ export class CatalogSearch implements OnInit, OnDestroy {
   keyword = '';
   category = '';
   statusFilter = '';
+  productStatusFilter = '';
   categories: string[] = [];
   loadingCategories = false;
   searchedKeyword = '';
   searchedCategory = '';
   searchedStatus = '';
+  searchedProductStatus = '';
   loading = false;
   hasSearched = false;
   errorMessage = '';
@@ -61,11 +63,13 @@ export class CatalogSearch implements OnInit, OnDestroy {
     this.mode = mode;
     this.category = '';
     this.statusFilter = '';
+    this.productStatusFilter = '';
     this.errorMessage = '';
     this.hasSearched = false;
     this.searchedKeyword = '';
     this.searchedCategory = '';
     this.searchedStatus = '';
+    this.searchedProductStatus = '';
     this.supplierResults = [];
     this.productResults = [];
     this.pagination = { page: 1, limit: this.pageSize, total: 0, totalPages: 1 };
@@ -80,6 +84,10 @@ export class CatalogSearch implements OnInit, OnDestroy {
   }
 
   onStatusChange(): void {
+    this.search(1);
+  }
+
+  onProductStatusChange(): void {
     this.search(1);
   }
 
@@ -100,7 +108,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
     > =
       this.mode === 'supplier'
         ? this.catalogSearch.searchSuppliers(keyword, this.category, this.statusFilter, page, this.pageSize)
-        : this.catalogSearch.searchProducts(keyword, this.category, this.statusFilter, page, this.pageSize);
+        : this.catalogSearch.searchProducts(keyword, this.category, this.statusFilter, this.productStatusFilter, page, this.pageSize);
 
     this.request = result$.subscribe({
       next: (response) => {
@@ -115,6 +123,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
         this.searchedKeyword = response.keyword;
         this.searchedCategory = response.category || '';
         this.searchedStatus = response.status || '';
+        this.searchedProductStatus = response.productStatus || '';
         this.hasSearched = true;
         this.loading = false;
         this.cdr.markForCheck();
@@ -157,6 +166,11 @@ export class CatalogSearch implements OnInit, OnDestroy {
       this.searchedKeyword,
       this.searchedCategory,
       statusLabel[this.searchedStatus] || '',
+      this.searchedProductStatus === 'one_time_product'
+        ? 'One Time Product'
+        : this.searchedProductStatus === 'regular_product'
+          ? 'Regular Product'
+          : '',
     ].filter(Boolean);
     return parts.join(' / ') || `Semua ${this.modeTitle}`;
   }
@@ -193,6 +207,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
       address: 'alamat',
       category_supplier: 'kategori supplier',
       product_type: 'tipe product',
+      product_status: 'status product',
       info: 'info',
       description: 'deskripsi',
       instructions: 'instruksi',

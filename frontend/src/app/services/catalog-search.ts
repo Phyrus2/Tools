@@ -29,7 +29,7 @@ export interface ProductSearchResult {
   product_id: number;
   name: string;
   type: string | null;
-  status: string | null;
+  status: 'Regular Product' | 'One Time Product';
   info: string | null;
   not_on_offer: boolean | null;
   services_included: string | null;
@@ -53,6 +53,7 @@ export interface CatalogSearchResponse<T> {
   keyword: string;
   category: string | null;
   status: string | null;
+  productStatus: string | null;
   pagination: CatalogPagination;
   results: T[];
 }
@@ -68,10 +69,10 @@ export class CatalogSearchService {
     );
   }
 
-  searchProducts(keyword: string, category: string, status: string, page = 1, limit = 20): Observable<CatalogSearchResponse<ProductSearchResult>> {
+  searchProducts(keyword: string, category: string, status: string, productStatus: string, page = 1, limit = 20): Observable<CatalogSearchResponse<ProductSearchResult>> {
     return this.http.get<CatalogSearchResponse<ProductSearchResult>>(
       `${API_URL}/catalog/search`,
-      { params: this.params('product', keyword, category, status, page, limit) },
+      { params: this.params('product', keyword, category, status, page, limit, productStatus) },
     );
   }
 
@@ -82,7 +83,7 @@ export class CatalogSearchService {
     );
   }
 
-  private params(type: CatalogSearchType, keyword: string, category: string, status: string, page: number, limit: number): HttpParams {
+  private params(type: CatalogSearchType, keyword: string, category: string, status: string, page: number, limit: number, productStatus = ''): HttpParams {
     let params = new HttpParams()
       .set('type', type)
       .set('page', String(page))
@@ -91,6 +92,7 @@ export class CatalogSearchService {
     if (keyword.trim()) params = params.set('keyword', keyword.trim());
     if (category) params = params.set('category', category);
     if (status) params = params.set('status', status);
+    if (productStatus) params = params.set('productStatus', productStatus);
     return params;
   }
 }

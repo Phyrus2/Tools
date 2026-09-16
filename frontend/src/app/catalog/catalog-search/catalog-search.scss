@@ -145,7 +145,7 @@
 .search-form { margin-top: 1.6rem; }
 .search-form > label { display: block; margin-bottom: 0.55rem; font-size: 0.78rem; font-weight: 700; }
 .search-form > label span { color: var(--faint); font-size: 0.68rem; font-weight: 500; }
-.catalog-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 230px)); gap: 0.65rem; margin-bottom: 1rem; }
+.catalog-filters { display: grid; grid-template-columns: repeat(3, minmax(0, 230px)); gap: 0.65rem; margin-bottom: 1rem; }
 .category-filter { position: relative; min-width: 0; }
 .category-filter label { display: block; margin-bottom: 0.35rem; color: var(--soft); font-size: 0.67rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; }
 .category-filter select { width: 100%; min-width: 0; height: 38px; padding: 0 2rem 0 0.65rem; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--ink); background: var(--surface); font: inherit; font-size: 0.75rem; cursor: pointer; }

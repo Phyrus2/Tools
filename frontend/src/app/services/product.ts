@@ -15,7 +15,7 @@ export interface ProductRow {
   supplier_id: string;
   name: string;
   type: string | null;
-  status: string;
+  status: 'Regular Product' | 'One Time Product';
   info: string | null;
   not_on_offer: string | null;
   services_included: string | null;

@@ -96,6 +96,20 @@
             </ng-container>
           </select>
         </div>
+
+        <div class="category-filter" *ngIf="mode === 'product'">
+          <label for="catalog-product-status">Product status</label>
+          <select
+            id="catalog-product-status"
+            name="catalogProductStatus"
+            [(ngModel)]="productStatusFilter"
+            (change)="onProductStatusChange()"
+          >
+            <option value="">Semua product status</option>
+            <option value="regular_product">Regular Product</option>
+            <option value="one_time_product">One Time Product</option>
+          </select>
+        </div>
       </div>
 
       <label for="catalog-keyword">Keyword <span>(opsional jika filter dipilih)</span></label>
@@ -189,6 +203,7 @@
           </p>
           <div class="chips">
             <span class="chip--type" *ngIf="row.type">{{ row.type }}</span>
+            <span class="chip--type">{{ row.status }}</span>
             <span *ngFor="let category of row.category_supplier">{{ category }}</span>
           </div>
 

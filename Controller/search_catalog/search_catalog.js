@@ -25,6 +25,7 @@ const PRODUCT_FIELDS = [
   { column: "s.region", label: "region" },
   { column: "CAST(s.category_supplier AS CHAR)", label: "category_supplier" },
   { column: "p.type", label: "product_type" },
+  { column: "p.status", label: "product_status" },
   { column: "p.info", label: "info" },
   { column: "p.description", label: "description" },
   { column: "p.instructions", label: "instructions" },
@@ -124,6 +125,7 @@ async function searchCatalog(req, res) {
     const keyword = String(req.query.keyword || "").trim();
     const category = String(req.query.category || "").trim();
     const status = String(req.query.status || "").trim().toLowerCase();
+    const productStatus = String(req.query.productStatus || "").trim().toLowerCase();
 
     if (type !== "supplier" && type !== "product") {
       return res.status(400).json({
@@ -164,6 +166,20 @@ async function searchCatalog(req, res) {
       });
     }
 
+    const validProductStatuses = ["", "regular_product", "one_time_product"];
+    if (type !== "product" && productStatus) {
+      return res.status(400).json({
+        success: false,
+        message: "Filter product status hanya tersedia untuk pencarian product.",
+      });
+    }
+    if (!validProductStatuses.includes(productStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: "Filter product status tidak valid.",
+      });
+    }
+
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
     const limit = Math.min(
       100,
@@ -195,6 +211,10 @@ async function searchCatalog(req, res) {
           : "p.type = ?",
       );
       whereParams.push(category);
+    }
+    if (productStatus) {
+      conditions.push("LOWER(TRIM(p.status)) = ?");
+      whereParams.push(productStatus.replaceAll("_", " "));
     }
     if (status) {
       if (type === "supplier") {
@@ -275,6 +295,7 @@ async function searchCatalog(req, res) {
       keyword,
       category: category || null,
       status: status || null,
+      productStatus: productStatus || null,
       pagination: {
         page,
         limit,

@@ -37,6 +37,7 @@ const HEADER_ALIASES = {
   product: "product",
   supplier: "supplier",
   type: "type",
+  productstatus: "status",
   status: "status",
   info: "info",
   notonoffer: "not_on_offer",
@@ -95,41 +96,18 @@ function normalizeValue(value) {
 
 // =====================================================
 // NORMALIZE STATUS
-// Excel kadang menyimpan kolom status sebagai boolean/checkbox
-// (true/false) atau variasi teks (TRUE/FALSE, 1/0, Aktif/Nonaktif, dst).
-// Fungsi ini memastikan hasil akhirnya selalu string "active" / "inactive".
+// Status product hanya membedakan Regular Product dan One Time Product.
 // =====================================================
 
-const ACTIVE_VALUES = new Set(["active", "true", "1", "yes", "y", "aktif"]);
-const INACTIVE_VALUES = new Set([
-  "inactive",
-  "false",
-  "0",
-  "no",
-  "n",
-  "nonaktif",
-  "tidak aktif",
-]);
-
 function normalizeStatus(value) {
-  // Kolom status kosong / tidak ada di excel -> default "active".
-  // Ubah default ini ke "inactive" kalau memang itu perilaku yang diinginkan.
   if (value === undefined || value === null || value === "") {
-    return "active";
-  }
-
-  if (typeof value === "boolean") {
-    return value ? "active" : "inactive";
+    return "Regular Product";
   }
 
   const normalized = String(value).trim().toLowerCase();
-
-  if (ACTIVE_VALUES.has(normalized)) return "active";
-  if (INACTIVE_VALUES.has(normalized)) return "inactive";
-
-  // Nilai tidak dikenali (mis. typo di excel) -> biarkan apa adanya
-  // supaya tidak diam-diam disalahartikan sebagai active/inactive.
-  return normalized;
+  if (normalized === "regular product") return "Regular Product";
+  if (normalized === "one time product") return "One Time Product";
+  return null;
 }
 
 // =====================================================
@@ -251,6 +229,13 @@ async function importProduct(req, res) {
         skippedRows.push({ row: excelRow, reason: "supplier kosong" });
         return;
       }
+      if (mapped.status === null) {
+        skippedRows.push({
+          row: excelRow,
+          reason: "status harus Regular Product atau One Time Product",
+        });
+        return;
+      }
 
       const supplierId = supplierMap.get(normalizeName(mapped.supplier));
       if (!supplierId) {
@@ -267,7 +252,7 @@ async function importProduct(req, res) {
         supplier_id: supplierId,
         name: mapped.product,
         type: mapped.type || null,
-        status: mapped.status || "active",
+        status: mapped.status || "Regular Product",
         info: mapped.info || null,
         not_on_offer: mapped.not_on_offer || null,
         services_included: mapped.services_included || null,
