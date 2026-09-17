@@ -125,6 +125,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     date: [this.todayDate],
     startDate: [''],
     endDate: [''],
+    sales: [''],
+    operational: [''],
   });
 
   results: BookedProductSearchResult[] = [];
@@ -170,6 +172,18 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         this.clearBookingSelection();
         this.triggerSearch();
       });
+
+    for (const controlName of ['sales', 'operational'] as const) {
+      this.subscription.add(
+        this.form.controls[controlName].valueChanges
+          .pipe(debounceTime(400), distinctUntilChanged())
+          .subscribe(() => {
+            this.page = 1;
+            this.clearBookingSelection();
+            this.triggerSearch();
+          }),
+      );
+    }
 
     this.subscription.add(
       this.search$
@@ -364,6 +378,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         date: this.todayDate,
         startDate: '',
         endDate: '',
+        sales: '',
+        operational: '',
       },
       { emitEvent: false },
     );
@@ -458,6 +474,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       description: 'Deskripsi',
       info: 'Info',
       instructions: 'Instruksi',
+      sales: 'Sales',
+      operational: 'Operational',
       travel_date: 'Tanggal',
       address: 'Alamat',
       other: 'Lainnya',
@@ -1176,6 +1194,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
   private buildBaseParams(): Omit<BookedProductSearchParams, 'page' | 'limit'> | null {
     const value = this.form.value;
     const keyword = (value.keyword ?? '').trim();
+    const sales = (value.sales ?? '').trim();
+    const operational = (value.operational ?? '').trim();
 
     if (this.isDateRangeInvalid) {
       return null;
@@ -1183,12 +1203,14 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
     if (
       (keyword.length > 0 && keyword.length < MIN_KEYWORD_LENGTH) ||
-      (keyword.length === 0 && !this.hasDateFilter())
+      (keyword.length === 0 && !sales && !operational && !this.hasDateFilter()) ||
+      (sales.length > 0 && sales.length < MIN_KEYWORD_LENGTH) ||
+      (operational.length > 0 && operational.length < MIN_KEYWORD_LENGTH)
     ) {
       return null;
     }
 
-    const params: Omit<BookedProductSearchParams, 'page' | 'limit'> = { keyword };
+    const params: Omit<BookedProductSearchParams, 'page' | 'limit'> = { keyword, sales, operational };
 
     if (value.dateMode === 'single' && value.date) {
       params.date = value.date;

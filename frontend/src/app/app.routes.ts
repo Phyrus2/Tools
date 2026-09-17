@@ -7,6 +7,9 @@ import { LandingPage } from './landing/landing-page';
 import { Login } from './auth/login/login';
 import { adminGuard } from './auth/auth.guard';
 import { CatalogSearch } from './catalog/catalog-search/catalog-search';
+import { AnalyticsDashboard } from './analytics/dashboard/analytics-dashboard';
+import { SupplierDetail } from './analytics/supplier-detail/supplier-detail';
+import { ProductDetail } from './analytics/product-detail/product-detail';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -16,5 +19,8 @@ export const routes: Routes = [
   { path: 'bookedProduct', component: BookedProductImport, canActivate: [adminGuard] },
   { path: 'search', component: SearchBookedProduct, canActivate: [adminGuard] },
   { path: 'catalog-search', component: CatalogSearch, canActivate: [adminGuard] },
+  { path: 'analytics', component: AnalyticsDashboard, canActivate: [adminGuard] },
+  { path: 'analytics/suppliers/:id', component: SupplierDetail, canActivate: [adminGuard] },
+  { path: 'analytics/products/:id', component: ProductDetail, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' },
 ];

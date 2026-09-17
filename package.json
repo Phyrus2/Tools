@@ -6,7 +6,9 @@
     "server:check": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1 -CheckOnly",
     "server:up": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.ps1",
     "server:down": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/stop-server.ps1",
-    "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/backup-database.ps1"
+    "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/backup-database.ps1",
+    "db:backup:download": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1 -DownloadOnly",
+    "db:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1"
   },
   "dependencies": {
     "cors": "^2.8.6",

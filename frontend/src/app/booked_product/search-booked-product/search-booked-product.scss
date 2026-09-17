@@ -362,6 +362,36 @@
   }
 }
 
+.bp-people-filters { margin-top: var(--bp-space-4); }
+
+.bp-people-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 260px));
+  gap: var(--bp-space-4);
+
+  label {
+    display: grid;
+    gap: var(--bp-space-1);
+    color: var(--bp-ink-faint);
+    font-size: 0.76rem;
+  }
+
+  input {
+    min-height: 39px;
+    padding: 0.45rem 0.6rem;
+    border: none;
+    border-bottom: 1.5px solid var(--bp-hairline-strong);
+    background: transparent;
+    color: var(--bp-ink);
+    font: inherit;
+
+    &:focus {
+      border-bottom-color: var(--bp-forest);
+      outline: none;
+    }
+  }
+}
+
 .bp-meta-line {
   min-height: 1.3rem;
   font-size: 0.83rem;

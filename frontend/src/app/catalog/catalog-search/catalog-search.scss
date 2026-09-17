@@ -24,6 +24,17 @@
 
 * { box-sizing: border-box; }
 
+.analytics-link {
+  display: inline-block;
+  margin-top: 0.75rem;
+  color: var(--forest-deep);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.analytics-link:hover { text-decoration: underline; }
+
 .catalog-shell {
   width: min(1080px, calc(100% - 3rem));
   margin: 0 auto;

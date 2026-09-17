@@ -74,6 +74,8 @@ export type MatchedField =
   | 'description'
   | 'info'
   | 'instructions'
+  | 'sales'
+  | 'operational'
   | 'travel_date'
   | 'other';
  
@@ -109,6 +111,8 @@ export interface BookedProductSearchFilters {
   date: string | null;
   startDate: string | null;
   endDate: string | null;
+  sales: string | null;
+  operational: string | null;
 }
  
 export interface BookedProductSearchPagination {
@@ -146,6 +150,8 @@ export interface BookedProductSearchParams {
   date?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  sales?: string | null;
+  operational?: string | null;
   page?: number;
   limit?: number;
 }
@@ -184,6 +190,8 @@ export class Search {
     if (params.keyword.trim()) {
       httpParams = httpParams.set('keyword', params.keyword.trim());
     }
+    if (params.sales?.trim()) httpParams = httpParams.set('sales', params.sales.trim());
+    if (params.operational?.trim()) httpParams = httpParams.set('operational', params.operational.trim());
  
     // date bersifat eksklusif terhadap startDate/endDate,
     // konsisten dengan validasi di backend.

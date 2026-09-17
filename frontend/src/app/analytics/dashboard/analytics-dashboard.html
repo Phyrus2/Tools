@@ -1,0 +1,242 @@
+<main class="analytics-shell">
+  <a class="back-link" routerLink="/">&larr; Kembali ke halaman utama</a>
+  <ng-container *ngIf="data as report">
+    <header class="analytics-header">
+      <div>
+        <p class="eyebrow">Analitik Performa</p>
+        <h1>Performa Perjalanan</h1>
+      </div>
+      <form class="date-range" (ngSubmit)="applyRange()">
+        <label
+          >Dari<app-date-picker
+            [value]="dateFrom"
+            [max]="dateTo"
+            ariaLabel="Pilih tanggal mulai"
+            (valueChange)="dateFrom = $event"
+          ></app-date-picker
+        ></label>
+        <label
+          >Sampai<app-date-picker
+            [value]="dateTo"
+            [min]="dateFrom"
+            ariaLabel="Pilih tanggal akhir"
+            (valueChange)="dateTo = $event"
+          ></app-date-picker
+        ></label>
+        <button type="submit" [disabled]="loading">Terapkan</button>
+      </form>
+    </header>
+    <section class="metric-grid">
+      <article class="metric">
+        <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total Supplier</span><strong>{{ report.summary.suppliers | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total Product</span><strong>{{ report.summary.products | number }}</strong>
+      </article>
+    </section>
+    <section class="panel-grid">
+      <article class="panel panel--wide">
+        <header class="panel-header">
+          <h2>Tren Booking</h2>
+          <div class="panel-actions">
+            <button
+              class="drill-back"
+              type="button"
+              *ngIf="drillHistory.length"
+              (click)="drillBack()"
+            >
+              &larr; Kembali
+            </button>
+            <div class="time-switch">
+              <button
+                type="button"
+                [class.active]="granularity === 'day'"
+                (click)="setGranularity('day')"
+              >
+                Tanggal
+              </button>
+              <button
+                type="button"
+                [class.active]="granularity === 'month'"
+                (click)="setGranularity('month')"
+              >
+                Bulan
+              </button>
+              <button
+                type="button"
+                [class.active]="granularity === 'year'"
+                (click)="setGranularity('year')"
+              >
+                Tahun
+              </button>
+            </div>
+            <div class="chart-switch">
+              <button
+                type="button"
+                [class.active]="chartType === 'bar'"
+                (click)="chartType = 'bar'"
+              >
+                Batang</button
+              ><button
+                type="button"
+                [class.active]="chartType === 'line'"
+                (click)="chartType = 'line'"
+              >
+                Garis</button
+              ><button
+                type="button"
+                [class.active]="chartType === 'table'"
+                (click)="chartType = 'table'"
+              >
+                Tabel
+              </button>
+            </div>
+          </div>
+        </header>
+        <div class="chart-scroll" *ngIf="chartType === 'bar'">
+          <div class="bars" [style.min-width.px]="report.monthly.length * 58">
+            <button
+              type="button"
+              class="bar"
+              *ngFor="let point of report.monthly"
+              [title]="point.label + ': ' + point.bookings + ' booking. Klik untuk filter.'"
+              (click)="selectPeriod(point.period)"
+            >
+              <strong>{{ point.bookings || '' }}</strong
+              ><i [style.height.%]="height(point.bookings)"></i><span>{{ point.label }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="line-chart" *ngIf="chartType === 'line'">
+          <svg
+            viewBox="0 0 1000 220"
+            preserveAspectRatio="none"
+            role="img"
+            aria-label="Grafik booked product"
+          >
+            <line x1="0" y1="195" x2="1000" y2="195"></line>
+            <polyline [attr.points]="points()"></polyline>
+            <circle
+              *ngFor="let point of report.monthly; index as i"
+              [attr.cx]="pointX(i)"
+              [attr.cy]="pointY(point.bookings)"
+              r="10"
+              tabindex="0"
+              (click)="selectPeriod(point.period)"
+              (keydown.enter)="selectPeriod(point.period)"
+            >
+              <title>{{ point.label }}: {{ point.bookings }} booking</title>
+            </circle>
+          </svg>
+          <div class="line-labels">
+            <button
+              type="button"
+              *ngFor="let point of report.monthly"
+              (click)="selectPeriod(point.period)"
+            >
+              {{ point.label }}<strong>{{ point.bookings }}</strong>
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap" *ngIf="chartType === 'table'">
+          <table>
+            <thead>
+              <tr>
+                <th>Periode</th>
+                <th class="number">Total booking</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                class="interactive-row"
+                *ngFor="let point of report.monthly"
+                tabindex="0"
+                (click)="selectPeriod(point.period)"
+                (keydown.enter)="selectPeriod(point.period)"
+              >
+                <td>{{ point.label }}</td>
+                <td class="number">{{ point.bookings | number }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <article class="panel">
+        <h2>Top Supplier</h2>
+        <ol class="rank-list">
+          <li *ngFor="let row of report.topSuppliers; index as i">
+            <em>{{ i + 1 }}</em
+            ><a [routerLink]="['/analytics/suppliers', row.supplier_id]">{{ row.company_name }}</a
+            ><strong>{{ row.bookings | number }}</strong>
+          </li>
+        </ol>
+        <p class="empty" *ngIf="!report.topSuppliers.length">Belum ada data.</p>
+      </article>
+      <article class="panel">
+        <h2>Top Product</h2>
+        <ol class="rank-list">
+          <li *ngFor="let row of report.topProducts; index as i">
+            <em>{{ i + 1 }}</em
+            ><a [routerLink]="['/analytics/products', row.product_id]"
+              >{{ row.name }}<small>{{ row.company_name }}</small></a
+            ><strong>{{ row.bookings | number }}</strong>
+          </li>
+        </ol>
+        <p class="empty" *ngIf="!report.topProducts.length">Belum ada data.</p>
+      </article>
+      <article class="panel panel--wide">
+        <h2>Top Wilayah Tujuan</h2>
+        <div class="destination-chart" *ngIf="report.topTransferDestinations.length">
+          <div class="destination-donut" [style.background]="destinationGradient()">
+            <div><strong>{{ destinationTotal() | number }}</strong><span>booking</span></div>
+          </div>
+          <div class="destination-legend">
+            <div *ngFor="let row of report.topTransferDestinations; index as i">
+              <i [style.background]="destinationColors[i]"></i>
+              <span><strong>{{ row.destination }}</strong><small>{{ destinationPercent(row.bookings) }}% dari Top Wilayah</small></span>
+              <b>{{ row.bookings | number }}</b>
+            </div>
+          </div>
+        </div>
+        <p class="empty" *ngIf="!report.topTransferDestinations.length">
+          Belum ada nama product transfer dengan pola “asal to tujuan”.
+        </p>
+      </article>
+      <article class="panel panel--wide">
+        <h2>Dossier Multi-Layanan</h2>
+        <div class="dossier-list">
+          <details *ngFor="let dossier of report.multiServiceDossiers">
+            <summary>
+              <span
+                ><strong>{{ dossier.dossier_name || dossier.dossier_id }}</strong
+                ><small>{{ dossier.dossier_id }}</small></span
+              ><b>{{ dossier.booked_products }} layanan · {{ dossier.travel_days }} tanggal</b>
+            </summary>
+            <div class="order-timeline">
+              <div *ngFor="let order of dossier.orders">
+                <time>{{ order.travel_date | date: 'dd MMM yyyy' : 'UTC' }}</time
+                ><span
+                  ><strong>{{ order.product_name }}</strong
+                  ><small
+                    >{{ order.supplier_name }} · ID Booking {{ order.sold_product_id }}</small
+                  ></span
+                >
+              </div>
+            </div>
+          </details>
+        </div>
+        <p class="empty" *ngIf="!report.multiServiceDossiers.length">
+          Tidak ada dossier dengan lebih dari satu layanan pada periode ini.
+        </p>
+      </article>
+    </section>
+  </ng-container>
+  <p class="loading" *ngIf="loading">Memuat analytics&hellip;</p>
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+</main>

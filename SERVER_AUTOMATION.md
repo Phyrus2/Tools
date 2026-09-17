@@ -140,6 +140,29 @@ menghentikan server:
 npm run db:backup
 ```
 
+Backup terbaru juga dapat diambil dari Google Drive tanpa menjalankan backend,
+tunnel, atau worker backup. Untuk hanya mengunduh dan memverifikasi arsip:
+
+```powershell
+npm run db:backup:download
+```
+
+Arsip disimpan di `.server-backups\downloads`. Untuk mengunduh lalu merestore
+database lokal tanpa menjalankan server:
+
+```powershell
+npm run db:restore
+```
+
+Restore akan ditolak jika server/worker masih aktif, checksum tidak cocok, nama
+database berbeda, atau database lokal tercatat lebih baru daripada backup Drive.
+Opsi darurat `-Force` tersedia dengan menjalankan script PowerShell secara langsung,
+tetapi akan menimpa database lokal:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1 -Force
+```
+
 Opsi darurat berikut tersedia, tetapi jangan dipakai untuk perpindahan normal:
 
 ```powershell

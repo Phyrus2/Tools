@@ -1,0 +1,224 @@
+<main class="analytics-shell">
+  <a class="back-link" routerLink="/catalog-search"
+    >&larr; Kembali ke Search Supplier &amp; Product</a
+  >
+  <ng-container *ngIf="data as report"
+    ><header class="analytics-header">
+      <div>
+        <p class="eyebrow">Performa Supplier</p>
+        <h1>{{ report.supplier.company_name }}</h1>
+        <p class="subtitle">
+          {{ location() }} · <span class="tag">{{ report.supplier.status }}</span>
+        </p>
+      </div>
+      <form class="date-range" (ngSubmit)="applyRange()">
+        <label
+          >Dari<app-date-picker
+            [value]="dateFrom"
+            [max]="dateTo"
+            ariaLabel="Pilih tanggal mulai"
+            (valueChange)="dateFrom = $event"
+          ></app-date-picker></label
+        ><label
+          >Sampai<app-date-picker
+            [value]="dateTo"
+            [min]="dateFrom"
+            ariaLabel="Pilih tanggal akhir"
+            (valueChange)="dateTo = $event"
+          ></app-date-picker></label
+        ><button type="submit" [disabled]="loading">Terapkan</button>
+      </form>
+    </header>
+    <section class="metric-grid">
+      <article class="metric">
+        <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Total Product</span><strong>{{ report.summary.totalProducts | number }}</strong>
+      </article>
+      <article class="metric">
+        <span>Perjalanan Terakhir</span
+        ><strong>{{
+          report.summary.lastTravelDate
+            ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
+            : '-'
+        }}</strong>
+      </article>
+    </section>
+    <section class="panel-grid">
+      <article class="panel panel--wide">
+        <header class="panel-header">
+          <h2>Performa Supplier</h2>
+          <div class="panel-actions">
+            <button
+              class="drill-back"
+              type="button"
+              *ngIf="drillHistory.length"
+              (click)="drillBack()"
+            >
+              &larr; Kembali
+            </button>
+            <div class="time-switch">
+              <button
+                type="button"
+                [class.active]="granularity === 'day'"
+                (click)="setGranularity('day')"
+              >
+                Tanggal
+              </button>
+              <button
+                type="button"
+                [class.active]="granularity === 'month'"
+                (click)="setGranularity('month')"
+              >
+                Bulan
+              </button>
+              <button
+                type="button"
+                [class.active]="granularity === 'year'"
+                (click)="setGranularity('year')"
+              >
+                Tahun
+              </button>
+            </div>
+            <div class="chart-switch">
+              <button
+                type="button"
+                [class.active]="chartType === 'bar'"
+                (click)="chartType = 'bar'"
+              >
+                Batang</button
+              ><button
+                type="button"
+                [class.active]="chartType === 'line'"
+                (click)="chartType = 'line'"
+              >
+                Garis</button
+              ><button
+                type="button"
+                [class.active]="chartType === 'table'"
+                (click)="chartType = 'table'"
+              >
+                Tabel
+              </button>
+            </div>
+          </div>
+        </header>
+        <div class="chart-scroll" *ngIf="chartType === 'bar'">
+          <div class="bars" [style.min-width.px]="report.monthly.length * 58">
+            <button
+              type="button"
+              class="bar"
+              *ngFor="let point of report.monthly"
+              [title]="point.label + ': ' + point.bookings + ' booking. Klik untuk filter.'"
+              (click)="selectPeriod(point.period)"
+            >
+              <strong>{{ point.bookings || '' }}</strong
+              ><i [style.height.%]="height(point.bookings)"></i><span>{{ point.label }}</span>
+            </button>
+          </div>
+        </div>
+        <div class="line-chart" *ngIf="chartType === 'line'">
+          <svg viewBox="0 0 1000 220" preserveAspectRatio="none">
+            <line x1="0" y1="195" x2="1000" y2="195"></line>
+            <polyline [attr.points]="points()"></polyline>
+            <circle
+              *ngFor="let point of report.monthly; index as i"
+              [attr.cx]="pointX(i)"
+              [attr.cy]="pointY(point.bookings)"
+              r="10"
+              tabindex="0"
+              (click)="selectPeriod(point.period)"
+              (keydown.enter)="selectPeriod(point.period)"
+            >
+              <title>{{ point.label }}: {{ point.bookings }} booking</title>
+            </circle>
+          </svg>
+          <div class="line-labels">
+            <button
+              type="button"
+              *ngFor="let point of report.monthly"
+              (click)="selectPeriod(point.period)"
+            >
+              {{ point.label }}<strong>{{ point.bookings }}</strong>
+            </button>
+          </div>
+        </div>
+        <div class="table-wrap" *ngIf="chartType === 'table'">
+          <table>
+            <thead>
+              <tr>
+                <th>Periode</th>
+                <th class="number">Total booking</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                class="interactive-row"
+                *ngFor="let point of report.monthly"
+                tabindex="0"
+                (click)="selectPeriod(point.period)"
+                (keydown.enter)="selectPeriod(point.period)"
+              >
+                <td>{{ point.label }}</td>
+                <td class="number">{{ point.bookings | number }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </article>
+      <article class="panel panel--wide">
+        <h2>Kontribusi Product</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Jenis</th>
+                <th class="number">Total booking</th>
+                <th class="number">Total dossier</th>
+                <th class="number">Kontribusi</th>
+                <th>Perjalanan terakhir</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of visibleProducts">
+                <td>
+                  <a [routerLink]="['/analytics/products', row.product_id]">{{ row.name }}</a>
+                </td>
+                <td>{{ row.type || '-' }}</td>
+                <td class="number">{{ row.bookings | number }}</td>
+                <td class="number">{{ row.reservations | number }}</td>
+                <td class="number">{{ row.contribution | number: '1.0-1' }}%</td>
+                <td>
+                  {{
+                    row.last_travel_date
+                      ? (row.last_travel_date | date: 'dd MMM yyyy' : 'UTC')
+                      : '-'
+                  }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <nav class="pager" *ngIf="productPages > 1">
+          <button type="button" (click)="previousProductPage()" [disabled]="productPage === 1">
+            &larr; Sebelumnya</button
+          ><span>Halaman {{ productPage }} dari {{ productPages }}</span
+          ><button
+            type="button"
+            (click)="nextProductPage()"
+            [disabled]="productPage === productPages"
+          >
+            Berikutnya &rarr;
+          </button>
+        </nav>
+      </article>
+    </section></ng-container
+  >
+  <p class="loading" *ngIf="loading">Memuat analytics supplier&hellip;</p>
+  <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
+</main>

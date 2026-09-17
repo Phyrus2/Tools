@@ -182,6 +182,7 @@
           <strong>{{ row.product_count }}</strong>
           <span>product</span>
           <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+          <a class="analytics-link" [routerLink]="['/analytics/suppliers', row.supplier_id]">Lihat analytics &rarr;</a>
         </aside>
       </article>
     </div>
@@ -218,8 +219,9 @@
             </dl>
           </details>
         </div>
-        <aside class="result-card__meta result-card__meta--product" *ngIf="row.matched_field !== 'all'">
-          <small>Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+        <aside class="result-card__meta result-card__meta--product">
+          <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+          <a class="analytics-link" [routerLink]="['/analytics/products', row.product_id]">Lihat analytics &rarr;</a>
         </aside>
       </article>
     </div>

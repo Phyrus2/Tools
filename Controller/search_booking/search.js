@@ -5,6 +5,10 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function escapeLike(value) {
+  return String(value).replace(/[\\%_]/g, "\\$&");
+}
+
 /**
  * ------------------------------------------------------------
  * BUILD WORD-BOUNDARY PATTERN (per satu term)
@@ -36,6 +40,8 @@ const SEARCHABLE_FIELDS = [
   { column: "bp.description", label: "description" },
   { column: "bp.info", label: "info" },
   { column: "bp.instructions", label: "instructions" },
+  { column: "bp.sales", label: "sales" },
+  { column: "bp.operational", label: "operational" },
 ];
 
 /**
@@ -46,7 +52,9 @@ const SEARCHABLE_FIELDS = [
 async function searchBookedProduct(req, res) {
   try {
     const { keyword, date, startDate, endDate } = req.query;
-    console.log("Received search request:", { keyword, date, startDate, endDate });
+    const sales = String(req.query.sales || "").trim();
+    const operational = String(req.query.operational || "").trim();
+    console.log("Received search request:", { keyword, date, startDate, endDate, sales, operational });
 
     // =================================================
     // VALIDASI TANGGAL
@@ -95,8 +103,15 @@ async function searchBookedProduct(req, res) {
       });
     }
 
-    if (!hasKeyword && !hasSingleDate && !hasStartDate && !hasEndDate) {
-      return res.status(400).json({ success: false, message: "Isi keyword atau pilih filter tanggal." });
+    if ((sales && sales.length < 2) || (operational && operational.length < 2)) {
+      return res.status(400).json({ success: false, message: "Nama sales atau operational minimal 2 karakter." });
+    }
+    if (sales.length > 100 || operational.length > 100) {
+      return res.status(400).json({ success: false, message: "Nama sales atau operational maksimal 100 karakter." });
+    }
+
+    if (!hasKeyword && !hasSingleDate && !hasStartDate && !hasEndDate && !sales && !operational) {
+      return res.status(400).json({ success: false, message: "Isi keyword, nama sales/operational, atau pilih filter tanggal." });
     }
 
     const keywordPatterns = keywordTerms.map(buildWordBoundaryPattern);
@@ -149,9 +164,25 @@ async function searchBookedProduct(req, res) {
       dateParams.push(endDate);
     }
 
-    const baseWhereSql = hasKeyword
-      ? `${keywordWhereSql}${dateSql}`
-      : dateSql.replace(/^ AND /, "");
+    const conditions = [];
+    const filterParams = [];
+    if (hasKeyword) {
+      conditions.push(keywordWhereSql);
+      filterParams.push(...keywordWhereParams);
+    }
+    if (dateSql) {
+      conditions.push(dateSql.replace(/^ AND /, ""));
+      filterParams.push(...dateParams);
+    }
+    if (sales) {
+      conditions.push("COALESCE(bp.sales, '') LIKE ? ESCAPE '\\\\'");
+      filterParams.push(`%${escapeLike(sales)}%`);
+    }
+    if (operational) {
+      conditions.push("COALESCE(bp.operational, '') LIKE ? ESCAPE '\\\\'");
+      filterParams.push(`%${escapeLike(operational)}%`);
+    }
+    const baseWhereSql = conditions.join(" AND ");
 
     // =================================================
     // COUNT TOTAL (untuk pagination)
@@ -163,13 +194,13 @@ async function searchBookedProduct(req, res) {
       JOIN suppliers s ON s.supplier_id = bp.supplier_id
       WHERE ${baseWhereSql}
       `,
-      [...keywordWhereParams, ...dateParams],
+      filterParams,
     );
 
     const total = countResult[0].total;
 
     console.log("WHERE SQL:", baseWhereSql);
-    console.log("Params:", [...keywordWhereParams, ...dateParams]);
+    console.log("Params:", filterParams);
 
     // =================================================
     // AMBIL DATA
@@ -209,8 +240,7 @@ ${SEARCHABLE_FIELDS.map(
       `,
       [
         ...matchedFieldParams,
-        ...keywordWhereParams,
-        ...dateParams,
+        ...filterParams,
         limit,
         offset,
       ],
@@ -225,6 +255,8 @@ ${SEARCHABLE_FIELDS.map(
         date: hasSingleDate ? date : null,
         startDate: hasStartDate ? startDate : null,
         endDate: hasEndDate ? endDate : null,
+        sales: sales || null,
+        operational: operational || null,
       },
       pagination: {
         page,
