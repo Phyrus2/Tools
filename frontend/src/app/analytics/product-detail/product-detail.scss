@@ -1,0 +1,55 @@
+.product-analytics .metric {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.product-metric__content {
+  min-width: 0;
+}
+
+.product-analytics .metric-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  place-items: center;
+  border-radius: 11px;
+  color: var(--primary);
+  background: var(--primary-soft);
+  transition: color .18s ease, background-color .18s ease, transform .18s ease;
+}
+
+.product-analytics .metric-icon svg {
+  width: 21px;
+  height: 21px;
+}
+
+.product-analytics .metric--rank .metric-icon,
+.product-analytics .metric--last-travel .metric-icon {
+  color: var(--accent);
+  background: #f4ead6;
+}
+
+.product-analytics .metric:hover .metric-icon {
+  color: #fffdf8;
+  background: var(--primary);
+  transform: scale(1.06) rotate(-4deg);
+}
+
+.product-analytics .metric--rank:hover .metric-icon,
+.product-analytics .metric--last-travel:hover .metric-icon {
+  background: var(--accent);
+}
+
+.product-analytics .weekday-panel .bars { grid-auto-flow: initial; grid-template-columns: repeat(7, minmax(48px, 1fr)); }
+.booking-list-panel { min-height: 360px; }
+.panel-description { margin: .28rem 0 0; color: var(--soft); font-size: .68rem; }
+.booking-list-panel td { vertical-align: top; }
+.booking-list-panel td small { display: block; margin-top: .16rem; color: var(--faint); font-size: .6rem; font-weight: 400; white-space: nowrap; }
+.booking-dossier { display: block; max-width: 220px; overflow: hidden; color: var(--ink); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.booking-detail-link { display: inline-flex; min-width: 92px; justify-content: center; padding: .42rem .62rem; border: 1px solid var(--line-strong); border-radius: 7px; color: var(--primary); background: var(--surface); font-size: .66rem; font-weight: 700; text-decoration: none; white-space: nowrap; }
+.booking-detail-link:hover { border-color: var(--primary); background: var(--primary-soft); }
+.duration-badge { display: inline-flex; min-width: 36px; justify-content: center; padding: .22rem .4rem; border-radius: 6px; color: var(--primary); background: var(--primary-soft); font-weight: 700; }
+@media (max-width: 680px) { .product-analytics .weekday-panel .bars { min-width: 520px; } }

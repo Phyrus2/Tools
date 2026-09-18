@@ -45,7 +45,8 @@
 
 .hub-topbar {
   min-height: 76px;
-  padding: 0 4vw;
+  padding-right: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
+  padding-left: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -170,9 +171,10 @@
 .hub-logout:hover { background: var(--hub-forest-wash); }
 
 .hub-content {
-  width: min(1180px, calc(100% - 3rem));
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 4.5rem 0 5rem;
+  padding: 4.5rem 1.75rem 5rem;
 }
 
 .hub-hero {
@@ -423,7 +425,8 @@ a.hub-app:hover .hub-app__arrow {
 
 .hub-footer {
   margin-top: auto;
-  padding: 1.25rem 4vw;
+  padding-right: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
+  padding-left: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
   display: flex;
   justify-content: space-between;
   color: var(--hub-ink-faint);
@@ -444,14 +447,14 @@ a.hub-app:hover .hub-app__arrow {
 @media (max-width: 620px) {
   .hub-topbar {
     min-height: 68px;
-    padding: 0 1.1rem;
+    padding-right: .7rem;
+    padding-left: .7rem;
   }
   .hub-status {
     display: none;
   }
   .hub-content {
-    width: min(100% - 2rem, 1180px);
-    padding: 2.75rem 0 3.5rem;
+    padding: 2.75rem .7rem 3.5rem;
   }
   .hub-hero {
     align-items: flex-start;

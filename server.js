@@ -22,6 +22,7 @@ const booked_product = require("./Controller/data_analyst/excel/Booked_Product/u
 const search = require("./Controller/search_booking/search");
 const catalogSearch = require("./Controller/search_catalog/search_catalog");
 const performanceAnalytics = require("./Controller/analytics/performance");
+const recordDetails = require("./Controller/details/record_details");
 
 const app = express();
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost:4200')
@@ -44,11 +45,11 @@ app.use(cors({
     if (!origin || allowedOrigins.includes(origin)) return callback(null, true);
     return callback(new Error('Origin tidak diizinkan oleh CORS.'));
   },
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Authorization', 'Content-Type'],
   maxAge: 86400,
 }));
-app.use(express.json({ limit: '16kb', type: 'application/json' }));
+app.use(express.json({ limit: '512kb', type: 'application/json' }));
 
 const PORT = process.env.PORT || 3000;
 
@@ -89,6 +90,10 @@ app.get("/catalog/categories", catalogSearch.getCatalogCategories);
 app.get("/analytics/overview", performanceAnalytics.overview);
 app.get("/analytics/suppliers/:supplierId", performanceAnalytics.supplierDetail);
 app.get("/analytics/products/:productId", performanceAnalytics.productDetail);
+app.patch("/analytics/suppliers/:supplierId", recordDetails.updateSupplier);
+app.patch("/analytics/products/:productId", recordDetails.updateProduct);
+app.get("/booked-product/:bookedProductId", recordDetails.getBookedProduct);
+app.patch("/booked-product/:bookedProductId", recordDetails.updateBookedProduct);
 
 
 app.get('/', (req, res) => {

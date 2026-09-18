@@ -36,13 +36,18 @@
 .analytics-link:hover { text-decoration: underline; }
 
 .catalog-shell {
-  width: min(1080px, calc(100% - 3rem));
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
-  padding: 2rem 0 5rem;
+  padding: 2rem 1.75rem 4rem;
+}
+
+.catalog-shell > .bp-back-link {
+  margin-bottom: 0.45rem;
 }
 
 .catalog-header {
-  padding: 2.5rem 0 2.1rem;
+  padding: 0.35rem 0 2.1rem;
   border-bottom: 1px solid var(--line-strong);
 }
 
@@ -56,17 +61,19 @@
 }
 
 .catalog-header h1 {
-  margin: 0;
+  margin: 0 0 0.4rem;
   color: var(--forest-deep);
   font-family: 'Fraunces', serif;
-  font-size: clamp(2.2rem, 5vw, 3.8rem);
+  font-size: clamp(2.1rem, 4.5vw, 3.45rem);
   font-weight: 600;
   letter-spacing: -0.035em;
+  line-height: 1.08;
 }
 
 .catalog-header > p:last-child {
-  margin: 0.75rem 0 0;
+  margin: 0;
   color: var(--soft);
+  font-size: 0.9rem;
   line-height: 1.6;
 }
 
@@ -221,8 +228,8 @@
 .pagination span { color: var(--soft); font-size: 0.72rem; }
 
 @media (max-width: 680px) {
-  .catalog-shell { width: min(100% - 1.4rem, 1080px); padding-top: 1rem; }
-  .catalog-header { padding-top: 1.6rem; }
+  .catalog-shell { padding: 1rem .7rem 3rem; }
+  .catalog-header { padding-top: 0.35rem; }
   .mode-switch { grid-template-columns: 1fr; }
   .mode-button { min-height: 86px; }
   .mode-heading { align-items: flex-start; }

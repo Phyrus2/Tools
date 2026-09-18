@@ -1,7 +1,7 @@
 :host { display: block; min-height: 100dvh; }
 * { box-sizing: border-box; }
 .login-shell {
-  min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem;
+  min-height: 100dvh; display: grid; place-items: center; padding: 1.75rem;
   color: #20261f; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   background: radial-gradient(circle at 75% 10%, rgba(53, 86, 77, .14), transparent 30rem), #f6f3ea;
 }
@@ -28,3 +28,4 @@ input:focus { outline: 3px solid rgba(53, 86, 77, .16); border-color: #35564d; }
 .submit-button { width: 100%; min-height: 48px; margin-top: 1.35rem; border: 0; border-radius: 8px; color: #fffdf8; background: #35564d; font: inherit; font-weight: 700; cursor: pointer; }
 .submit-button:hover:not(:disabled) { background: #253e37; }
 .submit-button:disabled { opacity: .65; cursor: wait; }
+@media (max-width: 620px) { .login-shell { padding: .7rem; } }

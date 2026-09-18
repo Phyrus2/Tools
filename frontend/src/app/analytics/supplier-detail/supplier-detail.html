@@ -1,7 +1,10 @@
-<main class="analytics-shell">
-  <a class="back-link" routerLink="/catalog-search"
-    >&larr; Kembali ke Search Supplier &amp; Product</a
-  >
+<main class="analytics-shell supplier-analytics">
+  <button class="back-link" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>{{ backLabel }}</span>
+  </button>
   <ng-container *ngIf="data as report"
     ><header class="analytics-header">
       <div>
@@ -30,23 +33,51 @@
       </form>
     </header>
     <section class="metric-grid">
-      <article class="metric">
-        <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+      <article class="metric metric--booking">
+        <div class="supplier-metric__content"><span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong></div>
+        <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4M8 3v4M3 10h18M8.5 15l2 2 4.5-4.5"></path></svg></div>
       </article>
-      <article class="metric">
-        <span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong>
+      <article class="metric metric--dossier">
+        <div class="supplier-metric__content"><span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong></div>
+        <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h6l2 2h8v10.5H4V7.5Z"></path><path d="M4 7.5V5h6l2 2h6v2.5"></path></svg></div>
       </article>
-      <article class="metric">
-        <span>Total Product</span><strong>{{ report.summary.totalProducts | number }}</strong>
+      <article class="metric metric--product">
+        <div class="supplier-metric__content"><span>Total Product</span><strong>{{ report.summary.totalProducts | number }}</strong></div>
+        <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 7 8-4 8 4-8 4-8-4Z"></path><path d="m4 7 8 4 8-4v10l-8 4-8-4V7ZM12 11v10"></path></svg></div>
       </article>
-      <article class="metric">
-        <span>Perjalanan Terakhir</span
+      <article class="metric metric--last-travel">
+        <div class="supplier-metric__content"><span>Perjalanan Terakhir</span
         ><strong>{{
           report.summary.lastTravelDate
             ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
             : '-'
-        }}</strong>
+        }}</strong></div>
+        <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3.5 2"></path></svg></div>
       </article>
+    </section>
+    <section class="panel record-panel">
+      <header class="record-panel__header">
+        <div><h2>Data Supplier</h2><p>Seluruh field supplier yang tersimpan di database.</p></div>
+        <div class="record-actions">
+          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Batal</button>
+          <button type="button" class="record-button" *ngIf="!editingRecord" (click)="startRecordEdit()">Edit data</button>
+          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
+        </div>
+      </header>
+      <p class="record-feedback record-feedback--success" *ngIf="recordMessage">{{ recordMessage }}</p>
+      <p class="record-feedback record-feedback--error" *ngIf="recordError">{{ recordError }}</p>
+      <div class="record-form">
+        <label><span>Supplier ID</span><input [value]="report.supplier.supplier_id" disabled /></label>
+        <label class="record-field--wide"><span>Nama supplier</span><input name="supplierCompanyName" [(ngModel)]="supplierForm.company_name" [disabled]="!editingRecord" /></label>
+        <label class="record-field--wide"><span>Alamat</span><textarea name="supplierAddress" rows="2" [(ngModel)]="supplierForm.address" [disabled]="!editingRecord"></textarea></label>
+        <label><span>Town</span><input name="supplierTown" [(ngModel)]="supplierForm.town" [disabled]="!editingRecord" /></label>
+        <label><span>Region</span><input name="supplierRegion" [(ngModel)]="supplierForm.region" [disabled]="!editingRecord" /></label>
+        <label><span>Location</span><input name="supplierLocation" [(ngModel)]="supplierForm.location" [disabled]="!editingRecord" /></label>
+        <label><span>Status</span><select name="supplierStatus" [(ngModel)]="supplierForm.status" [disabled]="!editingRecord"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></label>
+        <label class="record-field--wide"><span>Kategori supplier</span><input name="supplierCategories" [(ngModel)]="supplierForm.category_supplier" [disabled]="!editingRecord" /><small>Pisahkan kategori dengan koma.</small></label>
+        <label><span>Dibuat</span><input [value]="report.supplier.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Diperbarui</span><input [value]="report.supplier.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+      </div>
     </section>
     <section class="panel-grid">
       <article class="panel panel--wide">
@@ -187,7 +218,14 @@
             <tbody>
               <tr *ngFor="let row of visibleProducts">
                 <td>
-                  <a [routerLink]="['/analytics/products', row.product_id]">{{ row.name }}</a>
+                  <a
+                    [routerLink]="['/analytics/products', row.product_id]"
+                    [state]="{
+                      backLabel: 'Kembali ke Supplier Detail',
+                      returnTo: '/analytics/suppliers/' + report.supplier.supplier_id
+                    }"
+                    >{{ row.name }}</a
+                  >
                 </td>
                 <td>{{ row.type || '-' }}</td>
                 <td class="number">{{ row.bookings | number }}</td>

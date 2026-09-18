@@ -12,7 +12,7 @@ import { AnalyticsGranularity, OverviewAnalytics, PerformanceAnalyticsService } 
   selector: 'app-analytics-dashboard',
   imports: [CommonModule, FormsModule, RouterLink, DatePicker],
   templateUrl: './analytics-dashboard.html',
-  styleUrl: '../analytics.scss',
+  styleUrls: ['../analytics.scss', './analytics-dashboard.scss'],
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AnalyticsDashboard implements OnInit, OnDestroy {
@@ -24,6 +24,8 @@ export class AnalyticsDashboard implements OnInit, OnDestroy {
   dateTo = '';
   chartType: ChartType = 'bar';
   granularity: AnalyticsGranularity = 'month';
+  showAllSales = false;
+  showAllOperational = false;
   drillHistory: { dateFrom: string; dateTo: string; granularity: AnalyticsGranularity }[] = [];
   private request?: Subscription;
 
@@ -60,4 +62,6 @@ export class AnalyticsDashboard implements OnInit, OnDestroy {
     });
     return `conic-gradient(${stops.join(', ')})`;
   }
+  get visibleSales() { return this.showAllSales ? (this.data?.topSales || []) : (this.data?.topSales || []).slice(0, 3); }
+  get visibleOperational() { return this.showAllOperational ? (this.data?.topOperational || []) : (this.data?.topOperational || []).slice(0, 3); }
 }

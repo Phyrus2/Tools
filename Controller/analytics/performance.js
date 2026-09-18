@@ -145,9 +145,19 @@ async function overview(req, res) {
 
     const [summaryRows] = await pool.query(
       `SELECT COUNT(*) AS booked_products,
-              COUNT(DISTINCT bp.dossier_id) AS reservations,
+              COUNT(DISTINCT NULLIF(TRIM(bp.dossier_id), '')) AS reservations,
               COUNT(DISTINCT bp.supplier_id) AS suppliers,
-              COUNT(DISTINCT bp.product_id) AS products
+              COUNT(DISTINCT bp.product_id) AS products,
+              (SELECT COUNT(*)
+                 FROM booked_products all_bookings
+                WHERE LOWER(TRIM(COALESCE(all_bookings.status, ''))) = 'confirmed') AS total_bookings,
+              (SELECT COUNT(*) FROM suppliers) AS total_suppliers,
+              (SELECT COUNT(*) FROM products) AS total_products,
+              (SELECT COUNT(DISTINCT all_bp.dossier_id)
+                 FROM booked_products all_bp
+                WHERE LOWER(TRIM(COALESCE(all_bp.status, ''))) = 'confirmed'
+                  AND all_bp.dossier_id IS NOT NULL
+                  AND TRIM(all_bp.dossier_id) <> '') AS total_dossiers
        FROM booked_products bp
        WHERE ${CONFIRMED_SQL} AND ${DATE_SQL}`,
       rangeParams,
@@ -177,6 +187,24 @@ async function overview(req, res) {
        ORDER BY bookings DESC, p.name ASC LIMIT 3`,
       rangeParams,
     );
+    const [salesRows] = await pool.query(
+      `SELECT TRIM(bp.sales) AS name, COUNT(*) AS bookings
+       FROM booked_products bp
+       WHERE ${CONFIRMED_SQL} AND ${DATE_SQL}
+         AND bp.sales IS NOT NULL AND TRIM(bp.sales) <> ''
+       GROUP BY TRIM(bp.sales)
+       ORDER BY bookings DESC, name ASC`,
+      rangeParams,
+    );
+    const [operationalRows] = await pool.query(
+      `SELECT TRIM(bp.operational) AS name, COUNT(*) AS bookings
+       FROM booked_products bp
+       WHERE ${CONFIRMED_SQL} AND ${DATE_SQL}
+         AND bp.operational IS NOT NULL AND TRIM(bp.operational) <> ''
+       GROUP BY TRIM(bp.operational)
+       ORDER BY bookings DESC, name ASC`,
+      rangeParams,
+    );
     const [destinationProductRows] = await pool.query(
       `SELECT p.name AS product_name, p.type AS product_type, COUNT(*) AS bookings
        FROM booked_products bp JOIN products p ON p.product_id = bp.product_id
@@ -190,33 +218,6 @@ async function overview(req, res) {
       rangeParams,
     );
     const destinationRows = aggregateDestinations(destinationProductRows);
-    const [dossierRows] = await pool.query(
-      `SELECT bp.dossier_id, MAX(bp.dossier_name) AS dossier_name,
-              COUNT(*) AS booked_products, COUNT(DISTINCT bp.travel_date) AS travel_days,
-              MIN(bp.travel_date) AS first_travel_date, MAX(bp.travel_date) AS last_travel_date
-       FROM booked_products bp
-       WHERE ${CONFIRMED_SQL} AND ${DATE_SQL}
-         AND bp.dossier_id IS NOT NULL AND TRIM(bp.dossier_id) <> ''
-       GROUP BY bp.dossier_id HAVING COUNT(*) > 1
-       ORDER BY booked_products DESC, last_travel_date DESC LIMIT 10`,
-      rangeParams,
-    );
-    let dossierOrders = [];
-    if (dossierRows.length) {
-      const dossierIds = dossierRows.map((row) => row.dossier_id);
-      const [orderRows] = await pool.query(
-        `SELECT bp.dossier_id, bp.id AS sold_product_id, bp.travel_date,
-                COALESCE(NULLIF(TRIM(bp.product_name), ''), p.name) AS product_name,
-                s.company_name AS supplier_name
-         FROM booked_products bp
-         JOIN products p ON p.product_id = bp.product_id
-         JOIN suppliers s ON s.supplier_id = bp.supplier_id
-         WHERE bp.dossier_id IN (?) AND ${CONFIRMED_SQL} AND ${DATE_SQL}
-         ORDER BY bp.dossier_id, bp.travel_date, bp.id`,
-        [dossierIds, range.dateFrom, range.dateTo],
-      );
-      dossierOrders = orderRows;
-    }
     const summary = summaryRows[0] || {};
     return res.json({
       success: true,
@@ -226,20 +227,20 @@ async function overview(req, res) {
       granularity: groupBy,
       summary: {
         bookedProducts: Number(summary.booked_products || 0),
+        totalBookings: Number(summary.total_bookings || 0),
         reservations: Number(summary.reservations || 0),
         suppliers: Number(summary.suppliers || 0),
         products: Number(summary.products || 0),
+        totalDossiers: Number(summary.total_dossiers || 0),
+        totalSuppliers: Number(summary.total_suppliers || 0),
+        totalProducts: Number(summary.total_products || 0),
       },
       monthly: numberRows(monthlyRows, ["bookings"]),
       topSuppliers: numberRows(supplierRows, ["supplier_id", "bookings"]),
       topProducts: numberRows(productRows, ["product_id", "bookings"]),
+      topSales: numberRows(salesRows, ["bookings"]),
+      topOperational: numberRows(operationalRows, ["bookings"]),
       topTransferDestinations: numberRows(destinationRows, ["bookings"]),
-      multiServiceDossiers: numberRows(dossierRows, ["booked_products", "travel_days"]).map((dossier) => ({
-        ...dossier,
-        orders: dossierOrders
-          .filter((order) => order.dossier_id === dossier.dossier_id)
-          .map((order) => ({ ...order, sold_product_id: Number(order.sold_product_id) })),
-      })),
     });
   } catch (error) {
     console.error("Analytics overview error:", error);
@@ -258,7 +259,8 @@ async function supplierDetail(req, res) {
 
     const [supplierRows] = await pool.query(
       `SELECT supplier_id, company_name, address, town, region, location,
-              category_supplier, status FROM suppliers WHERE supplier_id = ?`,
+              category_supplier, status, created_at, updated_at
+         FROM suppliers WHERE supplier_id = ?`,
       [supplierId],
     );
     if (!supplierRows.length) return res.status(404).json({ success: false, message: "Supplier tidak ditemukan." });
@@ -326,7 +328,9 @@ async function productDetail(req, res) {
     if (!groupBy) return;
 
     const [productRows] = await pool.query(
-      `SELECT p.product_id, p.name, p.type, p.status, p.not_on_offer, p.description,
+      `SELECT p.product_id, p.name, p.type, p.status, p.info, p.not_on_offer,
+              p.services_included, p.services_excluded, p.instructions, p.description,
+              p.created_at, p.updated_at,
               s.supplier_id, s.company_name, s.location, s.town, s.region
        FROM products p JOIN suppliers s ON s.supplier_id = p.supplier_id
        WHERE p.product_id = ?`,
@@ -356,6 +360,19 @@ async function productDetail(req, res) {
        GROUP BY WEEKDAY(bp.travel_date) ORDER BY weekday`,
       params,
     );
+    const [bookedProductRows] = await pool.query(
+      `SELECT bp.id AS sold_product_id, bp.dossier_id, bp.dossier_name,
+              bp.travel_date, bp.end_date, bp.duration, bp.duration_unit,
+              bp.quantity, bp.unit, bp.sales, bp.operational,
+              CASE
+                WHEN bp.duration IS NULL OR bp.quantity IS NULL THEN NULL
+                ELSE bp.duration * bp.quantity
+              END AS total_quantity
+       FROM booked_products bp
+       WHERE ${CONFIRMED_SQL} AND bp.product_id = ? AND ${DATE_SQL}
+       ORDER BY bp.travel_date DESC, bp.id DESC`,
+      params,
+    );
     const [rankRows] = await pool.query(
       `SELECT ranked.supplier_rank FROM (
          SELECT bp.product_id,
@@ -380,6 +397,13 @@ async function productDetail(req, res) {
       },
       monthly: numberRows(monthlyRows, ["bookings"]),
       weekdays: numberRows(weekdayRows, ["weekday", "bookings"]),
+      bookedProducts: bookedProductRows.map((row) => ({
+        ...row,
+        sold_product_id: Number(row.sold_product_id),
+        duration: row.duration === null ? null : Number(row.duration),
+        quantity: row.quantity === null ? null : Number(row.quantity),
+        total_quantity: row.total_quantity === null ? null : Number(row.total_quantity),
+      })),
     });
   } catch (error) {
     console.error("Product analytics error:", error);

@@ -7,9 +7,13 @@
   </a>
 
   <header class="catalog-header">
-    <p class="catalog-eyebrow">Master Database</p>
-    <h1>Search Supplier &amp; Product</h1>
-    <p>Pilih jenis data terlebih dahulu agar hasil pencarian tidak tercampur.</p>
+    <p class="catalog-eyebrow">Database Master</p>
+    <h1>Search {{ modeTitle }}</h1>
+    <p>
+      {{ mode === 'supplier'
+        ? 'Cari supplier berdasarkan nama, kategori, atau lokasi.'
+        : 'Cari produk berdasarkan nama, kategori, detail, atau lokasi.' }}
+    </p>
   </header>
 
   <section class="search-panel" aria-labelledby="search-mode-title">
@@ -182,7 +186,12 @@
           <strong>{{ row.product_count }}</strong>
           <span>product</span>
           <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
-          <a class="analytics-link" [routerLink]="['/analytics/suppliers', row.supplier_id]">Lihat analytics &rarr;</a>
+          <a
+            class="analytics-link"
+            [routerLink]="['/analytics/suppliers', row.supplier_id]"
+            [state]="{ backLabel: 'Kembali ke Search Supplier', returnTo: '/catalog-search' }"
+            >Lihat analytics &rarr;</a
+          >
         </aside>
       </article>
     </div>
@@ -221,7 +230,12 @@
         </div>
         <aside class="result-card__meta result-card__meta--product">
           <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
-          <a class="analytics-link" [routerLink]="['/analytics/products', row.product_id]">Lihat analytics &rarr;</a>
+          <a
+            class="analytics-link"
+            [routerLink]="['/analytics/products', row.product_id]"
+            [state]="{ backLabel: 'Kembali ke Search Product', returnTo: '/catalog-search' }"
+            >Lihat analytics &rarr;</a
+          >
         </aside>
       </article>
     </div>

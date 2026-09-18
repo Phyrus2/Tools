@@ -45,9 +45,10 @@
 }
 
 .bp-app {
+  width: 100%;
   max-width: 1280px;
   margin: 0 auto;
-  padding: var(--bp-space-6) var(--bp-space-5) var(--bp-space-6);
+  padding: 2rem 1.75rem 4rem;
 }
 
 // ---------------------------------------------------------------
@@ -657,7 +658,7 @@
 
 @media (max-width: 640px) {
   .bp-app {
-    padding: var(--bp-space-5) var(--bp-space-4) var(--bp-space-6);
+    padding: 1rem .7rem 3rem;
   }
 
   .bp-diff-row {

@@ -1,14 +1,23 @@
-<main class="analytics-shell">
-  <a class="back-link" routerLink="/catalog-search"
-    >&larr; Kembali ke Search Supplier &amp; Product</a
-  >
+<main class="analytics-shell product-analytics">
+  <button class="back-link" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+    <span>{{ backLabel }}</span>
+  </button>
   <ng-container *ngIf="data as report"
     ><header class="analytics-header">
       <div>
         <p class="eyebrow">Performa Product</p>
         <h1>{{ report.product.name }}</h1>
         <p class="subtitle">
-          <a [routerLink]="['/analytics/suppliers', report.product.supplier_id]">{{
+          <a
+            [routerLink]="['/analytics/suppliers', report.product.supplier_id]"
+            [state]="{
+              backLabel: 'Kembali ke Product Detail',
+              returnTo: '/analytics/products/' + report.product.product_id
+            }"
+            >{{
             report.product.company_name
           }}</a>
           · {{ location() }}
@@ -33,31 +42,90 @@
       </form>
     </header>
     <section class="metric-grid">
-      <article class="metric">
-        <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+      <article class="metric metric--booking">
+        <div class="product-metric__content">
+          <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+            <path d="M16 3v4M8 3v4M3 10h18M8.5 15l2 2 4.5-4.5"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Peringkat di Supplier</span
-        ><strong>{{
-          report.summary.supplierRank ? '#' + report.summary.supplierRank : '-'
-        }}</strong>
+      <article class="metric metric--rank">
+        <div class="product-metric__content">
+          <span>Peringkat di Supplier</span
+          ><strong>{{
+            report.summary.supplierRank ? '#' + report.summary.supplierRank : '-'
+          }}</strong>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 21h8M12 17v4M7 4h10v4a5 5 0 0 1-10 0V4Z"></path>
+            <path d="M7 6H4v1a4 4 0 0 0 4 4M17 6h3v1a4 4 0 0 1-4 4"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Perjalanan Pertama</span
-        ><strong>{{
-          report.summary.firstTravelDate
-            ? (report.summary.firstTravelDate | date: 'dd MMM yyyy' : 'UTC')
-            : '-'
-        }}</strong>
+      <article class="metric metric--first-travel">
+        <div class="product-metric__content">
+          <span>Perjalanan Pertama</span
+          ><strong>{{
+            report.summary.firstTravelDate
+              ? (report.summary.firstTravelDate | date: 'dd MMM yyyy' : 'UTC')
+              : '-'
+          }}</strong>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 21V4M5 5h11l-2 3 2 3H5"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Perjalanan Terakhir</span
-        ><strong>{{
-          report.summary.lastTravelDate
-            ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
-            : '-'
-        }}</strong>
+      <article class="metric metric--last-travel">
+        <div class="product-metric__content">
+          <span>Perjalanan Terakhir</span
+          ><strong>{{
+            report.summary.lastTravelDate
+              ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
+              : '-'
+          }}</strong>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 7v5l3.5 2"></path>
+          </svg>
+        </div>
       </article>
+    </section>
+    <section class="panel record-panel">
+      <header class="record-panel__header">
+        <div><h2>Data Product</h2><p>Seluruh field product yang tersimpan di database.</p></div>
+        <div class="record-actions">
+          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Batal</button>
+          <button type="button" class="record-button" *ngIf="!editingRecord" (click)="startRecordEdit()">Edit data</button>
+          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
+        </div>
+      </header>
+      <p class="record-feedback record-feedback--success" *ngIf="recordMessage">{{ recordMessage }}</p>
+      <p class="record-feedback record-feedback--error" *ngIf="recordError">{{ recordError }}</p>
+      <div class="record-form">
+        <label><span>Product ID</span><input [value]="report.product.product_id" disabled /></label>
+        <label><span>Supplier ID</span><input type="number" name="productSupplierId" [(ngModel)]="productForm.supplier_id" [disabled]="!editingRecord" /></label>
+        <label><span>Supplier</span><input [value]="report.product.company_name" disabled /></label>
+        <label class="record-field--wide"><span>Nama product</span><input name="productName" [(ngModel)]="productForm.name" [disabled]="!editingRecord" /></label>
+        <label><span>Type</span><input name="productType" [(ngModel)]="productForm.type" [disabled]="!editingRecord" /></label>
+        <label><span>Status</span><select name="productStatus" [(ngModel)]="productForm.status" [disabled]="!editingRecord"><option value="Regular Product">Regular Product</option><option value="One Time Product">One Time Product</option></select></label>
+        <label><span>Not on offer</span><input name="productNotOnOffer" [(ngModel)]="productForm.not_on_offer" [disabled]="!editingRecord" /></label>
+        <label class="record-field--full"><span>Info</span><textarea name="productInfo" rows="3" [(ngModel)]="productForm.info" [disabled]="!editingRecord"></textarea></label>
+        <label class="record-field--full"><span>Description</span><textarea name="productDescription" rows="4" [(ngModel)]="productForm.description" [disabled]="!editingRecord"></textarea></label>
+        <label class="record-field--full"><span>Instructions</span><textarea name="productInstructions" rows="4" [(ngModel)]="productForm.instructions" [disabled]="!editingRecord"></textarea></label>
+        <label class="record-field--full"><span>Services included</span><textarea name="productServicesIncluded" rows="4" [(ngModel)]="productForm.services_included" [disabled]="!editingRecord"></textarea></label>
+        <label class="record-field--full"><span>Services excluded</span><textarea name="productServicesExcluded" rows="4" [(ngModel)]="productForm.services_excluded" [disabled]="!editingRecord"></textarea></label>
+        <label><span>Dibuat</span><input [value]="report.product.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Diperbarui</span><input [value]="report.product.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+      </div>
     </section>
     <section class="panel-grid">
       <article class="panel panel--wide">
@@ -181,7 +249,7 @@
           </table>
         </div>
       </article>
-      <article class="panel panel--wide">
+      <article class="panel panel--wide weekday-panel">
         <h2>Pola Hari Perjalanan</h2>
         <div class="bars" style="grid-template-columns: repeat(7, 1fr)" *ngIf="chartType === 'bar'">
           <div class="bar bar--static" *ngFor="let day of weekdays; index as i">
@@ -216,6 +284,53 @@
             </tbody>
           </table>
         </div>
+      </article>
+      <article class="panel panel--wide booking-list-panel">
+        <header class="panel-header">
+          <div>
+            <h2>Daftar Booked Product</h2>
+            <p class="panel-description">{{ report.bookedProducts.length | number }} booking pada periode terpilih</p>
+          </div>
+        </header>
+        <div class="table-wrap" *ngIf="report.bookedProducts.length">
+          <table>
+            <thead>
+              <tr>
+                <th>ID Booking</th>
+                <th>Dossier</th>
+                <th>Travel</th>
+                <th>Duration</th>
+                <th class="number">Qty</th>
+                <th class="number">Total Qty</th>
+                <th>Sales</th>
+                <th>Operational</th>
+                <th>Aksi</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let row of visibleBookings">
+                <td><a [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Kembali ke Product Detail', returnTo: '/analytics/products/' + report.product.product_id }"><strong>{{ row.sold_product_id }}</strong></a></td>
+                <td><span class="booking-dossier">{{ row.dossier_name || '-' }}</span><small>{{ row.dossier_id || '-' }}</small></td>
+                <td>
+                  {{ row.travel_date | date: 'dd MMM yyyy' : 'UTC' }}
+                  <small *ngIf="row.end_date && row.end_date !== row.travel_date">s.d. {{ row.end_date | date: 'dd MMM yyyy' : 'UTC' }}</small>
+                </td>
+                <td><span class="duration-badge">{{ durationLabel(row) }}</span></td>
+                <td class="number">{{ row.quantity === null ? '-' : (row.quantity | number) }}<small *ngIf="row.unit">{{ row.unit }}</small></td>
+                <td class="number">{{ row.total_quantity === null ? '-' : (row.total_quantity | number) }}</td>
+                <td>{{ row.sales || '-' }}</td>
+                <td>{{ row.operational || '-' }}</td>
+                <td><a class="booking-detail-link" [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Kembali ke Product Detail', returnTo: '/analytics/products/' + report.product.product_id }">Lihat detail &rarr;</a></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="empty" *ngIf="!report.bookedProducts.length">Belum ada booked product pada periode ini.</p>
+        <nav class="pager" *ngIf="bookingPages > 1" aria-label="Pagination booked product">
+          <button type="button" (click)="previousBookingPage()" [disabled]="bookingPage === 1">&larr; Sebelumnya</button>
+          <span>Halaman {{ bookingPage }} dari {{ bookingPages }}</span>
+          <button type="button" (click)="nextBookingPage()" [disabled]="bookingPage === bookingPages">Berikutnya &rarr;</button>
+        </nav>
       </article>
     </section></ng-container
   >

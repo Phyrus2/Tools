@@ -1,10 +1,22 @@
-<main class="analytics-shell">
-  <a class="back-link" routerLink="/">&larr; Kembali ke halaman utama</a>
+<main class="analytics-shell dashboard-analytics">
+  <a class="back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path
+        d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <span>Kembali ke halaman utama</span>
+  </a>
   <ng-container *ngIf="data as report">
     <header class="analytics-header">
       <div>
-        <p class="eyebrow">Analitik Performa</p>
-        <h1>Performa Perjalanan</h1>
+        <p class="eyebrow">Analitik Reservasi</p>
+        <h1>Dashboard Booking</h1>
+        <p class="header-subtitle">Pantau performa booking, supplier, produk, dan wilayah perjalanan.</p>
       </div>
       <form class="date-range" (ngSubmit)="applyRange()">
         <label
@@ -26,21 +38,69 @@
         <button type="submit" [disabled]="loading">Terapkan</button>
       </form>
     </header>
+
+    <!-- 4 kartu ringkasan -->
     <section class="metric-grid">
-      <article class="metric">
-        <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+      <article class="metric metric--booking">
+        <div class="metric-body">
+          <span>Booking Periode Aktif</span>
+          <strong>{{ report.summary.bookedProducts | number }} <small>/ {{ report.summary.totalBookings | number }}</small></strong>
+          <p>Periode aktif / seluruh booking</p>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="5" width="18" height="16" rx="2"></rect>
+            <path d="M16 3v4M8 3v4M3 10h18"></path>
+            <path d="M9 15l2 2 4-4"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong>
+
+      <article class="metric metric--dossier">
+        <div class="metric-body">
+          <span>Dossier Ter-booking</span>
+          <strong>{{ report.summary.reservations | number }} <small>/ {{ report.summary.totalDossiers | number }}</small></strong>
+          <p>Periode aktif / seluruh dossier</p>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Total Supplier</span><strong>{{ report.summary.suppliers | number }}</strong>
+
+      <article class="metric metric--supplier">
+        <div class="metric-body">
+          <span>Supplier Ter-booking</span>
+          <strong>{{ report.summary.suppliers | number }} <small>/ {{ report.summary.totalSuppliers | number }}</small></strong>
+          <p>Memiliki booking / seluruh supplier</p>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M4 10V21h16V10"></path>
+            <path d="M2 10l2-6h16l2 6"></path>
+            <path d="M9 21v-6h6v6"></path>
+          </svg>
+        </div>
       </article>
-      <article class="metric">
-        <span>Total Product</span><strong>{{ report.summary.products | number }}</strong>
+
+      <article class="metric metric--product">
+        <div class="metric-body">
+          <span>Product Ter-booking</span>
+          <strong>{{ report.summary.products | number }} <small>/ {{ report.summary.totalProducts | number }}</small></strong>
+          <p>Memiliki booking / seluruh product</p>
+        </div>
+        <div class="metric-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 8 12 3 3 8v8l9 5 9-5V8Z"></path>
+            <path d="M3 8l9 5 9-5M12 13v8"></path>
+          </svg>
+        </div>
       </article>
     </section>
+
     <section class="panel-grid">
+      <!-- 1. Chart, sendiri, full width -->
       <article class="panel panel--wide">
         <header class="panel-header">
           <h2>Tren Booking</h2>
@@ -167,29 +227,39 @@
           </table>
         </div>
       </article>
+
+      <!-- 2. Top Supplier & Top Product, berpasangan -->
       <article class="panel">
         <h2>Top Supplier</h2>
         <ol class="rank-list">
           <li *ngFor="let row of report.topSuppliers; index as i">
             <em>{{ i + 1 }}</em
-            ><a [routerLink]="['/analytics/suppliers', row.supplier_id]">{{ row.company_name }}</a
+            ><a
+              [routerLink]="['/analytics/suppliers', row.supplier_id]"
+              [state]="{ backLabel: 'Kembali ke Dashboard Booking', returnTo: '/analytics' }"
+              >{{ row.company_name }}</a
             ><strong>{{ row.bookings | number }}</strong>
           </li>
         </ol>
         <p class="empty" *ngIf="!report.topSuppliers.length">Belum ada data.</p>
       </article>
+
       <article class="panel">
         <h2>Top Product</h2>
         <ol class="rank-list">
           <li *ngFor="let row of report.topProducts; index as i">
             <em>{{ i + 1 }}</em
-            ><a [routerLink]="['/analytics/products', row.product_id]"
+            ><a
+              [routerLink]="['/analytics/products', row.product_id]"
+              [state]="{ backLabel: 'Kembali ke Dashboard Booking', returnTo: '/analytics' }"
               >{{ row.name }}<small>{{ row.company_name }}</small></a
             ><strong>{{ row.bookings | number }}</strong>
           </li>
         </ol>
         <p class="empty" *ngIf="!report.topProducts.length">Belum ada data.</p>
       </article>
+
+      <!-- 3. Top Wilayah Tujuan, sendiri, full width -->
       <article class="panel panel--wide">
         <h2>Top Wilayah Tujuan</h2>
         <div class="destination-chart" *ngIf="report.topTransferDestinations.length">
@@ -205,35 +275,39 @@
           </div>
         </div>
         <p class="empty" *ngIf="!report.topTransferDestinations.length">
-          Belum ada nama product transfer dengan pola “asal to tujuan”.
+          Belum ada nama product transfer dengan pola "asal to tujuan".
         </p>
       </article>
-      <article class="panel panel--wide">
-        <h2>Dossier Multi-Layanan</h2>
-        <div class="dossier-list">
-          <details *ngFor="let dossier of report.multiServiceDossiers">
-            <summary>
-              <span
-                ><strong>{{ dossier.dossier_name || dossier.dossier_id }}</strong
-                ><small>{{ dossier.dossier_id }}</small></span
-              ><b>{{ dossier.booked_products }} layanan · {{ dossier.travel_days }} tanggal</b>
-            </summary>
-            <div class="order-timeline">
-              <div *ngFor="let order of dossier.orders">
-                <time>{{ order.travel_date | date: 'dd MMM yyyy' : 'UTC' }}</time
-                ><span
-                  ><strong>{{ order.product_name }}</strong
-                  ><small
-                    >{{ order.supplier_name }} · ID Booking {{ order.sold_product_id }}</small
-                  ></span
-                >
-              </div>
-            </div>
-          </details>
+
+      <!-- 4. Top Sales & Top Operational, berpasangan -->
+      <article class="panel">
+        <div class="panel-title-row">
+          <h2>Top Sales</h2>
+          <button class="view-more" type="button" *ngIf="report.topSales.length > 3" (click)="showAllSales = !showAllSales">
+            {{ showAllSales ? 'Tampilkan 3 teratas' : 'Lihat semua' }}
+          </button>
         </div>
-        <p class="empty" *ngIf="!report.multiServiceDossiers.length">
-          Tidak ada dossier dengan lebih dari satu layanan pada periode ini.
-        </p>
+        <ol class="rank-list">
+          <li *ngFor="let row of visibleSales; index as i">
+            <em>{{ i + 1 }}</em><span class="rank-name">{{ row.name }}</span><strong>{{ row.bookings | number }}</strong>
+          </li>
+        </ol>
+        <p class="empty" *ngIf="!report.topSales.length">Belum ada data sales.</p>
+      </article>
+
+      <article class="panel">
+        <div class="panel-title-row">
+          <h2>Top Operational</h2>
+          <button class="view-more" type="button" *ngIf="report.topOperational.length > 3" (click)="showAllOperational = !showAllOperational">
+            {{ showAllOperational ? 'Tampilkan 3 teratas' : 'Lihat semua' }}
+          </button>
+        </div>
+        <ol class="rank-list">
+          <li *ngFor="let row of visibleOperational; index as i">
+            <em>{{ i + 1 }}</em><span class="rank-name">{{ row.name }}</span><strong>{{ row.bookings | number }}</strong>
+          </li>
+        </ol>
+        <p class="empty" *ngIf="!report.topOperational.length">Belum ada data operational.</p>
       </article>
     </section>
   </ng-container>

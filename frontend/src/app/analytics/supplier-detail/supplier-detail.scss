@@ -1,0 +1,12 @@
+.supplier-analytics .panel:last-child { min-height: 360px; }
+.supplier-analytics .metric { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.supplier-metric__content { min-width: 0; }
+.supplier-analytics .metric-icon { display: grid; flex: 0 0 auto; width: 42px; height: 42px; place-items: center; border-radius: 11px; color: var(--primary); background: var(--primary-soft); transition: color .18s ease, background-color .18s ease, transform .18s ease; }
+.supplier-analytics .metric-icon svg { width: 21px; height: 21px; }
+.supplier-analytics .metric--dossier .metric-icon, .supplier-analytics .metric--last-travel .metric-icon { color: var(--accent); background: #f4ead6; }
+.supplier-analytics .metric:hover .metric-icon { color: #fffdf8; background: var(--primary); transform: scale(1.06) rotate(-4deg); }
+.supplier-analytics .metric--dossier:hover .metric-icon, .supplier-analytics .metric--last-travel:hover .metric-icon { background: var(--accent); }
+.supplier-analytics td:nth-child(3), .supplier-analytics td:nth-child(4), .supplier-analytics td:nth-child(5) { color: var(--ink); font-weight: 600; }
+.supplier-analytics tbody tr { transition: background-color .12s ease; }
+.supplier-analytics tbody tr:hover { background: var(--surface-soft); }
+@media (max-width: 680px) { .supplier-analytics .pager { justify-content: space-between; } }

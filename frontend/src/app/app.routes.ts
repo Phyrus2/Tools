@@ -10,6 +10,7 @@ import { CatalogSearch } from './catalog/catalog-search/catalog-search';
 import { AnalyticsDashboard } from './analytics/dashboard/analytics-dashboard';
 import { SupplierDetail } from './analytics/supplier-detail/supplier-detail';
 import { ProductDetail } from './analytics/product-detail/product-detail';
+import { BookedProductDetail } from './booked_product/booked-product-detail/booked-product-detail';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -22,5 +23,6 @@ export const routes: Routes = [
   { path: 'analytics', component: AnalyticsDashboard, canActivate: [adminGuard] },
   { path: 'analytics/suppliers/:id', component: SupplierDetail, canActivate: [adminGuard] },
   { path: 'analytics/products/:id', component: ProductDetail, canActivate: [adminGuard] },
+  { path: 'booked-product/:id', component: BookedProductDetail, canActivate: [adminGuard] },
   { path: '**', redirectTo: '' },
 ];
