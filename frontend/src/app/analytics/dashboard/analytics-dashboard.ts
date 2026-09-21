@@ -37,7 +37,7 @@ export class AnalyticsDashboard implements OnInit, OnDestroy {
     this.request?.unsubscribe(); this.loading = true; this.errorMessage = '';
     this.request = this.analytics.overview(dateFrom, dateTo, granularity).subscribe({
       next: (data) => { this.data = { ...data, monthly: completePeriods(data.dateFrom, data.dateTo, data.granularity, data.monthly) }; this.dateFrom = data.dateFrom; this.dateTo = data.dateTo; this.granularity = data.granularity; this.loading = false; this.cdr.markForCheck(); },
-      error: (error: HttpErrorResponse) => { this.errorMessage = error.error?.message || 'Dashboard gagal dimuat.'; this.loading = false; this.cdr.markForCheck(); },
+      error: (_error: HttpErrorResponse) => { this.errorMessage = 'Unable to load the dashboard.'; this.loading = false; this.cdr.markForCheck(); },
     });
   }
   applyRange(): void { this.drillHistory = []; this.load(this.dateFrom, this.dateTo); }

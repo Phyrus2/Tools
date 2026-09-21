@@ -34,7 +34,7 @@ export class BookedProductDetail implements OnInit, OnDestroy {
   saving = false;
   errorMessage = '';
   feedbackMessage = '';
-  backLabel = 'Kembali ke halaman sebelumnya';
+  backLabel = 'Back to previous page';
   private backTarget = '/search';
   private bookedProductId = 0;
   private request?: Subscription;
@@ -70,7 +70,7 @@ export class BookedProductDetail implements OnInit, OnDestroy {
       },
       error: (error: HttpErrorResponse) => {
         this.loading = false;
-        this.errorMessage = error.error?.message || 'Detail booked product gagal dimuat.';
+        this.errorMessage = 'Unable to load booked product details.';
         this.cdr.markForCheck();
       },
     });
@@ -101,12 +101,12 @@ export class BookedProductDetail implements OnInit, OnDestroy {
         this.syncForm(response.bookedProduct);
         this.saving = false;
         this.editing = false;
-        this.feedbackMessage = 'Booked product berhasil diperbarui.';
+        this.feedbackMessage = 'Booked product updated successfully.';
         this.cdr.markForCheck();
       },
       error: (error: HttpErrorResponse) => {
         this.saving = false;
-        this.errorMessage = error.error?.message || 'Booked product gagal disimpan.';
+        this.errorMessage = 'Unable to save the booked product.';
         this.cdr.markForCheck();
       },
     });

@@ -8,13 +8,13 @@
   <ng-container *ngIf="data as report"
     ><header class="analytics-header">
       <div>
-        <p class="eyebrow">Performa Product</p>
+        <p class="eyebrow">Product Performance</p>
         <h1>{{ report.product.name }}</h1>
         <p class="subtitle">
           <a
             [routerLink]="['/analytics/suppliers', report.product.supplier_id]"
             [state]="{
-              backLabel: 'Kembali ke Product Detail',
+              backLabel: 'Back to Product Detail',
               returnTo: '/analytics/products/' + report.product.product_id
             }"
             >{{
@@ -25,26 +25,26 @@
       </div>
       <form class="date-range" (ngSubmit)="applyRange()">
         <label
-          >Dari<app-date-picker
+          >From<app-date-picker
             [value]="dateFrom"
             [max]="dateTo"
-            ariaLabel="Pilih tanggal mulai"
+            ariaLabel="Select start date"
             (valueChange)="dateFrom = $event"
           ></app-date-picker></label
         ><label
-          >Sampai<app-date-picker
+          >To<app-date-picker
             [value]="dateTo"
             [min]="dateFrom"
-            ariaLabel="Pilih tanggal akhir"
+            ariaLabel="Select end date"
             (valueChange)="dateTo = $event"
           ></app-date-picker></label
-        ><button type="submit" [disabled]="loading">Terapkan</button>
+        ><button type="submit" [disabled]="loading">Apply</button>
       </form>
     </header>
     <section class="metric-grid">
       <article class="metric metric--booking">
         <div class="product-metric__content">
-          <span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong>
+          <span>Total Bookings</span><strong>{{ report.summary.bookedProducts | number }}</strong>
         </div>
         <div class="metric-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
@@ -55,7 +55,7 @@
       </article>
       <article class="metric metric--rank">
         <div class="product-metric__content">
-          <span>Peringkat di Supplier</span
+          <span>Supplier Ranking</span
           ><strong>{{
             report.summary.supplierRank ? '#' + report.summary.supplierRank : '-'
           }}</strong>
@@ -69,7 +69,7 @@
       </article>
       <article class="metric metric--first-travel">
         <div class="product-metric__content">
-          <span>Perjalanan Pertama</span
+          <span>First Travel Date</span
           ><strong>{{
             report.summary.firstTravelDate
               ? (report.summary.firstTravelDate | date: 'dd MMM yyyy' : 'UTC')
@@ -84,7 +84,7 @@
       </article>
       <article class="metric metric--last-travel">
         <div class="product-metric__content">
-          <span>Perjalanan Terakhir</span
+          <span>Latest Travel Date</span
           ><strong>{{
             report.summary.lastTravelDate
               ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
@@ -101,11 +101,11 @@
     </section>
     <section class="panel record-panel">
       <header class="record-panel__header">
-        <div><h2>Data Product</h2><p>Seluruh field product yang tersimpan di database.</p></div>
+        <div><h2>Product Data</h2><p>All product fields stored in the database.</p></div>
         <div class="record-actions">
-          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Batal</button>
+          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Cancel</button>
           <button type="button" class="record-button" *ngIf="!editingRecord" (click)="startRecordEdit()">Edit data</button>
-          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
+          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Saving...' : 'Save changes' }}</button>
         </div>
       </header>
       <p class="record-feedback record-feedback--success" *ngIf="recordMessage">{{ recordMessage }}</p>
@@ -114,7 +114,7 @@
         <label><span>Product ID</span><input [value]="report.product.product_id" disabled /></label>
         <label><span>Supplier ID</span><input type="number" name="productSupplierId" [(ngModel)]="productForm.supplier_id" [disabled]="!editingRecord" /></label>
         <label><span>Supplier</span><input [value]="report.product.company_name" disabled /></label>
-        <label class="record-field--wide"><span>Nama product</span><input name="productName" [(ngModel)]="productForm.name" [disabled]="!editingRecord" /></label>
+        <label class="record-field--wide"><span>Product name</span><input name="productName" [(ngModel)]="productForm.name" [disabled]="!editingRecord" /></label>
         <label><span>Type</span><input name="productType" [(ngModel)]="productForm.type" [disabled]="!editingRecord" /></label>
         <label><span>Status</span><select name="productStatus" [(ngModel)]="productForm.status" [disabled]="!editingRecord"><option value="Regular Product">Regular Product</option><option value="One Time Product">One Time Product</option></select></label>
         <label><span>Not on offer</span><input name="productNotOnOffer" [(ngModel)]="productForm.not_on_offer" [disabled]="!editingRecord" /></label>
@@ -123,14 +123,14 @@
         <label class="record-field--full"><span>Instructions</span><textarea name="productInstructions" rows="4" [(ngModel)]="productForm.instructions" [disabled]="!editingRecord"></textarea></label>
         <label class="record-field--full"><span>Services included</span><textarea name="productServicesIncluded" rows="4" [(ngModel)]="productForm.services_included" [disabled]="!editingRecord"></textarea></label>
         <label class="record-field--full"><span>Services excluded</span><textarea name="productServicesExcluded" rows="4" [(ngModel)]="productForm.services_excluded" [disabled]="!editingRecord"></textarea></label>
-        <label><span>Dibuat</span><input [value]="report.product.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
-        <label><span>Diperbarui</span><input [value]="report.product.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Created</span><input [value]="report.product.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Updated</span><input [value]="report.product.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
       </div>
     </section>
     <section class="panel-grid">
       <article class="panel panel--wide">
         <header class="panel-header">
-          <h2>Performa Product</h2>
+          <h2>Product Performance</h2>
           <div class="panel-actions">
             <button
               class="drill-back"
@@ -138,7 +138,7 @@
               *ngIf="drillHistory.length"
               (click)="drillBack()"
             >
-              &larr; Kembali
+              &larr; Back
             </button>
             <div class="time-switch">
               <button
@@ -146,21 +146,21 @@
                 [class.active]="granularity === 'day'"
                 (click)="setGranularity('day')"
               >
-                Tanggal
+                Day
               </button>
               <button
                 type="button"
                 [class.active]="granularity === 'month'"
                 (click)="setGranularity('month')"
               >
-                Bulan
+                Month
               </button>
               <button
                 type="button"
                 [class.active]="granularity === 'year'"
                 (click)="setGranularity('year')"
               >
-                Tahun
+                Year
               </button>
             </div>
             <div class="chart-switch">
@@ -169,19 +169,19 @@
                 [class.active]="chartType === 'bar'"
                 (click)="chartType = 'bar'"
               >
-                Batang</button
+                Bar</button
               ><button
                 type="button"
                 [class.active]="chartType === 'line'"
                 (click)="chartType = 'line'"
               >
-                Garis</button
+                Line</button
               ><button
                 type="button"
                 [class.active]="chartType === 'table'"
                 (click)="chartType = 'table'"
               >
-                Tabel
+                Table
               </button>
             </div>
           </div>
@@ -192,7 +192,7 @@
               type="button"
               class="bar"
               *ngFor="let point of report.monthly"
-              [title]="point.label + ': ' + point.bookings + ' booking. Klik untuk filter.'"
+              [title]="point.label + ': ' + point.bookings + ' bookings. Click to filter.'"
               (click)="selectPeriod(point.period)"
             >
               <strong>{{ point.bookings || '' }}</strong
@@ -231,7 +231,7 @@
             <thead>
               <tr>
                 <th>Periode</th>
-                <th class="number">Total booking</th>
+                <th class="number">Total bookings</th>
               </tr>
             </thead>
             <tbody>
@@ -250,7 +250,7 @@
         </div>
       </article>
       <article class="panel panel--wide weekday-panel">
-        <h2>Pola Hari Perjalanan</h2>
+        <h2>Travel Day Pattern</h2>
         <div class="bars" style="grid-template-columns: repeat(7, 1fr)" *ngIf="chartType === 'bar'">
           <div class="bar bar--static" *ngFor="let day of weekdays; index as i">
             <strong>{{ weekdayValue(i) || '' }}</strong
@@ -272,8 +272,8 @@
           <table>
             <thead>
               <tr>
-                <th>Hari</th>
-                <th class="number">Total booking</th>
+                <th>Day</th>
+                <th class="number">Total bookings</th>
               </tr>
             </thead>
             <tbody>
@@ -288,15 +288,15 @@
       <article class="panel panel--wide booking-list-panel">
         <header class="panel-header">
           <div>
-            <h2>Daftar Booked Product</h2>
-            <p class="panel-description">{{ report.bookedProducts.length | number }} booking pada periode terpilih</p>
+            <h2>Booked Product List</h2>
+            <p class="panel-description">{{ report.bookedProducts.length | number }} bookings in the selected period</p>
           </div>
         </header>
         <div class="table-wrap" *ngIf="report.bookedProducts.length">
           <table>
             <thead>
               <tr>
-                <th>ID Booking</th>
+                <th>Booking ID</th>
                 <th>Dossier</th>
                 <th>Travel</th>
                 <th>Duration</th>
@@ -304,12 +304,12 @@
                 <th class="number">Total Qty</th>
                 <th>Sales</th>
                 <th>Operational</th>
-                <th>Aksi</th>
+                <th>Action</th>
               </tr>
             </thead>
             <tbody>
               <tr *ngFor="let row of visibleBookings">
-                <td><a [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Kembali ke Product Detail', returnTo: '/analytics/products/' + report.product.product_id }"><strong>{{ row.sold_product_id }}</strong></a></td>
+                <td><a [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Back to Product Detail', returnTo: '/analytics/products/' + report.product.product_id }"><strong>{{ row.sold_product_id }}</strong></a></td>
                 <td><span class="booking-dossier">{{ row.dossier_name || '-' }}</span><small>{{ row.dossier_id || '-' }}</small></td>
                 <td>
                   {{ row.travel_date | date: 'dd MMM yyyy' : 'UTC' }}
@@ -320,20 +320,20 @@
                 <td class="number">{{ row.total_quantity === null ? '-' : (row.total_quantity | number) }}</td>
                 <td>{{ row.sales || '-' }}</td>
                 <td>{{ row.operational || '-' }}</td>
-                <td><a class="booking-detail-link" [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Kembali ke Product Detail', returnTo: '/analytics/products/' + report.product.product_id }">Lihat detail &rarr;</a></td>
+                <td><a class="booking-detail-link" [routerLink]="['/booked-product', row.sold_product_id]" [state]="{ backLabel: 'Back to Product Detail', returnTo: '/analytics/products/' + report.product.product_id }">View details &rarr;</a></td>
               </tr>
             </tbody>
           </table>
         </div>
-        <p class="empty" *ngIf="!report.bookedProducts.length">Belum ada booked product pada periode ini.</p>
+        <p class="empty" *ngIf="!report.bookedProducts.length">No booked products are available for this period.</p>
         <nav class="pager" *ngIf="bookingPages > 1" aria-label="Pagination booked product">
-          <button type="button" (click)="previousBookingPage()" [disabled]="bookingPage === 1">&larr; Sebelumnya</button>
-          <span>Halaman {{ bookingPage }} dari {{ bookingPages }}</span>
-          <button type="button" (click)="nextBookingPage()" [disabled]="bookingPage === bookingPages">Berikutnya &rarr;</button>
+          <button type="button" (click)="previousBookingPage()" [disabled]="bookingPage === 1">&larr; Previous</button>
+          <span>Page {{ bookingPage }} of {{ bookingPages }}</span>
+          <button type="button" (click)="nextBookingPage()" [disabled]="bookingPage === bookingPages">Next &rarr;</button>
         </nav>
       </article>
     </section></ng-container
   >
-  <p class="loading" *ngIf="loading">Memuat analytics product&hellip;</p>
+  <p class="loading" *ngIf="loading">Loading product analytics&hellip;</p>
   <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
 </main>

@@ -15,15 +15,15 @@
     </svg>
   </button>
 
-  <div class="date-picker__popover" *ngIf="open" role="dialog" aria-label="Kalender tanggal">
+  <div class="date-picker__popover" *ngIf="open" role="dialog" aria-label="Date calendar">
     <div class="date-picker__header">
-      <button type="button" class="date-picker__nav" (click)="previousMonth()" aria-label="Bulan sebelumnya">
+      <button type="button" class="date-picker__nav" (click)="previousMonth()" aria-label="Previous month">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="m12 5-5 5 5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
       <strong>{{ monthNames[viewDate.getMonth()] }} {{ viewDate.getFullYear() }}</strong>
-      <button type="button" class="date-picker__nav" (click)="nextMonth()" aria-label="Bulan berikutnya">
+      <button type="button" class="date-picker__nav" (click)="nextMonth()" aria-label="Next month">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="m8 5 5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
@@ -50,8 +50,8 @@
     </div>
 
     <div class="date-picker__footer">
-      <button type="button" (click)="clear()">Hapus</button>
-      <button type="button" (click)="selectToday()">Hari ini</button>
+      <button type="button" (click)="clear()">Clear</button>
+      <button type="button" (click)="selectToday()">Today</button>
     </div>
   </div>
 </div>

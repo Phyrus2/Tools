@@ -162,7 +162,7 @@ export class BookedProductImport implements OnInit {
  
       error: (error) => {
         this.loading = false;
-        this.errorMessage = error.error?.message || 'Import failed.';
+        this.errorMessage = 'Booked product import failed. Please check the file and try again.';
         this.cdr.markForCheck();
       },
     });
@@ -301,13 +301,12 @@ export class BookedProductImport implements OnInit {
 
         this.manualSaving = false;
         this.manualForm = null;
-        this.manualNotice = `${response.message} Product ID: ${response.productId}.`;
+        this.manualNotice = `The product and booking were added successfully. Product ID: ${response.productId}.`;
         this.cdr.markForCheck();
       },
       error: (error) => {
         this.manualSaving = false;
-        this.manualError =
-          error.error?.message || 'Gagal menambahkan produk secara manual.';
+        this.manualError = 'Unable to add the product manually. Please try again.';
         this.cdr.markForCheck();
       },
     });
@@ -334,8 +333,8 @@ export class BookedProductImport implements OnInit {
       dossier_id: 'Dossier ID',
       dossier_name: 'Dossier Name',
       supplier_id: 'Supplier',
-      product_id: 'Produk Asli',
-      product_name: 'Nama Produk Booking',
+      product_id: 'Master Product',
+      product_name: 'Booked Product Name',
       status: 'Status',
       code: 'Code',
       duration: 'Duration',

@@ -1,6 +1,6 @@
 <main class="hub-shell">
   <header class="hub-topbar">
-    <a class="hub-brand" routerLink="/" aria-label="Kembali ke beranda">
+    <a class="hub-brand" routerLink="/" aria-label="Back to home">
       <span class="hub-brand__mark" aria-hidden="true">
         <span></span>
         <span></span>
@@ -13,25 +13,24 @@
     </a>
 
     <div class="hub-topbar__meta">
-      <span class="hub-status"><i aria-hidden="true"></i> Sistem aktif</span>
+      <span class="hub-status"><i aria-hidden="true"></i> System active</span>
       <span class="hub-user">{{ auth.user()?.fullname }}</span>
-      <button class="hub-logout" type="button" (click)="logout()">Keluar</button>
+      <button class="hub-logout" type="button" (click)="logout()">Log out</button>
     </div>
   </header>
 
   <div class="hub-content">
     <section class="hub-hero" aria-labelledby="hub-title">
       <div>
-        <p class="hub-eyebrow">Database Operasional</p>
-        <h1 id="hub-title">Apa yang ingin Anda kerjakan?</h1>
+        <p class="hub-eyebrow">Operations Database</p>
+        <h1 id="hub-title">What would you like to work on?</h1>
         <p class="hub-lead">
-          Pilih alat kerja berdasarkan modul. Semua proses import, pencarian, dan analisis tersedia
-          dari satu tempat.
+          Choose a tool by module. All import, search, and analytics workflows are available in one place.
         </p>
       </div>
       <div class="hub-hero__ornament" aria-hidden="true">
         <span>6</span>
-        <small>alat tersedia</small>
+        <small>tools available</small>
       </div>
     </section>
 
@@ -39,8 +38,8 @@
       <header class="hub-module__header">
         <span class="hub-module__number">01</span>
         <div>
-          <h2 id="import-title">Modul Import</h2>
-          <p>Masukkan dan sinkronkan data dari file Excel.</p>
+          <h2 id="import-title">Import Modules</h2>
+          <p>Upload and synchronize data from Excel files.</p>
         </div>
       </header>
 
@@ -54,7 +53,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Supplier Import</strong>
-            <small>Kelola data dan kategori supplier</small>
+            <small>Manage supplier data and categories</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -69,7 +68,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Product Import</strong>
-            <small>Perbarui katalog dan relasi produk</small>
+            <small>Update the catalog and product relationships</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -83,7 +82,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Booked Product</strong>
-            <small>Import transaksi booked product</small>
+            <small>Import booked product transactions</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -94,8 +93,8 @@
       <header class="hub-module__header">
         <span class="hub-module__number">02</span>
         <div>
-          <h2 id="search-title">Modul Search</h2>
-          <p>Temukan informasi operasional dengan cepat.</p>
+          <h2 id="search-title">Search Modules</h2>
+          <p>Find operational information quickly.</p>
         </div>
       </header>
 
@@ -109,7 +108,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Search Supplier &amp; Product</strong>
-            <small>Pilih dan cari data master tanpa hasil tercampur</small>
+            <small>Search master data without mixing result types</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -123,7 +122,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Search Booked Product</strong>
-            <small>Cari produk, supplier, lokasi, dan tanggal</small>
+            <small>Search products, suppliers, locations, and dates</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -134,8 +133,8 @@
       <header class="hub-module__header">
         <span class="hub-module__number">03</span>
         <div>
-          <h2 id="upcoming-title">Analytics &amp; Pengembangan</h2>
-          <p>Pantau performa serta akses modul berikutnya yang sedang disiapkan.</p>
+          <h2 id="upcoming-title">Analytics &amp; Development</h2>
+          <p>Monitor performance and access upcoming modules.</p>
         </div>
       </header>
 
@@ -148,7 +147,7 @@
           </span>
           <span class="hub-app__copy">
             <strong>Performance Analytics</strong>
-            <small>Dashboard supplier, product, dan destination</small>
+            <small>Supplier, product, and destination dashboard</small>
           </span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
@@ -161,10 +160,10 @@
             </svg>
           </span>
           <span class="hub-app__copy">
-            <strong>Modul Lainnya</strong>
-            <small>Alat operasional berikutnya</small>
+            <strong>More Modules</strong>
+            <small>Upcoming operational tools</small>
           </span>
-          <span class="hub-app__badge">Segera</span>
+          <span class="hub-app__badge">Coming soon</span>
         </article>
       </div>
     </section>
@@ -172,6 +171,6 @@
 
   <footer class="hub-footer">
     <span>Database Tools</span>
-    <span>Workspace internal</span>
+    <span>Internal workspace</span>
   </footer>
 </main>

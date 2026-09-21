@@ -1,7 +1,7 @@
 import { AnalyticsGranularity, AnalyticsSeriesPoint } from '../services/performance-analytics';
 
-export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
-export const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+export const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export type ChartType = 'bar' | 'line' | 'table';
 
@@ -70,5 +70,5 @@ export function barHeight(value: number, values: number[]): number {
 }
 
 export function locationLabel(...parts: (string | null)[]): string {
-  return parts.filter(Boolean).join(', ') || 'Lokasi belum tersedia';
+  return parts.filter(Boolean).join(', ') || 'Location unavailable';
 }

@@ -125,7 +125,7 @@ export class ProductImport {
    
         error: (error) => {
           this.loading = false;
-          this.errorMessage = error.error?.message || 'Import failed.';
+          this.errorMessage = 'Product import failed. Please check the file and try again.';
           this.cdr.markForCheck();
         },
       });
@@ -172,8 +172,8 @@ export class ProductImport {
     formatChangeField(field: string): string {
       const labels: Record<string, string> = {
         supplier_id: 'Supplier ID',
-        name: 'Nama produk',
-        type: 'Tipe',
+        name: 'Product Name',
+        type: 'Type',
         status: 'Status',
         info: 'Info',
         not_on_offer: 'Not on offer',

@@ -1,18 +1,18 @@
 <main class="catalog-shell">
-  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+  <a class="bp-back-link" routerLink="/" aria-label="Back to home">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-    <span>Kembali ke halaman utama</span>
+    <span>Back to home</span>
   </a>
 
   <header class="catalog-header">
-    <p class="catalog-eyebrow">Database Master</p>
+    <p class="catalog-eyebrow">Master Database</p>
     <h1>Search {{ modeTitle }}</h1>
     <p>
       {{ mode === 'supplier'
-        ? 'Cari supplier berdasarkan nama, kategori, atau lokasi.'
-        : 'Cari produk berdasarkan nama, kategori, detail, atau lokasi.' }}
+        ? 'Search suppliers by name, category, or location.'
+        : 'Search products by name, category, details, or location.' }}
     </p>
   </header>
 
@@ -20,12 +20,12 @@
     <div class="mode-heading">
       <div>
         <span class="step-number">01</span>
-        <h2 id="search-mode-title">Mau mencari apa?</h2>
+        <h2 id="search-mode-title">What are you looking for?</h2>
       </div>
-      <p>Mode aktif: <strong>{{ modeTitle }}</strong></p>
+      <p>Active mode: <strong>{{ modeTitle }}</strong></p>
     </div>
 
-    <div class="mode-switch" role="tablist" aria-label="Jenis pencarian">
+    <div class="mode-switch" role="tablist" aria-label="Search type">
       <button
         type="button"
         role="tab"
@@ -39,7 +39,7 @@
             <path d="M5.5 23V10.5L14 5l8.5 5.5V23M10 14h8M10 18h8M11.5 23v-2.5h5V23" />
           </svg>
         </span>
-        <span><strong>Supplier</strong><small>Nama, kategori &amp; lokasi supplier</small></span>
+        <span><strong>Supplier</strong><small>Supplier name, category &amp; location</small></span>
         <i aria-hidden="true"></i>
       </button>
 
@@ -57,13 +57,13 @@
             <path d="m5 10 9 5 9-5v9l-9 5-9-5v-9ZM14 15v9" />
           </svg>
         </span>
-        <span><strong>Product</strong><small>Nama, detail &amp; lokasi product</small></span>
+        <span><strong>Product</strong><small>Product name, details &amp; location</small></span>
         <i aria-hidden="true"></i>
       </button>
     </div>
 
     <form class="search-form" (ngSubmit)="search()">
-      <div class="catalog-filters" aria-label="Filter pencarian">
+      <div class="catalog-filters" aria-label="Search filters">
         <div class="category-filter">
           <label for="catalog-category">Category</label>
           <select
@@ -73,10 +73,10 @@
             (change)="onCategoryChange()"
             [disabled]="loadingCategories"
           >
-            <option value="">Semua category</option>
+            <option value="">All categories</option>
             <option *ngFor="let item of categories" [value]="item">{{ item }}</option>
           </select>
-          <small *ngIf="loadingCategories">Memuat&hellip;</small>
+          <small *ngIf="loadingCategories">Loading&hellip;</small>
         </div>
 
         <div class="category-filter status-filter">
@@ -89,7 +89,7 @@
             [(ngModel)]="statusFilter"
             (change)="onStatusChange()"
           >
-            <option value="">Semua status</option>
+            <option value="">All statuses</option>
             <ng-container *ngIf="mode === 'supplier'">
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
@@ -109,14 +109,14 @@
             [(ngModel)]="productStatusFilter"
             (change)="onProductStatusChange()"
           >
-            <option value="">Semua product status</option>
+            <option value="">All product statuses</option>
             <option value="regular_product">Regular Product</option>
             <option value="one_time_product">One Time Product</option>
           </select>
         </div>
       </div>
 
-      <label for="catalog-keyword">Keyword <span>(opsional jika filter dipilih)</span></label>
+      <label for="catalog-keyword">Keyword <span>(optional when filters are selected)</span></label>
       <div class="search-control">
         <span class="search-control__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none">
@@ -134,15 +134,15 @@
           autocomplete="off"
         />
         <button type="submit" [disabled]="loading">
-          <span *ngIf="!loading">Cari {{ modeTitle }}</span>
-          <span *ngIf="loading">Mencari&hellip;</span>
+          <span *ngIf="!loading">Search {{ modeTitle }}</span>
+          <span *ngIf="loading">Searching&hellip;</span>
         </button>
       </div>
       <p class="search-hint" *ngIf="mode === 'supplier'">
-        Mencari pada nama supplier, address, town, region, location, dan kategori.
+        Searches supplier name, address, town, region, location, and category.
       </p>
       <p class="search-hint" *ngIf="mode === 'product'">
-        Mencari pada nama product, supplier, lokasi, kategori, info, deskripsi, instruksi, inclusion, exclusion, dan not on offer.
+        Searches product name, supplier, location, category, info, description, instructions, inclusions, exclusions, and offer status.
       </p>
     </form>
 
@@ -152,16 +152,16 @@
   <section class="results" *ngIf="hasSearched" aria-live="polite">
     <header class="results-header">
       <div>
-        <p>Hasil Search {{ modeTitle }}</p>
+        <p>{{ modeTitle }} Search Results</p>
         <h2>&ldquo;{{ searchTitle }}&rdquo;</h2>
       </div>
-      <strong>{{ pagination.total }} hasil</strong>
+      <strong>{{ pagination.total }} results</strong>
     </header>
 
     <div class="empty-state" *ngIf="pagination.total === 0">
       <span aria-hidden="true">0</span>
-      <h3>Tidak ada {{ modeTitle | lowercase }} ditemukan</h3>
-      <p>Coba gunakan nama, lokasi, atau kata kunci yang lebih umum.</p>
+      <h3>No {{ modeTitle | lowercase }} found</h3>
+      <p>Try a more general name, location, or keyword.</p>
     </div>
 
     <div class="result-list" *ngIf="mode === 'supplier' && supplierResults.length">
@@ -185,12 +185,12 @@
         <aside class="result-card__meta">
           <strong>{{ row.product_count }}</strong>
           <span>product</span>
-          <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+          <small *ngIf="row.matched_field !== 'all'">Matched on {{ matchedFieldLabel(row.matched_field) }}</small>
           <a
             class="analytics-link"
             [routerLink]="['/analytics/suppliers', row.supplier_id]"
-            [state]="{ backLabel: 'Kembali ke Search Supplier', returnTo: '/catalog-search' }"
-            >Lihat analytics &rarr;</a
+            [state]="{ backLabel: 'Back to Supplier Search', returnTo: '/catalog-search' }"
+            >View analytics &rarr;</a
           >
         </aside>
       </article>
@@ -218,7 +218,7 @@
           </div>
 
           <details class="product-details" *ngIf="row.info || row.description || row.instructions || row.services_included || row.services_excluded">
-            <summary>Lihat detail product</summary>
+            <summary>View product details</summary>
             <dl>
               <div *ngIf="row.info"><dt>Info</dt><dd>{{ row.info }}</dd></div>
               <div *ngIf="row.description"><dt>Description</dt><dd>{{ row.description }}</dd></div>
@@ -229,21 +229,21 @@
           </details>
         </div>
         <aside class="result-card__meta result-card__meta--product">
-          <small *ngIf="row.matched_field !== 'all'">Cocok pada {{ matchedFieldLabel(row.matched_field) }}</small>
+          <small *ngIf="row.matched_field !== 'all'">Matched on {{ matchedFieldLabel(row.matched_field) }}</small>
           <a
             class="analytics-link"
             [routerLink]="['/analytics/products', row.product_id]"
-            [state]="{ backLabel: 'Kembali ke Search Product', returnTo: '/catalog-search' }"
-            >Lihat analytics &rarr;</a
+            [state]="{ backLabel: 'Back to Product Search', returnTo: '/catalog-search' }"
+            >View analytics &rarr;</a
           >
         </aside>
       </article>
     </div>
 
-    <nav class="pagination" aria-label="Pagination hasil pencarian" *ngIf="pagination.totalPages > 1">
-      <button type="button" (click)="previousPage()" [disabled]="pagination.page === 1 || loading">&larr; Sebelumnya</button>
-      <span>Halaman <strong>{{ pagination.page }}</strong> dari {{ pagination.totalPages }}</span>
-      <button type="button" (click)="nextPage()" [disabled]="pagination.page === pagination.totalPages || loading">Berikutnya &rarr;</button>
+    <nav class="pagination" aria-label="Search result pagination" *ngIf="pagination.totalPages > 1">
+      <button type="button" (click)="previousPage()" [disabled]="pagination.page === 1 || loading">&larr; Previous</button>
+      <span>Page <strong>{{ pagination.page }}</strong> of {{ pagination.totalPages }}</span>
+      <button type="button" (click)="nextPage()" [disabled]="pagination.page === pagination.totalPages || loading">Next &rarr;</button>
     </nav>
   </section>
 </main>

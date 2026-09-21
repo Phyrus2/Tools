@@ -33,26 +33,26 @@ export class DatePicker implements OnChanges {
   @Input() value = '';
   @Input() min = '';
   @Input() max = '';
-  @Input() ariaLabel = 'Pilih tanggal';
+  @Input() ariaLabel = 'Select date';
   @Output() readonly valueChange = new EventEmitter<string>();
 
   open = false;
   viewDate = this.startOfMonth(new Date());
 
-  readonly weekdays = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+  readonly weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   readonly monthNames = [
-    'Januari',
-    'Februari',
-    'Maret',
+    'January',
+    'February',
+    'March',
     'April',
-    'Mei',
-    'Juni',
-    'Juli',
-    'Agustus',
+    'May',
+    'June',
+    'July',
+    'August',
     'September',
-    'Oktober',
+    'October',
     'November',
-    'Desember',
+    'December',
   ];
 
   ngOnChanges(changes: SimpleChanges): void {
@@ -64,7 +64,7 @@ export class DatePicker implements OnChanges {
 
   get displayValue(): string {
     const selected = this.parseIso(this.value);
-    if (!selected) return 'Pilih tanggal';
+    if (!selected) return 'Select date';
 
     return `${selected.getDate()} ${this.monthNames[selected.getMonth()]} ${selected.getFullYear()}`;
   }

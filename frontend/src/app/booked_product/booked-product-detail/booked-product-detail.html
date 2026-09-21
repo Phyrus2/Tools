@@ -12,19 +12,19 @@
         <p class="subtitle">Booking #{{ record.id }} &middot; {{ record.dossier_name || record.dossier_id }}</p>
       </div>
       <div class="record-actions">
-        <button type="button" class="record-button record-button--secondary" *ngIf="editing" (click)="cancelEdit()" [disabled]="saving">Batal</button>
+        <button type="button" class="record-button record-button--secondary" *ngIf="editing" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
         <button type="button" class="record-button" *ngIf="!editing" (click)="startEdit()">Edit data</button>
-        <button type="button" class="record-button" *ngIf="editing" (click)="save()" [disabled]="saving">{{ saving ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
+        <button type="button" class="record-button" *ngIf="editing" (click)="save()" [disabled]="saving">{{ saving ? 'Saving...' : 'Save changes' }}</button>
       </div>
     </header>
 
     <section class="booked-relations" aria-label="Relasi booked product">
-      <a [routerLink]="['/analytics/suppliers', record.supplier_id]" [state]="{ backLabel: 'Kembali ke Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Supplier</span><strong>{{ record.company_name }}</strong><small>ID {{ record.supplier_id }} &rarr;</small></a>
-      <a [routerLink]="['/analytics/products', record.product_id]" [state]="{ backLabel: 'Kembali ke Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Master Product</span><strong>{{ record.master_product_name }}</strong><small>ID {{ record.product_id }} &rarr;</small></a>
+      <a [routerLink]="['/analytics/suppliers', record.supplier_id]" [state]="{ backLabel: 'Back to Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Supplier</span><strong>{{ record.company_name }}</strong><small>ID {{ record.supplier_id }} &rarr;</small></a>
+      <a [routerLink]="['/analytics/products', record.product_id]" [state]="{ backLabel: 'Back to Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Master Product</span><strong>{{ record.master_product_name }}</strong><small>ID {{ record.product_id }} &rarr;</small></a>
     </section>
 
     <section class="panel record-panel" *ngIf="bookedForm as form">
-      <header class="record-panel__header"><div><h2>Data Booking</h2><p>Seluruh kolom booked product yang tersimpan di database.</p></div></header>
+      <header class="record-panel__header"><div><h2>Booking Data</h2><p>All booked product fields stored in the database.</p></div></header>
       <p class="record-feedback record-feedback--success" *ngIf="feedbackMessage">{{ feedbackMessage }}</p>
       <p class="record-feedback record-feedback--error" *ngIf="errorMessage">{{ errorMessage }}</p>
       <div class="record-form">
@@ -44,38 +44,38 @@
         <label><span>Duration unit</span><select name="bookingDurationUnit" [(ngModel)]="form.duration_unit" [disabled]="!editing"><option [ngValue]="null">-</option><option value="D">D</option><option value="N">N</option></select></label>
         <label><span>Quantity</span><input type="number" name="bookingQuantity" [(ngModel)]="form.quantity" [disabled]="!editing" /></label>
         <label><span>Unit</span><input name="bookingUnit" [(ngModel)]="form.unit" [disabled]="!editing" /></label>
-        <label><span>Price</span><input type="number" name="bookingPrice" [(ngModel)]="form.price" [disabled]="!editing" /><small>Ditampilkan sebagai data record, tidak digunakan dalam analitik.</small></label>
+        <label><span>Price</span><input type="number" name="bookingPrice" [(ngModel)]="form.price" [disabled]="!editing" /><small>Displayed as record data and not used in analytics.</small></label>
         <label class="record-field--full"><span>Description</span><textarea rows="4" name="bookingDescription" [(ngModel)]="form.description" [disabled]="!editing"></textarea></label>
         <label class="record-field--full"><span>Info</span><textarea rows="4" name="bookingInfo" [(ngModel)]="form.info" [disabled]="!editing"></textarea></label>
         <label class="record-field--full"><span>Instructions</span><textarea rows="4" name="bookingInstructions" [(ngModel)]="form.instructions" [disabled]="!editing"></textarea></label>
         <fieldset class="transport-card record-field--full">
           <legend>Transport Pickup</legend>
-          <p>Informasi penjemputan tamu.</p>
+          <p>Guest pickup information.</p>
           <div class="transport-card__grid">
-            <label><span>Tanggal</span><input name="pickupDate" [(ngModel)]="form.transport_pickup.date" [disabled]="!editing" /></label>
-            <label><span>Waktu</span><input name="pickupTime" [(ngModel)]="form.transport_pickup.time" [disabled]="!editing" /></label>
+            <label><span>Date</span><input name="pickupDate" [(ngModel)]="form.transport_pickup.date" [disabled]="!editing" /></label>
+            <label><span>Time</span><input name="pickupTime" [(ngModel)]="form.transport_pickup.time" [disabled]="!editing" /></label>
             <label><span>Area / locality</span><input name="pickupLocality" [(ngModel)]="form.transport_pickup.locality" [disabled]="!editing" /></label>
-            <label><span>Lokasi</span><input name="pickupLocation" [(ngModel)]="form.transport_pickup.location" [disabled]="!editing" /></label>
-            <label class="transport-card__notes"><span>Catatan</span><textarea rows="3" name="pickupText" [(ngModel)]="form.transport_pickup.text" [disabled]="!editing"></textarea></label>
+            <label><span>Location</span><input name="pickupLocation" [(ngModel)]="form.transport_pickup.location" [disabled]="!editing" /></label>
+            <label class="transport-card__notes"><span>Notes</span><textarea rows="3" name="pickupText" [(ngModel)]="form.transport_pickup.text" [disabled]="!editing"></textarea></label>
           </div>
         </fieldset>
         <fieldset class="transport-card record-field--full">
           <legend>Transport Dropoff</legend>
-          <p>Informasi lokasi pengantaran tamu.</p>
+          <p>Guest drop-off information.</p>
           <div class="transport-card__grid">
-            <label><span>Tanggal</span><input name="dropoffDate" [(ngModel)]="form.transport_dropoff.date" [disabled]="!editing" /></label>
-            <label><span>Waktu</span><input name="dropoffTime" [(ngModel)]="form.transport_dropoff.time" [disabled]="!editing" /></label>
+            <label><span>Date</span><input name="dropoffDate" [(ngModel)]="form.transport_dropoff.date" [disabled]="!editing" /></label>
+            <label><span>Time</span><input name="dropoffTime" [(ngModel)]="form.transport_dropoff.time" [disabled]="!editing" /></label>
             <label><span>Area / locality</span><input name="dropoffLocality" [(ngModel)]="form.transport_dropoff.locality" [disabled]="!editing" /></label>
-            <label><span>Lokasi</span><input name="dropoffLocation" [(ngModel)]="form.transport_dropoff.location" [disabled]="!editing" /></label>
-            <label class="transport-card__notes"><span>Catatan</span><textarea rows="3" name="dropoffText" [(ngModel)]="form.transport_dropoff.text" [disabled]="!editing"></textarea></label>
+            <label><span>Location</span><input name="dropoffLocation" [(ngModel)]="form.transport_dropoff.location" [disabled]="!editing" /></label>
+            <label class="transport-card__notes"><span>Notes</span><textarea rows="3" name="dropoffText" [(ngModel)]="form.transport_dropoff.text" [disabled]="!editing"></textarea></label>
           </div>
         </fieldset>
-        <label><span>Dibuat</span><input [value]="record.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
-        <label><span>Diperbarui</span><input [value]="record.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Created</span><input [value]="record.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Updated</span><input [value]="record.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
       </div>
     </section>
   </ng-container>
 
-  <p class="loading" *ngIf="loading">Memuat detail booked product&hellip;</p>
+  <p class="loading" *ngIf="loading">Loading booked product details&hellip;</p>
   <p class="error" *ngIf="!loading && errorMessage && !data">{{ errorMessage }}</p>
 </main>

@@ -48,8 +48,8 @@ export class Login {
       },
       error: (error) => {
         this.errorMessage = error.status === 429
-          ? 'Terlalu banyak percobaan. Tunggu 15 menit lalu coba lagi.'
-          : 'Username atau password salah.';
+          ? 'Too many attempts. Please wait 15 minutes and try again.'
+          : 'Incorrect username or password.';
       },
     });
   }

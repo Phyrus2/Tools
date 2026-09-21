@@ -92,14 +92,14 @@ const UNIT_PRICE_EXPORT_COLUMNS: ExportColumn[] = [
 const EXPORT_TEMPLATES: readonly ExportTemplate[] = [
   {
     id: 'standard',
-    label: 'Standar — data booking utama',
+    label: 'Standard — core booking data',
     columns: STANDARD_EXPORT_COLUMNS,
     filenameSuffix: '',
     includeUnitAndPrice: false,
   },
   {
     id: 'unit-price',
-    label: 'Lengkap — termasuk unit & price',
+    label: 'Complete — includes unit & price',
     columns: UNIT_PRICE_EXPORT_COLUMNS,
     filenameSuffix: '-unit-price',
     includeUnitAndPrice: true,
@@ -244,7 +244,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
             this.hasSearched = true;
             this.results = [];
 
-            this.errorMessage = err?.error?.message || 'Gagal melakukan pencarian.';
+            this.errorMessage = 'Unable to complete the search. Please try again.';
             this.cdr.markForCheck();
           },
         }),
@@ -398,22 +398,22 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     const { dateMode, date, startDate, endDate } = this.form.getRawValue();
 
     if (dateMode === 'single' && date) {
-      return `Booking tanggal ${this.formatDisplayDate(date)}`;
+      return `Bookings on ${this.formatDisplayDate(date)}`;
     }
     if (dateMode === 'from' && date) {
-      return `Booking mulai ${this.formatDisplayDate(date)}`;
+      return `Bookings from ${this.formatDisplayDate(date)}`;
     }
     if (dateMode === 'until' && date) {
-      return `Booking sampai ${this.formatDisplayDate(date)}`;
+      return `Bookings through ${this.formatDisplayDate(date)}`;
     }
     if (dateMode === 'range') {
       if (startDate && endDate) {
         return `${this.formatDisplayDate(startDate)} – ${this.formatDisplayDate(endDate)}`;
       }
-      if (startDate) return `Booking mulai ${this.formatDisplayDate(startDate)}`;
-      if (endDate) return `Booking sampai ${this.formatDisplayDate(endDate)}`;
+      if (startDate) return `Bookings from ${this.formatDisplayDate(startDate)}`;
+      if (endDate) return `Bookings through ${this.formatDisplayDate(endDate)}`;
     }
-    return 'Semua tanggal booking';
+    return 'All booking dates';
   }
 
   get selectedBookingCount(): number {
@@ -466,19 +466,19 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   matchedFieldLabel(field: string): string {
     const labels: Record<string, string> = {
-      company_name: 'Nama Supplier',
-      town: 'Kota',
-      region: 'Wilayah',
-      location: 'Lokasi',
-      product_name: 'Nama Produk',
-      description: 'Deskripsi',
+      company_name: 'Supplier Name',
+      town: 'Town',
+      region: 'Region',
+      location: 'Location',
+      product_name: 'Product Name',
+      description: 'Description',
       info: 'Info',
-      instructions: 'Instruksi',
+      instructions: 'Instructions',
       sales: 'Sales',
       operational: 'Operational',
-      travel_date: 'Tanggal',
-      address: 'Alamat',
-      other: 'Lainnya',
+      travel_date: 'Date',
+      address: 'Address',
+      other: 'Other',
     };
     console.log('🔖 Matched Field:', field, '=>', labels[field] ?? field);
     return labels[field] ?? field;
@@ -510,7 +510,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     if (this.exporting) return;
 
     if (this.selectedBookingCount === 0) {
-      this.exportError = 'Pilih minimal satu booking untuk diekspor ke PDF.';
+      this.exportError = 'Select at least one booking to export to PDF.';
       this.cdr.markForCheck();
       return;
     }
@@ -650,7 +650,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       doc.save(this.buildExportFilename('pdf'));
     } catch (err) {
       console.error('❌ Export PDF error:', err);
-      this.exportError = 'Gagal membuat file PDF.';
+      this.exportError = 'Unable to create the PDF file.';
     } finally {
       this.exporting = null;
       this.cdr.markForCheck();
@@ -661,7 +661,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     if (this.exporting) return;
 
     if (this.selectedBookingCount === 0) {
-      this.exportError = 'Pilih minimal satu booking untuk diekspor ke Excel.';
+      this.exportError = 'Select at least one booking to export to Excel.';
       this.cdr.markForCheck();
       return;
     }
@@ -771,7 +771,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       XLSX.writeFile(workbook, this.buildExportFilename('xlsx'));
     } catch (err) {
       console.error('❌ Export Excel error:', err);
-      this.exportError = 'Gagal membuat file Excel.';
+      this.exportError = 'Unable to create the Excel file.';
     } finally {
       this.exporting = null;
       this.cdr.markForCheck();
@@ -785,9 +785,9 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     if (!rows) return;
 
     try {
-      const header: string[] = [`*Hasil Booked Product* (${rows.length} data)`];
+      const header: string[] = [`*Booked Product Results* (${rows.length} records)`];
       if (this.form.value.keyword) header.push(`Keyword: "${this.form.value.keyword}"`);
-      header.push(`Diekspor ${this.formatTimestamp()}`);
+      header.push(`Exported ${this.formatTimestamp()}`);
 
       const blocks = rows.map((row, index) => this.buildWhatsAppBlock(
         row as any,
@@ -806,7 +806,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       }, 2000);
     } catch (err) {
       console.error('❌ Copy error:', err);
-      this.exportError = 'Gagal menyalin data. Periksa izin clipboard browser lalu coba lagi.';
+      this.exportError = 'Unable to copy the data. Check your browser clipboard permissions and try again.';
     } finally {
       this.exporting = null;
       this.cdr.markForCheck();
@@ -833,7 +833,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       this.cdr.markForCheck();
     } catch (err) {
       console.error('❌ Copy item error:', err);
-      this.exportError = 'Gagal menyalin data. Periksa izin clipboard browser lalu coba lagi.';
+      this.exportError = 'Unable to copy the data. Check your browser clipboard permissions and try again.';
       this.cdr.markForCheck();
     }
   }
@@ -853,7 +853,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       this.formatDateForExport(row.end_date),
     );
     const hasQty = row.quantity !== undefined && row.quantity !== null && row.quantity !== '';
-    const title = this.stringifyCell(row.product_name) || 'Tanpa nama produk';
+    const title = this.stringifyCell(row.product_name) || 'Unnamed product';
 
     const lines = [
       index ? `${index}. *${title}*` : `*${title}*`,
@@ -863,7 +863,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       row.status ? `Status: ${row.status}` : null,
       row.company_name ? `Supplier: ${row.company_name}` : null,
       row.duration ? `Duration: ${this.formatDuration(row)}` : null,
-      dateRange ? `Tanggal: ${dateRange}` : null,
+      dateRange ? `Date: ${dateRange}` : null,
       row.sales ? `Sales: ${row.sales}` : null,
       row.operational ? `Operational: ${row.operational}` : null,
       hasQty ? `Qty: ${row.quantity}` : null,
@@ -914,7 +914,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     this.exportError = null;
 
     if (!this.hasSearched || this.total === 0) {
-      this.exportError = 'Tidak ada hasil untuk diekspor.';
+      this.exportError = 'There are no results to export.';
       return null;
     }
 
@@ -934,7 +934,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
       }));
     } catch (err) {
       console.error('❌ Gagal mengambil semua data untuk export:', err);
-      this.exportError = 'Gagal mengambil data dari server untuk diekspor.';
+      this.exportError = 'Unable to retrieve data from the server for export.';
       this.exporting = null;
       this.cdr.markForCheck();
       return null;
@@ -994,7 +994,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     const fontUrl = new URL(relativePath, document.baseURI);
     const response = await fetch(fontUrl);
     if (!response.ok) {
-      throw new Error(`Gagal memuat font PDF: ${response.status} ${fontUrl.pathname}`);
+      throw new Error(`Unable to load the PDF font: ${response.status} ${fontUrl.pathname}`);
     }
 
     const bytes = new Uint8Array(await response.arrayBuffer());
@@ -1026,7 +1026,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
     textArea.remove();
 
     if (!copied) {
-      throw new Error('Browser tidak mengizinkan akses clipboard.');
+      throw new Error('The browser did not allow clipboard access.');
     }
   }
 

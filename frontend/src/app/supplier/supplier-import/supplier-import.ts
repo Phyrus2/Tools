@@ -177,7 +177,7 @@ export class SupplierImport implements OnInit {
   
         error: (error) => {
           this.loading = false;
-          this.errorMessage = error.error?.message || 'Import failed.';
+          this.errorMessage = 'Supplier import failed. Please check the file and try again.';
           this.cdr.markForCheck();
         },
       });
@@ -222,7 +222,7 @@ export class SupplierImport implements OnInit {
       }
 
       const approved = window.confirm(
-        `Batalkan penambahan kategori ${this.latestImport.category} dari import ${this.latestImport.fileName}? Supplier tidak akan dihapus.`,
+        `Undo the ${this.latestImport.category} category added by the ${this.latestImport.fileName} import? Suppliers will not be deleted.`,
       );
 
       if (!approved) {
@@ -236,14 +236,13 @@ export class SupplierImport implements OnInit {
       this.service.undoImport(this.latestImport.importId).subscribe({
         next: (response) => {
           this.undoing = false;
-          this.undoMessage = response.message;
+          this.undoMessage = 'The imported supplier category was undone successfully.';
           this.loadLatestImport();
           this.cdr.markForCheck();
         },
         error: (error) => {
           this.undoing = false;
-          this.errorMessage =
-            error.error?.message || 'Gagal membatalkan import supplier.';
+          this.errorMessage = 'Unable to undo the supplier import. Please try again.';
           this.cdr.markForCheck();
         },
       });

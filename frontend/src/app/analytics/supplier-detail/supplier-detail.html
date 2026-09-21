@@ -8,7 +8,7 @@
   <ng-container *ngIf="data as report"
     ><header class="analytics-header">
       <div>
-        <p class="eyebrow">Performa Supplier</p>
+        <p class="eyebrow">Supplier Performance</p>
         <h1>{{ report.supplier.company_name }}</h1>
         <p class="subtitle">
           {{ location() }} · <span class="tag">{{ report.supplier.status }}</span>
@@ -16,37 +16,37 @@
       </div>
       <form class="date-range" (ngSubmit)="applyRange()">
         <label
-          >Dari<app-date-picker
+          >From<app-date-picker
             [value]="dateFrom"
             [max]="dateTo"
-            ariaLabel="Pilih tanggal mulai"
+            ariaLabel="Select start date"
             (valueChange)="dateFrom = $event"
           ></app-date-picker></label
         ><label
-          >Sampai<app-date-picker
+          >To<app-date-picker
             [value]="dateTo"
             [min]="dateFrom"
-            ariaLabel="Pilih tanggal akhir"
+            ariaLabel="Select end date"
             (valueChange)="dateTo = $event"
           ></app-date-picker></label
-        ><button type="submit" [disabled]="loading">Terapkan</button>
+        ><button type="submit" [disabled]="loading">Apply</button>
       </form>
     </header>
     <section class="metric-grid">
       <article class="metric metric--booking">
-        <div class="supplier-metric__content"><span>Total Booking</span><strong>{{ report.summary.bookedProducts | number }}</strong></div>
+        <div class="supplier-metric__content"><span>Total Bookings</span><strong>{{ report.summary.bookedProducts | number }}</strong></div>
         <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M16 3v4M8 3v4M3 10h18M8.5 15l2 2 4.5-4.5"></path></svg></div>
       </article>
       <article class="metric metric--dossier">
-        <div class="supplier-metric__content"><span>Total Dossier</span><strong>{{ report.summary.reservations | number }}</strong></div>
+        <div class="supplier-metric__content"><span>Total Dossiers</span><strong>{{ report.summary.reservations | number }}</strong></div>
         <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7.5h6l2 2h8v10.5H4V7.5Z"></path><path d="M4 7.5V5h6l2 2h6v2.5"></path></svg></div>
       </article>
       <article class="metric metric--product">
-        <div class="supplier-metric__content"><span>Total Product</span><strong>{{ report.summary.totalProducts | number }}</strong></div>
+        <div class="supplier-metric__content"><span>Total Products</span><strong>{{ report.summary.totalProducts | number }}</strong></div>
         <div class="metric-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m4 7 8-4 8 4-8 4-8-4Z"></path><path d="m4 7 8 4 8-4v10l-8 4-8-4V7ZM12 11v10"></path></svg></div>
       </article>
       <article class="metric metric--last-travel">
-        <div class="supplier-metric__content"><span>Perjalanan Terakhir</span
+        <div class="supplier-metric__content"><span>Latest Travel Date</span
         ><strong>{{
           report.summary.lastTravelDate
             ? (report.summary.lastTravelDate | date: 'dd MMM yyyy' : 'UTC')
@@ -57,32 +57,32 @@
     </section>
     <section class="panel record-panel">
       <header class="record-panel__header">
-        <div><h2>Data Supplier</h2><p>Seluruh field supplier yang tersimpan di database.</p></div>
+        <div><h2>Supplier Data</h2><p>All supplier fields stored in the database.</p></div>
         <div class="record-actions">
-          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Batal</button>
+          <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Cancel</button>
           <button type="button" class="record-button" *ngIf="!editingRecord" (click)="startRecordEdit()">Edit data</button>
-          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Menyimpan...' : 'Simpan perubahan' }}</button>
+          <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Saving...' : 'Save changes' }}</button>
         </div>
       </header>
       <p class="record-feedback record-feedback--success" *ngIf="recordMessage">{{ recordMessage }}</p>
       <p class="record-feedback record-feedback--error" *ngIf="recordError">{{ recordError }}</p>
       <div class="record-form">
         <label><span>Supplier ID</span><input [value]="report.supplier.supplier_id" disabled /></label>
-        <label class="record-field--wide"><span>Nama supplier</span><input name="supplierCompanyName" [(ngModel)]="supplierForm.company_name" [disabled]="!editingRecord" /></label>
-        <label class="record-field--wide"><span>Alamat</span><textarea name="supplierAddress" rows="2" [(ngModel)]="supplierForm.address" [disabled]="!editingRecord"></textarea></label>
+        <label class="record-field--wide"><span>Supplier name</span><input name="supplierCompanyName" [(ngModel)]="supplierForm.company_name" [disabled]="!editingRecord" /></label>
+        <label class="record-field--wide"><span>Address</span><textarea name="supplierAddress" rows="2" [(ngModel)]="supplierForm.address" [disabled]="!editingRecord"></textarea></label>
         <label><span>Town</span><input name="supplierTown" [(ngModel)]="supplierForm.town" [disabled]="!editingRecord" /></label>
         <label><span>Region</span><input name="supplierRegion" [(ngModel)]="supplierForm.region" [disabled]="!editingRecord" /></label>
         <label><span>Location</span><input name="supplierLocation" [(ngModel)]="supplierForm.location" [disabled]="!editingRecord" /></label>
         <label><span>Status</span><select name="supplierStatus" [(ngModel)]="supplierForm.status" [disabled]="!editingRecord"><option value="Active">Active</option><option value="Inactive">Inactive</option></select></label>
-        <label class="record-field--wide"><span>Kategori supplier</span><input name="supplierCategories" [(ngModel)]="supplierForm.category_supplier" [disabled]="!editingRecord" /><small>Pisahkan kategori dengan koma.</small></label>
-        <label><span>Dibuat</span><input [value]="report.supplier.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
-        <label><span>Diperbarui</span><input [value]="report.supplier.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label class="record-field--wide"><span>Supplier categories</span><input name="supplierCategories" [(ngModel)]="supplierForm.category_supplier" [disabled]="!editingRecord" /><small>Separate categories with commas.</small></label>
+        <label><span>Created</span><input [value]="report.supplier.created_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
+        <label><span>Updated</span><input [value]="report.supplier.updated_at | date: 'dd MMM yyyy HH:mm'" disabled /></label>
       </div>
     </section>
     <section class="panel-grid">
       <article class="panel panel--wide">
         <header class="panel-header">
-          <h2>Performa Supplier</h2>
+          <h2>Supplier Performance</h2>
           <div class="panel-actions">
             <button
               class="drill-back"
@@ -90,7 +90,7 @@
               *ngIf="drillHistory.length"
               (click)="drillBack()"
             >
-              &larr; Kembali
+              &larr; Back
             </button>
             <div class="time-switch">
               <button
@@ -98,21 +98,21 @@
                 [class.active]="granularity === 'day'"
                 (click)="setGranularity('day')"
               >
-                Tanggal
+                Day
               </button>
               <button
                 type="button"
                 [class.active]="granularity === 'month'"
                 (click)="setGranularity('month')"
               >
-                Bulan
+                Month
               </button>
               <button
                 type="button"
                 [class.active]="granularity === 'year'"
                 (click)="setGranularity('year')"
               >
-                Tahun
+                Year
               </button>
             </div>
             <div class="chart-switch">
@@ -121,19 +121,19 @@
                 [class.active]="chartType === 'bar'"
                 (click)="chartType = 'bar'"
               >
-                Batang</button
+                Bar</button
               ><button
                 type="button"
                 [class.active]="chartType === 'line'"
                 (click)="chartType = 'line'"
               >
-                Garis</button
+                Line</button
               ><button
                 type="button"
                 [class.active]="chartType === 'table'"
                 (click)="chartType = 'table'"
               >
-                Tabel
+                Table
               </button>
             </div>
           </div>
@@ -144,7 +144,7 @@
               type="button"
               class="bar"
               *ngFor="let point of report.monthly"
-              [title]="point.label + ': ' + point.bookings + ' booking. Klik untuk filter.'"
+              [title]="point.label + ': ' + point.bookings + ' bookings. Click to filter.'"
               (click)="selectPeriod(point.period)"
             >
               <strong>{{ point.bookings || '' }}</strong
@@ -183,7 +183,7 @@
             <thead>
               <tr>
                 <th>Periode</th>
-                <th class="number">Total booking</th>
+                <th class="number">Total bookings</th>
               </tr>
             </thead>
             <tbody>
@@ -202,17 +202,17 @@
         </div>
       </article>
       <article class="panel panel--wide">
-        <h2>Kontribusi Product</h2>
+        <h2>Product Contribution</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Jenis</th>
-                <th class="number">Total booking</th>
+                <th>Type</th>
+                <th class="number">Total bookings</th>
                 <th class="number">Total dossier</th>
-                <th class="number">Kontribusi</th>
-                <th>Perjalanan terakhir</th>
+                <th class="number">Contribution</th>
+                <th>Latest travel date</th>
               </tr>
             </thead>
             <tbody>
@@ -221,7 +221,7 @@
                   <a
                     [routerLink]="['/analytics/products', row.product_id]"
                     [state]="{
-                      backLabel: 'Kembali ke Supplier Detail',
+                      backLabel: 'Back to Supplier Detail',
                       returnTo: '/analytics/suppliers/' + report.supplier.supplier_id
                     }"
                     >{{ row.name }}</a
@@ -244,19 +244,19 @@
         </div>
         <nav class="pager" *ngIf="productPages > 1">
           <button type="button" (click)="previousProductPage()" [disabled]="productPage === 1">
-            &larr; Sebelumnya</button
-          ><span>Halaman {{ productPage }} dari {{ productPages }}</span
+            &larr; Previous</button
+          ><span>Page {{ productPage }} of {{ productPages }}</span
           ><button
             type="button"
             (click)="nextProductPage()"
             [disabled]="productPage === productPages"
           >
-            Berikutnya &rarr;
+            Next &rarr;
           </button>
         </nav>
       </article>
     </section></ng-container
   >
-  <p class="loading" *ngIf="loading">Memuat analytics supplier&hellip;</p>
+  <p class="loading" *ngIf="loading">Loading supplier analytics&hellip;</p>
   <p class="error" *ngIf="errorMessage">{{ errorMessage }}</p>
 </main>

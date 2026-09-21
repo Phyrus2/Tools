@@ -1,16 +1,16 @@
 <div class="bp-app">
 
-  <a class="bp-back-link" routerLink="/" aria-label="Kembali ke halaman utama">
+  <a class="bp-back-link" routerLink="/" aria-label="Back to home">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
-    <span>Kembali ke halaman utama</span>
+    <span>Back to home</span>
   </a>
 
   <!-- HEADER -->
   <header class="bp-masthead">
     <h1 class="bp-masthead__title">Product Import</h1>
-    <p class="bp-masthead__subtitle">Upload file Excel berisi data produk.</p>
+    <p class="bp-masthead__subtitle">Upload an Excel file containing product data.</p>
   </header>
 
   <!-- IMPORT FORM -->
@@ -24,7 +24,7 @@
           <path d="M4 16v2.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V16" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" />
         </svg>
         <span class="bp-dropzone__text">
-          <ng-container *ngIf="!selectedFile">Klik untuk memilih file .xls / .xlsx</ng-container>
+          <ng-container *ngIf="!selectedFile">Click to select an .xls / .xlsx file</ng-container>
           <ng-container *ngIf="selectedFile"><strong>{{ selectedFile.name }}</strong></ng-container>
         </span>
         <input
@@ -51,7 +51,7 @@
       <span *ngIf="!loading">Import Product</span>
       <span class="bp-btn-primary__loading" *ngIf="loading">
         <span class="bp-spinner" aria-hidden="true"></span>
-        Memproses&hellip;
+        Processing&hellip;
       </span>
     </button>
 
@@ -66,8 +66,8 @@
 
     <!-- SUCCESS -->
     <div class="bp-alert bp-alert--success" *ngIf="result.success">
-      <strong>Import berhasil</strong>
-      <div>{{ result.message }}</div>
+      <strong>Import successful</strong>
+      <div>The product file was imported successfully.</div>
     </div>
 
     <!-- ================================================= -->
@@ -77,7 +77,7 @@
     <div class="bp-stats bp-stats--3col">
 
       <div class="bp-stat">
-        <span class="bp-stat__label">Total baris</span>
+        <span class="bp-stat__label">Total rows</span>
         <strong class="bp-stat__value">{{ result.summary.totalRows }}</strong>
       </div>
 
@@ -87,9 +87,9 @@
         [disabled]="inserted.total === 0"
         (click)="openSection('new')"
       >
-        <span class="bp-stat__label">Produk baru</span>
+        <span class="bp-stat__label">New products</span>
         <strong class="bp-stat__value">{{ result.summary.inserted }}</strong>
-        <span class="bp-stat__hint" *ngIf="inserted.total > 0">Lihat list &rsaquo;</span>
+        <span class="bp-stat__hint" *ngIf="inserted.total > 0">View list &rsaquo;</span>
       </button>
 
       <button
@@ -98,9 +98,9 @@
         [disabled]="updated.total === 0"
         (click)="openSection('updated')"
       >
-        <span class="bp-stat__label">Diperbarui</span>
+        <span class="bp-stat__label">Updated</span>
         <strong class="bp-stat__value">{{ result.summary.updated }}</strong>
-        <span class="bp-stat__hint" *ngIf="updated.total > 0">Lihat list &rsaquo;</span>
+        <span class="bp-stat__hint" *ngIf="updated.total > 0">View list &rsaquo;</span>
       </button>
 
       <button
@@ -109,9 +109,9 @@
         [disabled]="unchanged.total === 0"
         (click)="openSection('unchanged')"
       >
-        <span class="bp-stat__label">Tidak berubah</span>
+        <span class="bp-stat__label">Unchanged</span>
         <strong class="bp-stat__value">{{ result.summary.unchanged }}</strong>
-        <span class="bp-stat__hint" *ngIf="unchanged.total > 0">Lihat list &rsaquo;</span>
+        <span class="bp-stat__hint" *ngIf="unchanged.total > 0">View list &rsaquo;</span>
       </button>
 
       <button
@@ -120,9 +120,9 @@
         [disabled]="skipped.total === 0"
         (click)="openSection('skipped')"
       >
-        <span class="bp-stat__label">Dilewati</span>
+        <span class="bp-stat__label">Skipped</span>
         <strong class="bp-stat__value">{{ result.summary.skipped }}</strong>
-        <span class="bp-stat__hint" *ngIf="skipped.total > 0">Lihat list &rsaquo;</span>
+        <span class="bp-stat__hint" *ngIf="skipped.total > 0">View list &rsaquo;</span>
       </button>
 
     </div>
@@ -138,11 +138,11 @@
     <div class="bp-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
 
       <header class="bp-modal__header">
-        <h2 *ngIf="activeSection === 'new'">Produk baru</h2>
-        <h2 *ngIf="activeSection === 'updated'">Produk diperbarui</h2>
-        <h2 *ngIf="activeSection === 'unchanged'">Produk tidak berubah</h2>
-        <h2 *ngIf="activeSection === 'skipped'">Baris dilewati</h2>
-        <button type="button" class="bp-modal__close" (click)="closeSection()" aria-label="Tutup">
+        <h2 *ngIf="activeSection === 'new'">New products</h2>
+        <h2 *ngIf="activeSection === 'updated'">Updated products</h2>
+        <h2 *ngIf="activeSection === 'unchanged'">Unchanged products</h2>
+        <h2 *ngIf="activeSection === 'skipped'">Skipped rows</h2>
+        <button type="button" class="bp-modal__close" (click)="closeSection()" aria-label="Close">
           &times;
         </button>
       </header>
@@ -155,11 +155,11 @@
             <table class="bp-table">
               <thead>
                 <tr>
-                  <th>Baris Excel</th>
-                  <th>ID Produk</th>
-                  <th>Nama</th>
-                  <th>ID Supplier</th>
-                  <th>Tipe</th>
+                  <th>Excel Row</th>
+                  <th>Product ID</th>
+                  <th>Name</th>
+                  <th>Supplier ID</th>
+                  <th>Type</th>
                   <th>Status</th>
                   <th>Info</th>
                   <th>Not on offer</th>
@@ -171,11 +171,11 @@
               </thead>
               <tbody>
                 <tr *ngFor="let p of inserted.pageItems; trackBy: trackByRow">
-                  <td data-label="Baris Excel">{{ p.row }}</td>
-                  <td data-label="ID Produk">{{ p.product_id }}</td>
-                  <td data-label="Nama"><span class="bp-table__primary">{{ p.name }}</span></td>
-                  <td data-label="ID Supplier">{{ p.supplier_id }}</td>
-                  <td data-label="Tipe">{{ p.type || '—' }}</td>
+                  <td data-label="Excel Row">{{ p.row }}</td>
+                  <td data-label="Product ID">{{ p.product_id }}</td>
+                  <td data-label="Name"><span class="bp-table__primary">{{ p.name }}</span></td>
+                  <td data-label="Supplier ID">{{ p.supplier_id }}</td>
+                  <td data-label="Type">{{ p.type || '—' }}</td>
                   <td data-label="Status">{{ p.status || 'Regular Product' }}</td>
                   <td data-label="Info">{{ p.info || '—' }}</td>
                   <td data-label="Not on offer">{{ p.not_on_offer || '—' }}</td>
@@ -190,7 +190,7 @@
 
           <div class="bp-pager" *ngIf="inserted.totalPages > 1">
             <button type="button" class="bp-pager__btn" (click)="inserted.prev()" [disabled]="inserted.page === 1">&lsaquo; Prev</button>
-            <span class="bp-pager__status">Halaman {{ inserted.page }} / {{ inserted.totalPages }}</span>
+            <span class="bp-pager__status">Page {{ inserted.page }} of {{ inserted.totalPages }}</span>
             <button type="button" class="bp-pager__btn" (click)="inserted.next()" [disabled]="inserted.page === inserted.totalPages">Next &rsaquo;</button>
           </div>
         </ng-container>
@@ -201,9 +201,9 @@
             <div class="bp-diff-card__header">
               <div>
                 <strong>{{ displayValue(p.name) }}</strong>
-                <span>ID Produk: {{ p.product_id }}</span>
+                <span>Product ID: {{ p.product_id }}</span>
               </div>
-              <span class="bp-diff-card__row-tag">Baris Excel {{ p.row }}</span>
+              <span class="bp-diff-card__row-tag">Excel Row {{ p.row }}</span>
             </div>
 
             <div class="bp-diff-list">
@@ -214,14 +214,14 @@
                 <div class="bp-diff-row__field">{{ formatChangeField(change.field) }}</div>
 
                 <div class="bp-diff-row__value">
-                  <span class="bp-diff-row__label">Sebelum</span>
+                  <span class="bp-diff-row__label">Before</span>
                   <div class="bp-value bp-value--old">{{ displayValue(change.old) }}</div>
                 </div>
 
                 <div class="bp-diff-row__arrow" aria-hidden="true">&rarr;</div>
 
                 <div class="bp-diff-row__value">
-                  <span class="bp-diff-row__label">Sesudah</span>
+                  <span class="bp-diff-row__label">After</span>
                   <div class="bp-value bp-value--new">{{ displayValue(change.new) }}</div>
                 </div>
               </div>
@@ -230,7 +230,7 @@
 
           <div class="bp-pager" *ngIf="updated.totalPages > 1">
             <button type="button" class="bp-pager__btn" (click)="updated.prev()" [disabled]="updated.page === 1">&lsaquo; Prev</button>
-            <span class="bp-pager__status">Halaman {{ updated.page }} / {{ updated.totalPages }}</span>
+            <span class="bp-pager__status">Page {{ updated.page }} of {{ updated.totalPages }}</span>
             <button type="button" class="bp-pager__btn" (click)="updated.next()" [disabled]="updated.page === updated.totalPages">Next &rsaquo;</button>
           </div>
         </ng-container>
@@ -241,11 +241,11 @@
             <table class="bp-table">
               <thead>
                 <tr>
-                  <th>Baris Excel</th>
-                  <th>ID Produk</th>
-                  <th>Nama</th>
-                  <th>ID Supplier</th>
-                  <th>Tipe</th>
+                  <th>Excel Row</th>
+                  <th>Product ID</th>
+                  <th>Name</th>
+                  <th>Supplier ID</th>
+                  <th>Type</th>
                   <th>Status</th>
                   <th>Info</th>
                   <th>Not on offer</th>
@@ -257,11 +257,11 @@
               </thead>
               <tbody>
                 <tr *ngFor="let p of unchanged.pageItems; trackBy: trackByRow">
-                  <td data-label="Baris Excel">{{ p.row }}</td>
-                  <td data-label="ID Produk">{{ p.product_id }}</td>
-                  <td data-label="Nama"><span class="bp-table__primary">{{ p.name }}</span></td>
-                  <td data-label="ID Supplier">{{ p.supplier_id }}</td>
-                  <td data-label="Tipe">{{ p.type || 'â€”' }}</td>
+                  <td data-label="Excel Row">{{ p.row }}</td>
+                  <td data-label="Product ID">{{ p.product_id }}</td>
+                  <td data-label="Name"><span class="bp-table__primary">{{ p.name }}</span></td>
+                  <td data-label="Supplier ID">{{ p.supplier_id }}</td>
+                  <td data-label="Type">{{ p.type || 'â€”' }}</td>
                   <td data-label="Status">{{ p.status || 'Regular Product' }}</td>
                   <td data-label="Info">{{ p.info || '—' }}</td>
                   <td data-label="Not on offer">{{ p.not_on_offer || '—' }}</td>
@@ -276,7 +276,7 @@
 
           <div class="bp-pager" *ngIf="unchanged.totalPages > 1">
             <button type="button" class="bp-pager__btn" (click)="unchanged.prev()" [disabled]="unchanged.page === 1">&lsaquo; Prev</button>
-            <span class="bp-pager__status">Halaman {{ unchanged.page }} / {{ unchanged.totalPages }}</span>
+            <span class="bp-pager__status">Page {{ unchanged.page }} of {{ unchanged.totalPages }}</span>
             <button type="button" class="bp-pager__btn" (click)="unchanged.next()" [disabled]="unchanged.page === unchanged.totalPages">Next &rsaquo;</button>
           </div>
         </ng-container>
@@ -287,14 +287,14 @@
             <table class="bp-table">
               <thead>
                 <tr>
-                  <th>Baris Excel</th>
-                  <th>Alasan</th>
+                  <th>Excel Row</th>
+                  <th>Reason</th>
                 </tr>
               </thead>
               <tbody>
                 <tr *ngFor="let row of skipped.pageItems; trackBy: trackByRow">
-                  <td data-label="Baris Excel">{{ row.row }}</td>
-                  <td data-label="Alasan">{{ row.reason }}</td>
+                  <td data-label="Excel Row">{{ row.row }}</td>
+                  <td data-label="Reason">{{ row.reason }}</td>
                 </tr>
               </tbody>
             </table>
@@ -302,7 +302,7 @@
 
           <div class="bp-pager" *ngIf="skipped.totalPages > 1">
             <button type="button" class="bp-pager__btn" (click)="skipped.prev()" [disabled]="skipped.page === 1">&lsaquo; Prev</button>
-            <span class="bp-pager__status">Halaman {{ skipped.page }} / {{ skipped.totalPages }}</span>
+            <span class="bp-pager__status">Page {{ skipped.page }} of {{ skipped.totalPages }}</span>
             <button type="button" class="bp-pager__btn" (click)="skipped.next()" [disabled]="skipped.page === skipped.totalPages">Next &rsaquo;</button>
           </div>
         </ng-container>

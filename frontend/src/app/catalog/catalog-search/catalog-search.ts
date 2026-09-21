@@ -94,7 +94,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
   search(page = 1): void {
     const keyword = this.keyword.trim();
     if (keyword && keyword.length < 2) {
-      this.errorMessage = 'Keyword minimal 2 karakter.';
+      this.errorMessage = 'Keyword must contain at least 2 characters.';
       this.hasSearched = false;
       return;
     }
@@ -129,7 +129,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
         this.cdr.markForCheck();
       },
       error: (error: HttpErrorResponse) => {
-        this.errorMessage = error.error?.message || 'Pencarian gagal. Silakan coba lagi.';
+        this.errorMessage = 'Search failed. Please try again.';
         this.hasSearched = false;
         this.loading = false;
         this.cdr.markForCheck();
@@ -147,8 +147,8 @@ export class CatalogSearch implements OnInit, OnDestroy {
 
   get placeholder(): string {
     return this.mode === 'supplier'
-      ? 'Cari nama, lokasi, atau kategori supplier...'
-      : 'Cari nama, lokasi, kategori, atau detail product...';
+      ? 'Search by supplier name, location, or category...'
+      : 'Search by product name, location, category, or details...';
   }
 
   get modeTitle(): string {
@@ -172,7 +172,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
           ? 'Regular Product'
           : '',
     ].filter(Boolean);
-    return parts.join(' / ') || `Semua ${this.modeTitle}`;
+    return parts.join(' / ') || `All ${this.modeTitle}s`;
   }
 
   private loadCategories(): void {
@@ -194,30 +194,30 @@ export class CatalogSearch implements OnInit, OnDestroy {
   }
 
   locationOf(row: SupplierSearchResult | ProductSearchResult): string {
-    return [row.location, row.town, row.region].filter(Boolean).join(', ') || 'Lokasi belum tersedia';
+    return [row.location, row.town, row.region].filter(Boolean).join(', ') || 'Location unavailable';
   }
 
   matchedFieldLabel(field: string): string {
     const labels: Record<string, string> = {
-      company_name: 'nama supplier',
-      product_name: 'nama product',
+      company_name: 'supplier name',
+      product_name: 'product name',
       location: 'location',
       town: 'town',
       region: 'region',
-      address: 'alamat',
-      category_supplier: 'kategori supplier',
-      product_type: 'tipe product',
-      product_status: 'status product',
+      address: 'address',
+      category_supplier: 'supplier category',
+      product_type: 'product type',
+      product_status: 'product status',
       info: 'info',
-      description: 'deskripsi',
-      instructions: 'instruksi',
+      description: 'description',
+      instructions: 'instructions',
       services_included: 'inclusion',
       services_excluded: 'exclusion',
       not_on_offer: 'not on offer',
-      supplier_status: 'status supplier',
-      multiple_fields: 'beberapa informasi',
+      supplier_status: 'supplier status',
+      multiple_fields: 'multiple fields',
     };
-    return labels[field] || 'informasi terkait';
+    return labels[field] || 'related information';
   }
 
   trackSupplier(_index: number, row: SupplierSearchResult): number {
