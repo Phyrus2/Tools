@@ -289,6 +289,10 @@
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.hub-grid--modules {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .hub-app {
   position: relative;
   min-height: 210px;
@@ -400,6 +404,16 @@ a.hub-app:focus-visible {
   transition: transform 0.18s ease;
 }
 
+.hub-app__meta {
+  margin-top: auto;
+  padding-top: 1.2rem;
+  color: var(--app-accent, var(--hub-forest));
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
 a.hub-app:hover .hub-app__arrow {
   transform: translateX(3px);
 }
@@ -435,7 +449,8 @@ a.hub-app:hover .hub-app__arrow {
 }
 
 @media (max-width: 900px) {
-  .hub-grid--three {
+  .hub-grid--three,
+  .hub-grid--modules {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .hub-module {
@@ -469,7 +484,8 @@ a.hub-app:hover .hub-app__arrow {
   .hub-module {
     padding: 2.25rem 0;
   }
-  .hub-grid--three {
+  .hub-grid--three,
+  .hub-grid--modules {
     grid-template-columns: 1fr;
   }
   .hub-app {

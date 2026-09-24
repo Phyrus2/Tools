@@ -1,0 +1,41 @@
+<main class="directory-shell">
+  <a class="back-link" routerLink="/" aria-label="Back to home">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" />
+    </svg>
+    <span>Back to home</span>
+  </a>
+
+  <header class="directory-header">
+    <div>
+      <p>{{ data.eyebrow }}</p>
+      <h1>{{ data.title }}</h1>
+      <span>{{ data.description }}</span>
+    </div>
+    <aside><strong>{{ data.tools.length }}</strong><span>tools available</span></aside>
+  </header>
+
+  <section class="directory-intro">
+    <span>MODULE WORKSPACE</span>
+    <h2>Choose a workflow</h2>
+    <p>Open the focused tool you need for this task.</p>
+  </section>
+
+  <section class="directory-grid">
+    <a
+      class="directory-card"
+      *ngFor="let tool of data.tools"
+      [attr.data-tone]="tool.tone"
+      [routerLink]="tool.route"
+    >
+      <span class="card-number">{{ tool.number }}</span>
+      <span class="card-icon" aria-hidden="true">{{ tool.code }}</span>
+      <span class="card-copy">
+        <small>{{ tool.eyebrow }}</small>
+        <strong>{{ tool.title }}</strong>
+        <span>{{ tool.description }}</span>
+      </span>
+      <span class="card-action">{{ tool.action }} <b>&rarr;</b></span>
+    </a>
+  </section>
+</main>

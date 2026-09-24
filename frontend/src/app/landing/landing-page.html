@@ -1,17 +1,9 @@
 <main class="hub-shell">
   <header class="hub-topbar">
     <a class="hub-brand" routerLink="/" aria-label="Back to home">
-      <span class="hub-brand__mark" aria-hidden="true">
-        <span></span>
-        <span></span>
-        <span></span>
-      </span>
-      <span>
-        <strong>DATABASE TOOLS</strong>
-        <small>Internal workspace</small>
-      </span>
+      <span class="hub-brand__mark" aria-hidden="true"><span></span><span></span><span></span></span>
+      <span><strong>DATABASE TOOLS</strong><small>Internal workspace</small></span>
     </a>
-
     <div class="hub-topbar__meta">
       <span class="hub-status"><i aria-hidden="true"></i> System active</span>
       <span class="hub-user">{{ auth.user()?.fullname }}</span>
@@ -23,154 +15,90 @@
     <section class="hub-hero" aria-labelledby="hub-title">
       <div>
         <p class="hub-eyebrow">Operations Database</p>
-        <h1 id="hub-title">What would you like to work on?</h1>
+        <h1 id="hub-title">Choose a module</h1>
         <p class="hub-lead">
-          Choose a tool by module. All import, search, and analytics workflows are available in one place.
+          Start from a module, then open the focused workflow you need.
         </p>
       </div>
       <div class="hub-hero__ornament" aria-hidden="true">
-        <span>6</span>
-        <small>tools available</small>
+        <span>4</span><small>active modules</small>
       </div>
     </section>
 
-    <section class="hub-module" aria-labelledby="import-title">
+    <section class="hub-module" aria-labelledby="modules-title">
       <header class="hub-module__header">
         <span class="hub-module__number">01</span>
         <div>
-          <h2 id="import-title">Import Modules</h2>
-          <p>Upload and synchronize data from Excel files.</p>
+          <h2 id="modules-title">Workspace Modules</h2>
+          <p>Import, search, manage contracts, or open the performance dashboard.</p>
         </div>
       </header>
 
-      <div class="hub-grid hub-grid--three">
-        <a class="hub-app hub-app--forest" routerLink="/supplier">
+      <div class="hub-grid hub-grid--modules">
+        <a class="hub-app hub-app--forest" routerLink="/import-module">
           <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <path d="M11 37V16l13-7 13 7v21" />
-              <path d="M17 22h14M17 28h14M20 37v-4h8v4" />
-            </svg>
+            <svg viewBox="0 0 48 48"><path d="M24 7v24M15 22l9 9 9-9M10 36v5h28v-5" /></svg>
           </span>
           <span class="hub-app__copy">
-            <strong>Supplier Import</strong>
-            <small>Manage supplier data and categories</small>
+            <strong>Import Module</strong>
+            <small>Supplier, product, and booked product Excel imports</small>
           </span>
+          <span class="hub-app__meta">3 tools</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
 
-        <a class="hub-app hub-app--blue" routerLink="/product">
+        <a class="hub-app hub-app--blue" routerLink="/search-module">
           <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <path d="m10 17 14-8 14 8-14 8-14-8Z" />
-              <path d="m10 17 14 8 14-8v15l-14 8-14-8V17Z" />
-              <path d="M24 25v15" />
-            </svg>
+            <svg viewBox="0 0 48 48"><circle cx="21" cy="21" r="11" /><path d="m29 29 10 10M16 18h10M16 23h7" /></svg>
           </span>
           <span class="hub-app__copy">
-            <strong>Product Import</strong>
-            <small>Update the catalog and product relationships</small>
+            <strong>Search Module</strong>
+            <small>Supplier, product, and booked product operational search</small>
           </span>
+          <span class="hub-app__meta">2 tools</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
 
-        <a class="hub-app hub-app--gold" routerLink="/bookedProduct">
+        <a class="hub-app hub-app--gold" routerLink="/contract">
           <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <path d="M13 13h22v27H13z" />
-              <path d="M18 9v8M30 9v8M13 21h22M19 28h10M19 34h7" />
-            </svg>
+            <svg viewBox="0 0 48 48"><path d="M13 8h18l6 6v26H13zM31 8v7h6M19 22h12M19 28h12M19 34h7" /></svg>
           </span>
           <span class="hub-app__copy">
-            <strong>Booked Product</strong>
-            <small>Import booked product transactions</small>
+            <strong>Contract Module</strong>
+            <small>Contract monitoring, hotel options, and stop-sale workflows</small>
           </span>
-          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
-        </a>
-      </div>
-    </section>
-
-    <section class="hub-module" aria-labelledby="search-title">
-      <header class="hub-module__header">
-        <span class="hub-module__number">02</span>
-        <div>
-          <h2 id="search-title">Search Modules</h2>
-          <p>Find operational information quickly.</p>
-        </div>
-      </header>
-
-      <div class="hub-grid hub-grid--three">
-        <a class="hub-app hub-app--forest" routerLink="/catalog-search">
-          <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <circle cx="20" cy="20" r="10" />
-              <path d="m27.5 27.5 10 10M14 18h12M14 23h8" />
-            </svg>
-          </span>
-          <span class="hub-app__copy">
-            <strong>Search Supplier &amp; Product</strong>
-            <small>Search master data without mixing result types</small>
-          </span>
+          <span class="hub-app__meta">3 tools</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
 
-        <a class="hub-app hub-app--plum" routerLink="/search">
+        <a class="hub-app hub-app--plum" routerLink="/analytics">
           <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <circle cx="21" cy="21" r="11" />
-              <path d="m29 29 10 10M16 18h10M16 23h7" />
-            </svg>
+            <svg viewBox="0 0 48 48"><path d="M11 38V25h7v13M21 38V16h7v22M31 38V10h7v28M8 38h33" /></svg>
           </span>
           <span class="hub-app__copy">
-            <strong>Search Booked Product</strong>
-            <small>Search products, suppliers, locations, and dates</small>
+            <strong>Dashboard</strong>
+            <small>Supplier, product, and destination performance analytics</small>
           </span>
-          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
-        </a>
-      </div>
-    </section>
-
-    <section class="hub-module hub-module--upcoming" aria-labelledby="upcoming-title">
-      <header class="hub-module__header">
-        <span class="hub-module__number">03</span>
-        <div>
-          <h2 id="upcoming-title">Analytics &amp; Development</h2>
-          <p>Monitor performance and access upcoming modules.</p>
-        </div>
-      </header>
-
-      <div class="hub-grid hub-grid--three">
-        <a class="hub-app hub-app--forest" routerLink="/analytics">
-          <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <path d="M11 38V25h7v13M21 38V16h7v22M31 38V10h7v28M8 38h33" />
-            </svg>
-          </span>
-          <span class="hub-app__copy">
-            <strong>Performance Analytics</strong>
-            <small>Supplier, product, and destination dashboard</small>
-          </span>
+          <span class="hub-app__meta">Analytics</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
 
-        <article class="hub-app hub-app--disabled">
-          <span class="hub-app__icon" aria-hidden="true">
-            <svg viewBox="0 0 48 48" role="img">
-              <path d="M24 10v28M10 24h28" />
-              <circle cx="24" cy="24" r="17" />
-            </svg>
-          </span>
-          <span class="hub-app__copy">
-            <strong>More Modules</strong>
-            <small>Upcoming operational tools</small>
-          </span>
+        <article class="hub-app hub-app--disabled" aria-disabled="true">
           <span class="hub-app__badge">Coming soon</span>
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><circle cx="24" cy="24" r="16" /><path d="M24 16v16M16 24h16" /></svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>Other Modules</strong>
+            <small>Additional operational workspaces will be added here</small>
+          </span>
+          <span class="hub-app__meta">In development</span>
         </article>
       </div>
     </section>
   </div>
 
   <footer class="hub-footer">
-    <span>Database Tools</span>
-    <span>Internal workspace</span>
+    <span>Database Tools</span><span>Internal workspace</span>
   </footer>
 </main>

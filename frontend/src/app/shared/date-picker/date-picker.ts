@@ -34,6 +34,7 @@ export class DatePicker implements OnChanges {
   @Input() min = '';
   @Input() max = '';
   @Input() ariaLabel = 'Select date';
+  @Input() displayFormat: 'long' | 'dd/mm/yyyy' = 'long';
   @Output() readonly valueChange = new EventEmitter<string>();
 
   open = false;
@@ -65,6 +66,14 @@ export class DatePicker implements OnChanges {
   get displayValue(): string {
     const selected = this.parseIso(this.value);
     if (!selected) return 'Select date';
+
+    if (this.displayFormat === 'dd/mm/yyyy') {
+      return [
+        String(selected.getDate()).padStart(2, '0'),
+        String(selected.getMonth() + 1).padStart(2, '0'),
+        selected.getFullYear(),
+      ].join('/');
+    }
 
     return `${selected.getDate()} ${this.monthNames[selected.getMonth()]} ${selected.getFullYear()}`;
   }

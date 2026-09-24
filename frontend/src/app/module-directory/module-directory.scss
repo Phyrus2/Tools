@@ -1,0 +1,45 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
+
+:host {
+  --paper: #f6f3ea; --surface: #fffdf8; --line: #ddd5c1; --line-strong: #c7bc9f;
+  --ink: #20261f; --soft: #5c6455; --forest: #35564d; --forest-deep: #253e37;
+  --gold: #a97e37; --blue: #375d8a; --plum: #76536d;
+  display: block; min-height: 100dvh; color: var(--ink);
+  background: radial-gradient(circle at 86% 4%, rgba(53, 86, 77, 0.1), transparent 31rem), var(--paper);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+* { box-sizing: border-box; }
+.directory-shell { width: min(1280px, 100%); min-height: 100dvh; margin: 0 auto; padding: 2rem 1.75rem 4rem; }
+.back-link { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 1.2rem; color: var(--forest); font-size: 0.78rem; font-weight: 600; text-decoration: none; }
+.back-link svg { width: 18px; height: 18px; }
+.back-link path { stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.back-link:hover { gap: 0.5rem; }
+.directory-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding: 0.35rem 0 1.75rem; border-bottom: 1px solid var(--line-strong); }
+.directory-header p, .directory-intro > span { margin: 0 0 0.45rem; color: var(--gold); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; }
+.directory-header h1 { margin: 0 0 0.5rem; color: var(--forest-deep); font: 600 clamp(2.2rem, 5vw, 3.7rem)/1.05 Fraunces, serif; letter-spacing: -0.04em; }
+.directory-header > div > span { color: var(--soft); font-size: 0.9rem; }
+.directory-header aside { display: grid; min-width: 130px; gap: 0.1rem; padding: 0.9rem 1.1rem; border-left: 4px solid var(--gold); border-radius: 7px; background: #f4ead6; }
+.directory-header aside strong { color: var(--forest-deep); font: 600 1.8rem/1 Fraunces, serif; }
+.directory-header aside span { color: var(--soft); font-size: 0.7rem; }
+.directory-intro { margin: 2.4rem 0 1.2rem; }
+.directory-intro h2 { margin: 0; color: var(--forest-deep); font: 600 1.55rem/1.2 Fraunces, serif; }
+.directory-intro p { margin: 0.4rem 0 0; color: var(--soft); font-size: 0.84rem; }
+.directory-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+.directory-card { --accent: var(--forest); --wash: #e8efec; position: relative; display: flex; min-height: 315px; flex-direction: column; padding: 1.35rem; border: 1px solid var(--line); border-top: 4px solid var(--accent); border-radius: 14px; color: inherit; background: var(--surface); box-shadow: 0 7px 20px rgba(32,38,31,.05); text-decoration: none; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.directory-card[data-tone='blue'] { --accent: var(--blue); --wash: #e6edf4; }
+.directory-card[data-tone='gold'] { --accent: var(--gold); --wash: #f4ead6; }
+.directory-card[data-tone='plum'] { --accent: var(--plum); --wash: #f0e7ed; }
+.directory-card:hover { transform: translateY(-4px); border-color: var(--accent); box-shadow: 0 16px 32px rgba(32,38,31,.11); }
+.directory-card:focus-visible { outline: 3px solid rgba(53,86,77,.2); outline-offset: 3px; }
+.card-number { position: absolute; top: 1rem; right: 1.1rem; color: var(--line-strong); font: 600 1.1rem Fraunces, serif; }
+.card-icon { display: grid; width: 66px; height: 66px; place-items: center; margin-bottom: 1.65rem; border-radius: 14px; color: var(--accent); background: var(--wash); font: 700 .82rem Fraunces, serif; letter-spacing: .06em; }
+.card-copy { display: block; }
+.card-copy small { display: block; margin-bottom: .45rem; color: var(--accent); font-size: .62rem; font-weight: 800; letter-spacing: .12em; }
+.card-copy strong { display: block; color: var(--forest-deep); font: 600 1.35rem Fraunces, serif; }
+.card-copy > span { display: block; margin-top: .55rem; color: var(--soft); font-size: .8rem; line-height: 1.6; }
+.card-action { display: flex; align-items: center; gap: .45rem; margin-top: auto; padding-top: 1.3rem; color: var(--accent); font-size: .73rem; font-weight: 700; }
+.card-action b { font-size: 1rem; transition: transform .18s ease; }
+.directory-card:hover .card-action b { transform: translateX(4px); }
+@media (max-width: 900px) { .directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 620px) { .directory-shell { padding: 1rem .85rem 3rem; } .directory-header { align-items: stretch; flex-direction: column; } .directory-header aside { width: 100%; } .directory-grid { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }

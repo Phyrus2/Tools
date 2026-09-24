@@ -1,0 +1,1511 @@
+<main class="cm-shell">
+  <header class="cm-topbar">
+    <a class="cm-back" routerLink="/" aria-label="Back to Module">← Contract Module</a>
+    <div>
+      <p class="cm-eyebrow">Contract Operations</p>
+      <h1>Contract Update Monitoring</h1>
+      <p>Scan folders, confirm suppliers, and update contract reports in one workflow.</p>
+    </div>
+    <span class="cm-server">Server · {{ serverId }}</span>
+  </header>
+
+  <nav class="cm-tabs" aria-label="Contract monitoring navigation">
+    <button type="button" [class.active]="tab === 'scan'" (click)="selectTab('scan')">
+      Scan workspace
+    </button>
+    <button type="button" [class.active]="tab === 'queue'" (click)="selectTab('queue')">
+      Pending queue <span>{{ queueTotal }}</span>
+    </button>
+    <button type="button" [class.active]="tab === 'reports'" (click)="selectTab('reports')">
+      Contract report
+    </button>
+    <button type="button" [class.active]="tab === 'settings'" (click)="selectTab('settings')">
+      Folder settings
+    </button>
+  </nav>
+
+  <section class="cm-feedback cm-feedback--error" *ngIf="error">
+    {{ error }} <button type="button" (click)="error = ''">×</button>
+  </section>
+  <section class="cm-feedback cm-feedback--success" *ngIf="message">
+    {{ message }} <button type="button" (click)="message = ''">×</button>
+  </section>
+
+  <ng-container *ngIf="tab === 'scan'">
+    <section class="cm-scan-card" *ngIf="!pending">
+      <div class="cm-section-title">
+        <div>
+          <span>01</span>
+          <h2>Run folder scan</h2>
+          <p>Custom times are always interpreted as WITA (UTC+8).</p>
+        </div>
+        <div class="cm-mode-switch">
+          <button
+            type="button"
+            [class.active]="scanMode === 'CUSTOM'"
+            (click)="scanMode = 'CUSTOM'"
+          >
+            Custom
+          </button>
+          <button type="button" [class.active]="scanMode === 'AUTO'" (click)="scanMode = 'AUTO'">
+            Auto
+          </button>
+        </div>
+      </div>
+
+      <div class="cm-scan-controls">
+        <label *ngIf="scanMode === 'CUSTOM'">
+          <span>Start date</span>
+          <app-date-picker
+            [value]="scanStartDate"
+            [max]="scanEndDate"
+            displayFormat="dd/mm/yyyy"
+            ariaLabel="Select start date"
+            (valueChange)="scanStartDate = $event"
+          ></app-date-picker>
+        </label>
+        <label *ngIf="scanMode === 'CUSTOM'">
+          <span>Start time</span>
+          <app-time-picker
+            [value]="scanStartTime"
+            ariaLabel="Select start time in WITA"
+            (valueChange)="scanStartTime = $event"
+          ></app-time-picker>
+        </label>
+        <label *ngIf="scanMode === 'CUSTOM'">
+          <span>End date</span>
+          <app-date-picker
+            [value]="scanEndDate"
+            [min]="scanStartDate"
+            displayFormat="dd/mm/yyyy"
+            ariaLabel="Select end date"
+            (valueChange)="scanEndDate = $event"
+          ></app-date-picker>
+        </label>
+        <label *ngIf="scanMode === 'CUSTOM'">
+          <span>End time</span>
+          <app-time-picker
+            [value]="scanEndTime"
+            ariaLabel="Select end time in WITA"
+            (valueChange)="scanEndTime = $event"
+          ></app-time-picker>
+        </label>
+        <div class="cm-auto-note" *ngIf="scanMode === 'AUTO'">
+          <strong>Checkpoint → now</strong>
+          <small>Each drive uses its own latest successful checkpoint.</small>
+        </div>
+        <button class="cm-primary" type="button" [disabled]="busy" (click)="startScan()">
+          {{ busy ? 'Processing…' : 'Start scan' }}
+        </button>
+      </div>
+    </section>
+
+    <section class="cm-run" *ngIf="currentScan && !pending">
+      <div class="cm-section-title">
+        <div>
+          <span>02</span>
+          <h2>Scan #{{ currentScan.id }}</h2>
+          <p>{{ currentScan.mode }} · {{ currentScan.server_id }}</p>
+        </div>
+        <span class="cm-status" [attr.data-status]="currentScan.status">{{
+          statusLabel(currentScan.status)
+        }}</span>
+      </div>
+
+      <div class="cm-metrics">
+        <article>
+          <small>Files in window</small><strong>{{ currentScan.total_files }}</strong>
+        </article>
+        <article>
+          <small>New files</small><strong>{{ currentScan.new_files }}</strong>
+        </article>
+        <article>
+          <small>Warning</small><strong>{{ currentScan.warning_count }}</strong>
+        </article>
+        <article>
+          <small>Source folders</small><strong>{{ currentScan.sources.length }}</strong>
+        </article>
+      </div>
+
+      <div
+        class="cm-scan-loading"
+        *ngIf="currentScan.status === 'QUEUED' || currentScan.status === 'RUNNING'"
+      >
+        <span></span>
+        <div>
+          <strong>Scanning folders…</strong
+          ><small>Results refresh automatically every 2 seconds.</small>
+        </div>
+      </div>
+
+      <div class="cm-source-progress" *ngFor="let source of currentScan.sources">
+        <span class="cm-dot" [attr.data-status]="source.status"></span>
+        <div>
+          <strong>{{ source.year }} · {{ source.target_folder }}</strong>
+          <small
+            >{{ utcLabel(source.window_start_utc) }} — {{ utcLabel(source.window_end_utc) }}</small
+          >
+          <small class="cm-danger" *ngIf="source.error_message">{{ source.error_message }}</small>
+        </div>
+        <b>{{ statusLabel(source.status) }}</b>
+      </div>
+    </section>
+
+    <section class="cm-panel" *ngIf="currentScan && !pending">
+      <div class="cm-panel-head">
+        <div>
+          <h2>Scan results</h2>
+          <p>Suppliers with contract updates found in the selected scan window.</p>
+        </div>
+        <button class="cm-text-button" type="button" (click)="loadResults()">
+          Refresh results
+        </button>
+      </div>
+
+      <div
+        class="cm-empty"
+        *ngIf="!results.length && !['QUEUED', 'RUNNING'].includes(currentScan.status)"
+      >
+        No files were found in this scan window.
+      </div>
+      <section class="cm-scan-year" *ngFor="let yearGroup of resultYearGroups">
+        <header>
+          <div>
+            <span>CONTRACT YEAR</span>
+            <h3>{{ yearGroup.year }}</h3>
+          </div>
+          <b>{{ yearGroup.suppliers.length }} supplier(s)</b>
+        </header>
+        <div class="cm-file-list">
+          <article class="cm-file" *ngFor="let row of yearGroup.suppliers; trackBy: trackById">
+            <div class="cm-file-icon">
+              {{ row.supplierName.slice(0, 2).toUpperCase() }}
+            </div>
+            <div class="cm-file-copy">
+              <strong>{{ row.supplierName }}</strong>
+              <small>Contract update detected</small>
+              <div>
+                <span>{{ utcLabel(row.result.date_modified_utc) }}</span>
+                <span>{{ row.result.year }}</span>
+                <span *ngIf="row.updateCount > 1">{{ row.updateCount }} updates found</span>
+                <span>{{
+                  statusLabel(
+                    row.result.pending_status || (row.result.processed ? 'PROCESSED' : 'NEW')
+                  )
+                }}</span>
+              </div>
+            </div>
+            <button
+              class="cm-primary cm-primary--small"
+              type="button"
+              [disabled]="busy || !!row.result.processed"
+              (click)="openResult(row.result)"
+            >
+              {{ row.result.pending_id ? 'Continue' : 'Add to queue' }}
+            </button>
+          </article>
+        </div>
+      </section>
+    </section>
+
+    <section class="cm-editor" *ngIf="pending as item">
+      <header class="cm-editor-head">
+        <button class="cm-back-button" type="button" (click)="closeEditor(true)">
+          ← Back &amp; release claim
+        </button>
+        <div>
+          <p class="cm-eyebrow">Processing file</p>
+          <h2>{{ item.file_name }}</h2>
+          <button class="cm-path" type="button" (click)="copyPath(item.parent_path)">
+            {{ item.full_path }}
+          </button>
+        </div>
+        <span class="cm-status" [attr.data-status]="item.status">{{
+          statusLabel(item.status)
+        }}</span>
+      </header>
+
+      <div class="cm-editor-grid" [class.cm-editor-grid--details]="item.status === 'IN_PROGRESS'">
+        <aside class="cm-sidebar" *ngIf="item.status === 'NEW'">
+          <section>
+            <h3>Contract type</h3>
+            <label class="cm-toggle-row">
+              <span
+                ><strong>Management contract</strong
+                ><small>One file for multiple suppliers</small></span
+              >
+              <input
+                type="checkbox"
+                [(ngModel)]="item.is_management_contract"
+                (change)="changeManagementMode()"
+              />
+            </label>
+            <label *ngIf="item.is_management_contract">
+              <span>Management name</span>
+              <input
+                [(ngModel)]="item.management_name"
+                (blur)="changeManagementMode()"
+                placeholder="Defaults to the supplier folder name"
+              />
+            </label>
+            <label *ngIf="item.is_management_contract">
+              <span>Management group</span>
+              <select [(ngModel)]="item.management_group_id" (change)="changeManagementMode()">
+                <option [ngValue]="null">Select group</option>
+                <option *ngFor="let group of groups" [ngValue]="group.id">
+                  {{ group.name }} ({{ group.active_member_count }})
+                </option>
+              </select>
+            </label>
+            <div
+              class="cm-suggestions"
+              *ngIf="
+                item.is_management_contract && analysis?.management_group_recommendations?.length
+              "
+            >
+              <small>Recommended groups</small>
+              <button
+                type="button"
+                *ngFor="let group of analysis!.management_group_recommendations"
+                (click)="chooseSuggestedGroup(group)"
+              >
+                {{ group.name }} <b>{{ scoreLabel(group.score) }}</b>
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <h3>Add supplier</h3>
+            <div class="cm-suggestions" *ngIf="analysis?.supplier_recommendations?.length">
+              <small>Recommendations from the supplier folder name</small>
+              <button
+                type="button"
+                *ngFor="let supplier of analysis!.supplier_recommendations"
+                (click)="addRecommendation(supplier)"
+              >
+                {{ supplier.name }} <b>{{ scoreLabel(supplier.score) }}</b>
+              </button>
+            </div>
+            <div class="cm-search-row">
+              <input
+                [(ngModel)]="manualKeyword"
+                placeholder="Search supplier manually…"
+                (keyup.enter)="searchSupplier()"
+              />
+              <button type="button" (click)="searchSupplier()">Search</button>
+            </div>
+            <div class="cm-search-results" *ngIf="manualResults.length">
+              <button
+                type="button"
+                *ngFor="let supplier of manualResults"
+                (click)="addManualSupplier(supplier)"
+              >
+                <strong>{{ supplier.company_name }}</strong>
+                <small>{{ supplier.location || supplier.town || 'Location unavailable' }}</small>
+              </button>
+            </div>
+          </section>
+
+          <section *ngIf="item.is_management_contract && item.suppliers.length">
+            <h3>Save a new group</h3>
+            <div class="cm-search-row">
+              <input [(ngModel)]="newGroupName" placeholder="Management group name" />
+              <button type="button" (click)="createGroupFromSelection()">Save</button>
+            </div>
+          </section>
+
+          <section class="cm-info" *ngIf="item.group_members_not_selected.length">
+            <h3>Unselected group members</h3>
+            <p>For information only; members are not removed automatically.</p>
+            <span *ngFor="let supplier of item.group_members_not_selected">{{
+              supplier.company_name
+            }}</span>
+          </section>
+        </aside>
+
+        <div class="cm-contracts">
+          <div class="cm-empty" *ngIf="!item.suppliers.length">
+            Select a supplier from recommendations or manual search.
+          </div>
+
+          <article
+            class="cm-supplier-card"
+            *ngFor="let supplier of item.suppliers; let index = index; trackBy: trackById"
+          >
+            <header>
+              <div>
+                <span class="cm-detection">{{ statusLabel(supplier.detection) }}</span>
+                <h3>{{ supplier.company_name }}</h3>
+                <small
+                  ><ng-container *ngIf="supplier.supplier_id"
+                    >ID {{ supplier.supplier_id }} · </ng-container
+                  >{{ statusLabel(supplier.recommendation_source) }} ·
+                  {{ scoreLabel(supplier.match_score) }}</small
+                >
+              </div>
+              <button
+                *ngIf="item.status === 'NEW'"
+                type="button"
+                class="cm-remove"
+                (click)="removeSupplier(index)"
+              >
+                Remove
+              </button>
+            </header>
+
+            <div
+              class="cm-existing"
+              *ngIf="item.status === 'IN_PROGRESS' && supplier.active_contracts.length"
+            >
+              <strong>{{ supplier.active_contracts.length }} contract report(s) found</strong>
+              <span *ngFor="let contract of supplier.active_contracts">
+                {{ supplier.company_name }} · {{ dateLabel(contract.validity_start) }} —
+                {{ dateLabel(contract.validity_end) }} ·
+                {{ contract.contract_reference || 'No reference' }}
+              </span>
+            </div>
+
+            <div class="cm-form-grid" *ngIf="item.status === 'IN_PROGRESS'">
+              <label>
+                <span>Action</span>
+                <select
+                  [(ngModel)]="supplier.action"
+                  (ngModelChange)="changeContractAction(supplier)"
+                >
+                  <option [ngValue]="'INSERT'">Insert new contract</option>
+                  <option [ngValue]="'UPDATE'" [disabled]="!supplier.active_contracts.length">
+                    Update existing contract
+                  </option>
+                </select>
+              </label>
+              <label *ngIf="supplier.action === 'UPDATE'">
+                <span>Contract to update</span>
+                <select
+                  [(ngModel)]="supplier.target_contract_report_id"
+                  (ngModelChange)="prefillContractUpdate(supplier)"
+                >
+                  <option [ngValue]="null">Select contract</option>
+                  <option
+                    *ngFor="let contract of supplier.active_contracts"
+                    [ngValue]="contract.id"
+                  >
+                    {{ supplier.company_name }} · {{ dateLabel(contract.validity_start) }}–{{
+                      dateLabel(contract.validity_end)
+                    }}
+                  </option>
+                </select>
+              </label>
+              <label>
+                <span>Supplier type</span>
+                <select *ngIf="supplier.supplier_id" [(ngModel)]="supplier.supplier_type">
+                  <option [ngValue]="null">Select category</option>
+                  <option *ngFor="let category of supplier.category_supplier" [ngValue]="category">
+                    {{ category }}
+                  </option>
+                </select>
+                <input
+                  *ngIf="!supplier.supplier_id"
+                  [(ngModel)]="supplier.supplier_type"
+                  placeholder="Enter the future supplier category"
+                />
+              </label>
+              <label>
+                <span>Location Jambix</span>
+                <input
+                  [(ngModel)]="supplier.location_jambix"
+                  placeholder="Defaults to supplier location; editable"
+                />
+              </label>
+              <label>
+                <span>Validity start</span>
+                <app-date-picker
+                  [value]="supplier.validity_start || ''"
+                  [max]="supplier.validity_end || ''"
+                  displayFormat="dd/mm/yyyy"
+                  ariaLabel="Select validity start"
+                  (valueChange)="supplier.validity_start = $event"
+                ></app-date-picker>
+              </label>
+              <label>
+                <span>Validity end</span>
+                <app-date-picker
+                  [value]="supplier.validity_end || ''"
+                  [min]="supplier.validity_start || ''"
+                  displayFormat="dd/mm/yyyy"
+                  ariaLabel="Select validity end"
+                  (valueChange)="supplier.validity_end = $event"
+                ></app-date-picker>
+              </label>
+              <label>
+                <span>Contract reference</span>
+                <input
+                  [(ngModel)]="supplier.contract_reference"
+                  placeholder="Example: 2026 signed - 2027 done"
+                />
+              </label>
+              <label class="cm-wide">
+                <span>Supplier note</span>
+                <textarea rows="2" [(ngModel)]="supplier.note"></textarea>
+              </label>
+            </div>
+          </article>
+
+          <label class="cm-general-note" *ngIf="item.status === 'IN_PROGRESS'">
+            <span>File note / reason when ignored</span>
+            <textarea rows="3" [(ngModel)]="item.note"></textarea>
+          </label>
+
+          <div
+            class="cm-assignment-warning"
+            *ngIf="
+              item.status === 'IN_PROGRESS' &&
+              item.suppliers.length &&
+              !item.suppliers[0].supplier_id
+            "
+          >
+            <strong>Supplier assignment required before Mark Done</strong>
+            <p>
+              Complete the contract details now. Before finishing, import the supplier into Jambix
+              and assign it here.
+            </p>
+            <a routerLink="/supplier" target="_blank">Open Supplier Import</a>
+            <div class="cm-search-row">
+              <input
+                [(ngModel)]="manualKeyword"
+                placeholder="Search the newly imported supplier…"
+                (keyup.enter)="searchSupplier()"
+              />
+              <button type="button" (click)="searchSupplier()">Search</button>
+            </div>
+            <div class="cm-search-results" *ngIf="manualResults.length">
+              <button
+                type="button"
+                *ngFor="let found of manualResults"
+                (click)="addManualSupplier(found)"
+              >
+                <strong>{{ found.company_name }}</strong
+                ><small>{{ found.location || found.town || 'Location unavailable' }}</small>
+              </button>
+            </div>
+          </div>
+
+          <footer class="cm-editor-actions" *ngIf="item.status === 'NEW'">
+            <p>
+              Select a supplier match, or queue the folder name as Not in Jambix for later
+              assignment.
+            </p>
+            <button
+              class="cm-secondary"
+              type="button"
+              [disabled]="busy || !!item.suppliers.length"
+              (click)="queueWithoutSupplier()"
+            >
+              Queue as Not in Jambix
+            </button>
+            <button
+              class="cm-primary"
+              type="button"
+              [disabled]="busy || !item.suppliers.length"
+              (click)="confirmSuppliers()"
+            >
+              {{ busy ? 'Saving…' : 'Confirm supplier & add to queue' }}
+            </button>
+          </footer>
+          <footer class="cm-editor-actions" *ngIf="item.status === 'IN_PROGRESS'">
+            <button
+              class="cm-danger-button"
+              type="button"
+              [disabled]="busy"
+              (click)="ignoreCurrent()"
+            >
+              Ignore file
+            </button>
+            <button
+              class="cm-secondary"
+              type="button"
+              [disabled]="busy || !item.suppliers.length"
+              (click)="saveDraft()"
+            >
+              Save draft
+            </button>
+            <button
+              class="cm-primary"
+              type="button"
+              [disabled]="busy || !item.suppliers.length"
+              (click)="completePending()"
+            >
+              {{ busy ? 'Saving…' : 'Mark done & save report' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    </section>
+  </ng-container>
+
+  <section class="cm-panel" *ngIf="tab === 'queue'">
+    <div class="cm-panel-head">
+      <div>
+        <h2>Pending queue</h2>
+        <p>
+          Continue supplier updates or import Excel columns: SUPPLIER, CONTRACT, supplier STATUS,
+          workflow STATUS, and KETERANGAN.
+        </p>
+      </div>
+      <div class="cm-queue-import">
+        <label class="cm-secondary">
+          <span>{{ pendingImportFile ? pendingImportFile.name : 'Choose Excel' }}</span>
+          <input type="file" accept=".xlsx,.xls" (change)="selectPendingImport($event)" />
+        </label>
+        <button
+          type="button"
+          class="cm-primary"
+          [disabled]="busy || !pendingImportFile"
+          (click)="importPendingExcel()"
+        >
+          {{ busy ? 'Importing…' : 'Import queue' }}
+        </button>
+      </div>
+    </div>
+    <div class="cm-filter-bar cm-filter-bar--multi">
+      <details class="cm-multi-filter">
+        <summary>
+          <span>Workflow status</span><b>{{ multiFilterLabel(queueStatus, 'All statuses') }}</b>
+        </summary>
+        <div>
+          <label
+            *ngFor="
+              let option of [
+                ['UNHANDLED', 'Not handled'],
+                ['IN_PROGRESS', 'In progress'],
+                ['OP_NO_RESPONSE', '(OP) No response'],
+                ['OP_WAITING', '(OP) Waiting'],
+                ['DB_PENDING_VARIANT', '(Database) Pending variant'],
+              ]
+            "
+            class="cm-check-option"
+            ><input
+              type="checkbox"
+              [checked]="queueStatus.includes(option[0])"
+              (change)="
+                toggleMultiFilter(queueStatus, option[0], $any($event.target).checked, 'queue')
+              "
+            /><span>{{ option[1] }}</span></label
+          >
+        </div>
+      </details>
+      <details class="cm-multi-filter">
+        <summary>
+          <span>Supplier data</span
+          ><b>{{ multiFilterLabel(queueSupplierStatus, 'All supplier data') }}</b>
+        </summary>
+        <div>
+          <label
+            *ngFor="
+              let option of [
+                ['IN_JAMBIX', 'In Jambix'],
+                ['NOT_IN_JAMBIX', 'Not in Jambix'],
+                ['HAS_BOOKED_PRODUCT', 'Has booked product'],
+                ['HAS_HOTEL_OPTION', 'Has hotel option'],
+              ]
+            "
+            class="cm-check-option"
+            ><input
+              type="checkbox"
+              [checked]="queueSupplierStatus.includes(option[0])"
+              (change)="
+                toggleMultiFilter(
+                  queueSupplierStatus,
+                  option[0],
+                  $any($event.target).checked,
+                  'queue'
+                )
+              "
+            /><span>{{ option[1] }}</span></label
+          >
+        </div>
+      </details>
+      <details class="cm-multi-filter">
+        <summary>
+          <span>Category</span><b>{{ multiFilterLabel(queueCategory, 'All categories') }}</b>
+        </summary>
+        <div>
+          <label *ngFor="let category of queueCategories" class="cm-check-option"
+            ><input
+              type="checkbox"
+              [checked]="queueCategory.includes(category)"
+              (change)="
+                toggleMultiFilter(queueCategory, category, $any($event.target).checked, 'queue')
+              "
+            /><span>{{ category }}</span></label
+          >
+        </div>
+      </details>
+    </div>
+    <div class="cm-queue-loading" *ngIf="queueLoading" role="status">
+      <span aria-hidden="true"></span>
+      Loading queue groups&hellip;
+    </div>
+    <div class="cm-queue-list">
+      <section
+        class="cm-queue-group"
+        *ngFor="let group of queue; let groupIndex = index; trackBy: trackById"
+        [class.cm-queue-group--management]="group.is_management"
+      >
+        <header *ngIf="group.is_management" class="cm-management-head">
+          <button
+            type="button"
+            class="cm-management-toggle"
+            [attr.aria-expanded]="!isQueueGroupCollapsed(group.key)"
+            (click)="toggleQueueGroup(group.key)"
+          >
+            <span class="cm-management-copy">
+              <small>MANAGEMENT GROUP</small>
+              <strong>{{ group.management_group_name }}</strong>
+            </span>
+            <span class="cm-management-summary">
+              <b>{{ group.suppliers.length }} suppliers</b>
+              <em>{{ isQueueGroupCollapsed(group.key) ? 'Show suppliers' : 'Hide suppliers' }}</em>
+              <svg
+                viewBox="0 0 20 20"
+                fill="none"
+                aria-hidden="true"
+                [class.is-open]="!isQueueGroupCollapsed(group.key)"
+              >
+                <path d="m5.5 7.5 4.5 4.5 4.5-4.5" />
+              </svg>
+            </span>
+          </button>
+        </header>
+        <div
+          class="cm-queue-group-body"
+          *ngIf="!group.is_management || !isQueueGroupCollapsed(group.key)"
+        >
+          <article
+            class="cm-queue-supplier"
+            *ngFor="let supplier of group.suppliers; let supplierIndex = index; trackBy: trackById"
+          >
+            <header>
+              <div>
+                <span>SUPPLIER</span>
+                <h3>{{ supplier.company_name }}</h3>
+                <small
+                  ><ng-container *ngIf="supplier.supplier_id"
+                    >ID {{ supplier.supplier_id }} · </ng-container
+                  >{{
+                    supplier.supplier_type || supplier.category_supplier[0] || 'Type unavailable'
+                  }}
+                  · {{ supplier.supplier_location || 'Location unavailable' }}</small
+                >
+              </div>
+              <div class="cm-queue-badges">
+                <span
+                  class="cm-status"
+                  [attr.data-status]="supplier.jambix_status"
+                  *ngIf="!supplier.has_booked_product"
+                  >{{ statusLabel(supplier.jambix_status) }}</span
+                >
+                <span class="cm-status" data-status="BOOKED" *ngIf="supplier.has_booked_product"
+                  >Has booked product</span
+                >
+                <span class="cm-status" data-status="HOTEL_OPTION" *ngIf="supplier.has_hotel_option"
+                  >Has hotel option</span
+                >
+                <b>{{ supplier.files.length }} file update(s)</b>
+              </div>
+            </header>
+            <div class="cm-queue-file" *ngIf="supplier.files[0] as item">
+              <span class="cm-queue-number">{{
+                queueSupplierNumber(groupIndex, supplierIndex)
+              }}</span>
+              <div class="cm-queue-contract">
+                <small>CONTRACT</small>
+                <strong>{{ queueContractLabel(supplier) }}</strong>
+              </div>
+              <label class="cm-queue-field">
+                <span>WORKFLOW STATUS</span>
+                <select [(ngModel)]="item.workflow_state">
+                  <option value="UNHANDLED">Not handled</option>
+                  <option value="IN_PROGRESS">In progress</option>
+                  <option value="OP_NO_RESPONSE">(OP) No response</option>
+                  <option value="OP_WAITING">(OP) Waiting</option>
+                  <option value="DB_PENDING_VARIANT">(Database) Pending variant</option>
+                </select>
+              </label>
+              <label class="cm-queue-field cm-queue-note">
+                <span>KETERANGAN</span>
+                <input [(ngModel)]="item.note" placeholder="Optional note" />
+              </label>
+              <div class="cm-queue-actions">
+                <button
+                  class="cm-secondary cm-primary--small"
+                  type="button"
+                  [disabled]="queueMetaSaving.has(item.id)"
+                  (click)="saveQueueMeta(item)"
+                >
+                  {{ queueMetaSaving.has(item.id) ? 'Saving…' : 'Save' }}
+                </button>
+                <button
+                  class="cm-primary cm-primary--small"
+                  type="button"
+                  [disabled]="item.status === 'IGNORED'"
+                  (click)="openPending(item.id)"
+                >
+                  {{
+                    !supplier.supplier_id
+                      ? 'Assign'
+                      : item.status === 'NEW'
+                        ? 'Process'
+                        : 'Continue'
+                  }}
+                </button>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+    <div class="cm-empty" *ngIf="!queue.length && !queueLoading">
+      No pending items match the selected filters.
+    </div>
+    <footer class="rp-pager cm-queue-pager" *ngIf="queueTotalPages > 1">
+      <button
+        type="button"
+        [disabled]="queuePage === 1 || queueLoading"
+        (click)="changeQueuePage(queuePage - 1)"
+      >
+        &lsaquo; Previous
+      </button>
+      <span>Page {{ queuePage }} of {{ queueTotalPages }} &middot; {{ queueTotal }} groups</span>
+      <button
+        type="button"
+        [disabled]="queuePage === queueTotalPages || queueLoading"
+        (click)="changeQueuePage(queuePage + 1)"
+      >
+        Next &rsaquo;
+      </button>
+    </footer>
+  </section>
+
+  <section class="cm-panel rp" *ngIf="tab === 'reports'">
+    <!-- Header -->
+    <header class="rp-head">
+      <div>
+        <h2>Contract report</h2>
+        <p>Search suppliers, filter by status or region, and keep an eye on contract validity.</p>
+      </div>
+      <div class="rp-total">
+        <strong>{{ reportTotal }}</strong>
+        <span>contracts in total</span>
+      </div>
+    </header>
+
+    <!-- Import (collapsed by default: it is an occasional task, not the main one) -->
+    <details class="rp-import" [open]="!!reportImportFile">
+      <summary>
+        <span class="rp-import__icon" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3" />
+          </svg>
+        </span>
+        <span class="rp-import__text">
+          <strong>Import contract report</strong>
+          <small>Upload the regional multi-sheet JAMBIX REPORT Excel file</small>
+        </span>
+        <span class="rp-import__chev" aria-hidden="true">▾</span>
+      </summary>
+      <div class="rp-import__body">
+        <label class="rp-file">
+          <input type="file" accept=".xlsx,.xls" (change)="selectReportImport($event)" />
+          <span class="rp-file__btn">{{
+            reportImportFile ? 'Change file' : 'Choose Excel file'
+          }}</span>
+          <span class="rp-file__name">{{
+            reportImportFile?.name || 'No file selected (.xlsx or .xls)'
+          }}</span>
+        </label>
+        <button
+          class="cm-primary"
+          type="button"
+          [disabled]="busy || !reportImportFile"
+          (click)="importReportExcel()"
+        >
+          {{ busy ? 'Importing…' : 'Import Excel' }}
+        </button>
+      </div>
+    </details>
+
+    <!-- Import result -->
+    <div class="rp-result" *ngIf="reportImportResult as result">
+      <p class="rp-result__title">
+        Last import result <small>Select a card to review the rows</small>
+      </p>
+      <div class="rp-result__grid">
+        <button
+          type="button"
+          class="rp-stat rp-stat--new"
+          [disabled]="!result.summary.inserted"
+          (click)="openReportReview('NEW')"
+        >
+          <strong>{{ result.summary.inserted }}</strong
+          ><span>New rows</span>
+          <small>{{ result.summary.inserted ? 'View list ›' : 'Nothing new' }}</small>
+        </button>
+        <button
+          type="button"
+          class="rp-stat rp-stat--updated"
+          [disabled]="!result.summary.updated"
+          (click)="openReportReview('UPDATED')"
+        >
+          <strong>{{ result.summary.updated }}</strong
+          ><span>Updated rows</span>
+          <small>{{ result.summary.updated ? 'View changes ›' : 'No updates' }}</small>
+        </button>
+        <button
+          type="button"
+          class="rp-stat rp-stat--unchanged"
+          [disabled]="!result.summary.unchanged"
+          (click)="openReportReview('UNCHANGED')"
+        >
+          <strong>{{ result.summary.unchanged }}</strong
+          ><span>Unchanged rows</span>
+          <small>{{ result.summary.unchanged ? 'View list ›' : 'None' }}</small>
+        </button>
+        <button
+          type="button"
+          class="rp-stat rp-stat--skipped"
+          [disabled]="!result.summary.skipped"
+          (click)="openReportReview('SKIPPED')"
+        >
+          <strong>{{ result.summary.skipped }}</strong
+          ><span>Skipped rows</span>
+          <small>{{ result.summary.skipped ? 'Needs attention ›' : 'None skipped' }}</small>
+        </button>
+      </div>
+    </div>
+
+    <div class="cm-review-modal-backdrop" *ngIf="reportReviewSection" (click)="closeReportReview()">
+      <section
+        class="cm-review-modal"
+        role="dialog"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <p>IMPORT REVIEW</p>
+            <h2>{{ statusLabel(reportReviewSection || '') }} rows</h2>
+            <span>
+              {{ activeReportReviewItems.length }} total row(s) · showing
+              {{ reportReviewPageStart }}–{{ reportReviewPageEnd }}
+            </span>
+          </div>
+          <button type="button" aria-label="Close" (click)="closeReportReview()">×</button>
+        </header>
+        <div class="cm-review-list">
+          <article *ngFor="let review of activeReportReviewPageItems; trackBy: trackByImportRow">
+            <div class="cm-review-row-number">Row {{ review.row_number }}</div>
+            <div>
+              <strong>{{ review.supplier_name || 'Unknown supplier' }}</strong
+              ><small
+                >{{ review.sheet_name }} · {{ review.payload['location'] || 'No location' }}</small
+              >
+              <p *ngIf="review.reason">{{ review.reason }}</p>
+              <p *ngFor="let change of review.changes">
+                <b>{{ statusLabel(change.field) }}:</b> {{ change.old || '—' }} →
+                {{ change.new || '—' }}
+              </p>
+            </div>
+            <button
+              class="cm-secondary"
+              type="button"
+              [disabled]="busy"
+              *ngIf="reportReviewSection === 'SKIPPED' && review.can_link_supplier"
+              (click)="resolveImportItem(review)"
+            >
+              Add manually</button
+            ><span
+              class="cm-review-no-action"
+              *ngIf="reportReviewSection === 'SKIPPED' && !review.can_link_supplier"
+              >Fix the Excel data first</span
+            >
+          </article>
+        </div>
+        <footer class="cm-review-pager" *ngIf="reportReviewTotalPages > 1">
+          <button
+            type="button"
+            [disabled]="reportReviewPage === 1"
+            (click)="reportReviewPage = reportReviewPage - 1"
+          >
+            ‹ Prev</button
+          ><span
+            >Rows {{ reportReviewPageStart }}–{{ reportReviewPageEnd }} · Page
+            {{ reportReviewPage }} of {{ reportReviewTotalPages }}</span
+          ><button
+            type="button"
+            [disabled]="reportReviewPage === reportReviewTotalPages"
+            (click)="reportReviewPage = reportReviewPage + 1"
+          >
+            Next ›
+          </button>
+        </footer>
+      </section>
+    </div>
+    <div
+      class="cm-manual-modal-backdrop"
+      *ngIf="reportManualItem as manualItem"
+      (click)="closeManualImport()"
+    >
+      <section
+        class="cm-manual-modal"
+        role="dialog"
+        aria-modal="true"
+        (click)="$event.stopPropagation()"
+      >
+        <header>
+          <div>
+            <p>ADD SKIPPED CONTRACT</p>
+            <h2>Match supplier from Jambix</h2>
+            <span
+              >Excel supplier: {{ manualItem.supplier_name || 'Unknown supplier' }} ·
+              {{ manualItem.sheet_name }} row {{ manualItem.row_number }}</span
+            >
+          </div>
+          <button type="button" aria-label="Close" (click)="closeManualImport()">×</button>
+        </header>
+        <div class="cm-manual-reference">
+          <div>
+            <span>Skip reason</span><strong>{{ manualItem.reason }}</strong>
+          </div>
+          <div>
+            <span>Location</span><strong>{{ manualItem.payload['location'] || '—' }}</strong>
+          </div>
+          <div>
+            <span>Supplier type</span
+            ><strong>{{ manualItem.payload['supplier_type'] || '—' }}</strong>
+          </div>
+        </div>
+        <div class="cm-manual-search">
+          <label
+            ><span>Search supplier database</span>
+            <div>
+              <input
+                [(ngModel)]="reportManualQuery"
+                placeholder="Enter supplier name, location, or region"
+                (keyup.enter)="searchManualImportSuppliers()"
+              /><button type="button" (click)="searchManualImportSuppliers()">Search</button>
+            </div></label
+          >
+        </div>
+        <div class="cm-manual-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Supplier</th>
+                <th>Location</th>
+                <th>Category</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let supplier of reportManualResults; trackBy: trackBySupplierId"
+                [class.selected]="reportManualSupplier?.supplier_id === supplier.supplier_id"
+              >
+                <td>{{ supplier.supplier_id }}</td>
+                <td>
+                  <strong>{{ supplier.company_name }}</strong
+                  ><small>{{ supplier.status }}</small>
+                </td>
+                <td>{{ supplier.location || supplier.town || supplier.region || '—' }}</td>
+                <td>{{ supplier.category_supplier.join(', ') || '—' }}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="cm-secondary"
+                    (click)="reportManualSupplier = supplier"
+                  >
+                    {{
+                      reportManualSupplier?.supplier_id === supplier.supplier_id
+                        ? 'Selected'
+                        : 'Select'
+                    }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="cm-empty" *ngIf="!reportManualResults.length">
+            No suppliers match this search.
+          </div>
+        </div>
+        <div class="cm-manual-selection" *ngIf="reportManualSupplier as selected">
+          <span>SELECTED SUPPLIER</span><strong>{{ selected.company_name }}</strong
+          ><small
+            >ID {{ selected.supplier_id }} ·
+            {{ selected.location || selected.region || 'Location unavailable' }}</small
+          >
+        </div>
+        <div class="cm-manual-excel-data">
+          <span>EXCEL CONTRACT DATA</span>
+          <div>
+            <b>Validity</b
+            ><strong
+              >{{ dateLabel($any(manualItem.payload['validity_start'])) }} —
+              {{ dateLabel($any(manualItem.payload['validity_end'])) }}</strong
+            >
+          </div>
+          <div>
+            <b>Reference</b><strong>{{ manualItem.payload['reference'] || '—' }}</strong>
+          </div>
+          <div>
+            <b>Status</b><strong>{{ manualItem.payload['source_status'] || '—' }}</strong>
+          </div>
+          <div>
+            <b>Note</b><strong>{{ manualItem.payload['note'] || '—' }}</strong>
+          </div>
+        </div>
+        <footer>
+          <button type="button" class="cm-secondary" (click)="closeManualImport()">Cancel</button
+          ><button
+            type="button"
+            class="cm-primary"
+            [disabled]="busy || !reportManualSupplier"
+            (click)="submitManualImport()"
+          >
+            {{ busy ? 'Saving…' : 'Add contract report' }}
+          </button>
+        </footer>
+      </section>
+    </div>
+
+    <!-- Search & filters -->
+    <div class="rp-toolbar">
+      <div class="rp-search">
+        <svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="11" cy="11" r="7" />
+          <path d="m20 20-3.5-3.5" />
+        </svg>
+        <input
+          type="search"
+          [(ngModel)]="reportSupplier"
+          placeholder="Search by supplier name…"
+          aria-label="Search supplier"
+          (keyup.enter)="loadReports(true)"
+        />
+        <button type="button" class="cm-primary" (click)="loadReports(true)">Search</button>
+      </div>
+
+      <div class="rp-filters">
+        <details class="rp-filter">
+          <summary [class.has-value]="reportStatus.length">
+            <span>Status</span><b>{{ multiFilterLabel(reportStatus, 'All') }}</b
+            ><i aria-hidden="true">▾</i>
+          </summary>
+          <div class="rp-filter__menu">
+            <label
+              *ngFor="
+                let option of [
+                  ['ACTIVE', 'Active'],
+                  ['EXPIRED', 'Expired'],
+                ]
+              "
+              class="rp-option"
+            >
+              <input
+                type="checkbox"
+                [checked]="reportStatus.includes(option[0])"
+                (change)="
+                  toggleMultiFilter(reportStatus, option[0], $any($event.target).checked, 'reports')
+                "
+              />
+              <span>{{ option[1] }}</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="rp-filter">
+          <summary [class.has-value]="reportCategory.length">
+            <span>Category</span><b>{{ multiFilterLabel(reportCategory, 'All') }}</b
+            ><i aria-hidden="true">▾</i>
+          </summary>
+          <div class="rp-filter__menu">
+            <label *ngFor="let category of reportCategories" class="rp-option">
+              <input
+                type="checkbox"
+                [checked]="reportCategory.includes(category)"
+                (change)="
+                  toggleMultiFilter(
+                    reportCategory,
+                    category,
+                    $any($event.target).checked,
+                    'reports'
+                  )
+                "
+              />
+              <span>{{ category }}</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="rp-filter">
+          <summary [class.has-value]="reportRegion.length">
+            <span>Region</span><b>{{ multiFilterLabel(reportRegion, 'All') }}</b
+            ><i aria-hidden="true">▾</i>
+          </summary>
+          <div class="rp-filter__menu">
+            <label *ngFor="let region of reportRegionOptions" class="rp-option">
+              <input
+                type="checkbox"
+                [checked]="reportRegion.includes(region)"
+                (change)="
+                  toggleMultiFilter(reportRegion, region, $any($event.target).checked, 'reports')
+                "
+              />
+              <span>{{ region }}</span>
+            </label>
+          </div>
+        </details>
+
+        <details class="rp-filter">
+          <summary [class.has-value]="reportLocation.length">
+            <span>Location</span><b>{{ multiFilterLabel(reportLocation, 'All') }}</b
+            ><i aria-hidden="true">▾</i>
+          </summary>
+          <div class="rp-filter__menu">
+            <label *ngFor="let location of reportLocationOptions" class="rp-option">
+              <input
+                type="checkbox"
+                [checked]="reportLocation.includes(location)"
+                (change)="
+                  toggleMultiFilter(
+                    reportLocation,
+                    location,
+                    $any($event.target).checked,
+                    'reports'
+                  )
+                "
+              />
+              <span>{{ location }}</span>
+            </label>
+          </div>
+        </details>
+
+        <div class="rp-date">
+          <span>Valid until</span>
+          <app-date-picker
+            [value]="reportExpiryDate"
+            displayFormat="dd/mm/yyyy"
+            ariaLabel="Filter by validity end date"
+            (valueChange)="reportExpiryDate = $event; loadReports(true)"
+          ></app-date-picker>
+        </div>
+      </div>
+
+      <!-- Active filter chips: click a chip to remove that filter -->
+      <div
+        class="rp-chips"
+        *ngIf="
+          reportSupplier ||
+          reportStatus.length ||
+          reportCategory.length ||
+          reportRegion.length ||
+          reportLocation.length ||
+          reportExpiryDate
+        "
+      >
+        <span class="rp-chips__label">Active filters</span>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngIf="reportSupplier"
+          (click)="reportSupplier = ''; loadReports(true)"
+        >
+          Supplier: {{ reportSupplier }} <i>×</i>
+        </button>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngFor="let v of reportStatus"
+          (click)="toggleMultiFilter(reportStatus, v, false, 'reports')"
+        >
+          Status: {{ statusLabel(v) }} <i>×</i>
+        </button>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngFor="let v of reportCategory"
+          (click)="toggleMultiFilter(reportCategory, v, false, 'reports')"
+        >
+          Category: {{ v }} <i>×</i>
+        </button>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngFor="let v of reportRegion"
+          (click)="toggleMultiFilter(reportRegion, v, false, 'reports')"
+        >
+          Region: {{ v }} <i>×</i>
+        </button>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngFor="let v of reportLocation"
+          (click)="toggleMultiFilter(reportLocation, v, false, 'reports')"
+        >
+          Location: {{ v }} <i>×</i>
+        </button>
+        <button
+          type="button"
+          class="rp-chip"
+          *ngIf="reportExpiryDate"
+          (click)="reportExpiryDate = ''; loadReports(true)"
+        >
+          Valid until: {{ dateLabel(reportExpiryDate) }} <i>×</i>
+        </button>
+        <button type="button" class="rp-clear" (click)="clearReportFilters()">Clear all</button>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="rp-results-head">
+      <strong>{{ reportTotal }} contract{{ reportTotal === 1 ? '' : 's' }} found</strong>
+      <small *ngIf="reportTotal">Page {{ reportPage }} of {{ reportTotalPages }}</small>
+    </div>
+
+    <div class="rp-table-wrap" *ngIf="reports.length">
+      <table class="rp-table">
+        <thead>
+          <tr>
+            <th>Supplier</th>
+            <th>Type &amp; location</th>
+            <th>Validity</th>
+            <th>Status</th>
+            <th>Period status</th>
+            <th>Note</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ng-container *ngFor="let region of reportRegionGroups">
+            <tr class="rp-region">
+              <td colspan="7">{{ region.name }}</td>
+            </tr>
+            <ng-container *ngFor="let location of region.locations">
+              <tr class="rp-location">
+                <td colspan="7">
+                  {{ location.name }} <span>{{ location.reports.length }} contract(s)</span>
+                </td>
+              </tr>
+              <tr *ngFor="let report of location.reports; trackBy: trackById">
+                <td>
+                  <strong>{{ report.company_name }}</strong>
+                  <small
+                    >ID {{ report.supplier_id }} ·
+                    {{ report.category_supplier.join(', ') || 'No category' }}</small
+                  >
+                </td>
+                <td>
+                  <strong class="rp-plain">{{ report.supplier_type || '—' }}</strong>
+                  <small>{{ report.location_jambix || '—' }}</small>
+                </td>
+                <td class="rp-nowrap">
+                  <strong class="rp-plain">{{ dateLabel(report.validity_start) }}</strong>
+                  <small>until {{ dateLabel(report.validity_end) }}</small>
+                </td>
+                <td>
+                  <div class="rp-badges">
+                    <span class="cm-status" [attr.data-status]="report.status">{{
+                      statusLabel(report.status)
+                    }}</span>
+                    <span
+                      class="cm-status"
+                      data-status="HOTEL_OPTION"
+                      *ngIf="report.has_hotel_option"
+                      >Hotel option</span
+                    >
+                  </div>
+                  <small>{{ report.source_status || 'No input status' }}</small>
+                </td>
+                <td>
+                  <div
+                    class="cm-period-list"
+                    *ngIf="report.period_statuses.length; else defaultSigned"
+                  >
+                    <span
+                      *ngFor="let period of report.period_statuses"
+                      [attr.data-status]="period.status"
+                    >
+                      {{ period.period }} · {{ statusLabel(period.status) }}
+                    </span>
+                  </div>
+                  <ng-template #defaultSigned>{{ statusLabel(report.signed_status) }}</ng-template>
+                </td>
+                <td class="rp-note" [attr.title]="report.note || null">{{ report.note || '—' }}</td>
+              </tr>
+            </ng-container>
+          </ng-container>
+        </tbody>
+      </table>
+    </div>
+
+    <footer class="rp-pager" *ngIf="reportTotalPages > 1">
+      <button
+        type="button"
+        [disabled]="reportPage === 1"
+        (click)="changeReportPage(reportPage - 1)"
+      >
+        ‹ Previous
+      </button>
+      <span>Page {{ reportPage }} of {{ reportTotalPages }}</span>
+      <button
+        type="button"
+        [disabled]="reportPage === reportTotalPages"
+        (click)="changeReportPage(reportPage + 1)"
+      >
+        Next ›
+      </button>
+    </footer>
+
+    <div class="rp-empty" *ngIf="!reports.length">
+      <svg
+        viewBox="0 0 24 24"
+        width="36"
+        height="36"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+        <path d="M14 3v5h5M9 14h6M9 17h4" />
+      </svg>
+      <strong>No contracts match these filters</strong>
+      <p>Try a different supplier name, or remove some filters to see more results.</p>
+      <button type="button" class="cm-secondary" (click)="clearReportFilters()">
+        Clear all filters
+      </button>
+    </div>
+  </section>
+
+  <ng-container *ngIf="tab === 'settings'">
+    <section class="cm-panel">
+      <div class="cm-panel-head">
+        <div>
+          <h2>Scan folders · {{ serverId }}</h2>
+          <p>The backend reads these folders directly from the server PC.</p>
+        </div>
+        <button
+          class="cm-primary cm-primary--small"
+          type="button"
+          (click)="showSourceForm = !showSourceForm"
+        >
+          {{ showSourceForm ? 'Close' : '+ Add folder' }}
+        </button>
+      </div>
+
+      <div class="cm-source-form" *ngIf="showSourceForm">
+        <label><span>Server ID</span><input [(ngModel)]="sourceForm.server_id" /></label>
+        <label
+          ><span>Year</span
+          ><input type="number" min="2000" max="2200" [(ngModel)]="sourceForm.year"
+        /></label>
+        <label class="cm-wide"
+          ><span>Base path — do not include the year folder</span
+          ><input
+            [(ngModel)]="sourceForm.base_path"
+            placeholder="D:\Dropbox\C2I Operational Charlie"
+        /></label>
+        <label
+          ><span>Target folder</span
+          ><input [(ngModel)]="sourceForm.target_folder" placeholder="CONTRACT RATES 2026"
+        /></label>
+        <label
+          ><span>Module</span
+          ><select [(ngModel)]="sourceForm.module_key">
+            <option value="CONTRACT">Contract</option>
+            <option value="QUOTE_TICKET">Quote Ticket</option>
+          </select></label
+        >
+        <p class="cm-path-preview cm-wide"><strong>Path to scan:</strong> {{ sourcePreview() }}</p>
+        <button class="cm-primary" type="button" [disabled]="busy" (click)="saveSource()">
+          Save folder
+        </button>
+      </div>
+
+      <section class="cm-source-year" *ngFor="let yearGroup of sourceYearGroups">
+        <header>
+          <div>
+            <span>CONTRACT YEAR</span>
+            <h3>{{ yearGroup.year }}</h3>
+          </div>
+          <b>{{ yearGroup.sources.length }} folder(s)</b>
+        </header>
+        <div class="cm-settings-list">
+          <article *ngFor="let source of yearGroup.sources; trackBy: trackById">
+            <span class="cm-year">{{ source.year }}</span>
+            <div>
+              <strong>{{ source.target_folder }}</strong
+              ><small>{{ source.base_path }}\{{ source.year }}\{{ source.target_folder }}</small>
+            </div>
+            <span>{{ statusLabel(source.module_key) }}</span>
+            <div class="cm-checkpoint">
+              <small>Checkpoint</small
+              ><strong>{{ utcLabel(source.last_successful_checkpoint_utc) }}</strong>
+            </div>
+            <div class="cm-source-actions">
+              <button type="button" [class.off]="!source.enabled" (click)="toggleSource(source)">
+                {{ source.enabled ? 'Active' : 'Disabled' }}
+              </button>
+              <button class="delete" type="button" (click)="deleteSource(source)">Delete</button>
+            </div>
+          </article>
+        </div>
+      </section>
+      <div class="cm-empty" *ngIf="!sources.length">
+        No folders configured. Add a folder before running a scan.
+      </div>
+    </section>
+
+    <section class="cm-panel">
+      <div class="cm-panel-head">
+        <div>
+          <h2>Management groups</h2>
+          <p>Groups can be created from selected suppliers while processing a file.</p>
+        </div>
+      </div>
+      <div class="cm-group-grid">
+        <article *ngFor="let group of groups; trackBy: trackById">
+          <strong>{{ group.name }}</strong
+          ><small>{{ group.active_member_count }} active members</small
+          ><span>{{ group.status }}</span>
+        </article>
+      </div>
+      <div class="cm-empty" *ngIf="!groups.length">No management groups available.</div>
+    </section>
+  </ng-container>
+
+  <div class="cm-busy" *ngIf="busy">
+    <span></span>
+    <p>Processing request…</p>
+  </div>
+</main>

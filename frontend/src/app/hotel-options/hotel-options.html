@@ -1,0 +1,823 @@
+<main class="shell">
+  <header class="page-header">
+    <div class="page-heading">
+      <a class="back-link" routerLink="/contract">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M15 6l-6 6 6 6"
+            stroke="currentColor"
+            stroke-width="2.2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        Contract Module
+      </a>
+      <p class="page-eyebrow">Hotel inventory</p>
+      <h1>Hotel Options {{ year }}</h1>
+      <p class="page-desc">
+        Link every hotel option to its Jambix supplier and room product, with changes tracked
+        automatically after every Excel import.
+      </p>
+    </div>
+    <div class="page-meta">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M4 21V9l8-6 8 6v12"
+          stroke="currentColor"
+          stroke-width="1.8"
+          stroke-linejoin="round"
+        />
+        <path d="M9 21v-7h6v7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      </svg>
+      <strong>{{ total }}</strong>
+      <span>options for {{ year }}</span>
+    </div>
+  </header>
+
+  <nav class="year-switcher" aria-label="Hotel option year">
+    <a
+      *ngFor="let optionYear of availableYears"
+      [routerLink]="['/hotel-options', optionYear]"
+      [class.active]="year === optionYear"
+    >
+      <span>Collection</span><strong>{{ optionYear }}</strong>
+    </a>
+  </nav>
+
+  <div class="notice error" *ngIf="error">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" />
+      <path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </svg>
+    {{ error }}
+  </div>
+  <div class="notice" *ngIf="message">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8" />
+      <path
+        d="M8.5 12.5l2.5 2.5 5-5.5"
+        stroke="currentColor"
+        stroke-width="1.8"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
+    </svg>
+    {{ message }}
+  </div>
+
+  <section class="toolbar">
+    <div class="toolbar-import">
+      <div class="toolbar-import-copy">
+        <span class="import-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M12 3v12m0 0l-4-4m4 4l4-4"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+          </svg>
+        </span>
+        <div>
+          <h2>Update {{ year }} collection</h2>
+          <p>
+            Import OPSI HOTELS {{ year }}.xlsx — existing rows are compared and every change is
+            tracked.
+          </p>
+        </div>
+      </div>
+      <div class="toolbar-import-actions">
+        <label class="file-input" [class.has-file]="file">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+            <path
+              d="M14 3v4a1 1 0 0 0 1 1h4"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+            <path
+              d="M6 21h12a2 2 0 0 0 2-2V7l-5-4H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2Z"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linejoin="round"
+            />
+          </svg>
+          <span>{{ file ? file.name : 'Choose Excel file' }}</span>
+          <input type="file" accept=".xlsx,.xls" (change)="selectFile($event)" />
+        </label>
+        <button
+          class="btn btn-primary"
+          [class.is-busy]="busy"
+          [disabled]="busy || !file"
+          (click)="import()"
+        >
+          <span class="spinner" *ngIf="busy"></span>
+          {{ busy ? 'Importing…' : 'Import Excel' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="toolbar-filters">
+      <label>
+        Region
+        <div class="select-wrap">
+          <select [(ngModel)]="region" (change)="location = ''; load(true)">
+            <option value="">All regions</option>
+            <option *ngFor="let x of regions">{{ x }}</option>
+          </select>
+        </div>
+      </label>
+      <label>
+        Destination
+        <div class="select-wrap">
+          <select [(ngModel)]="location" (change)="load(true)">
+            <option value="">All destinations</option>
+            <option *ngFor="let x of locations">{{ x }}</option>
+          </select>
+        </div>
+      </label>
+      <label>
+        Jambix link
+        <div class="segmented">
+          <button type="button" [class.active]="status === ''" (click)="status = ''; load(true)">
+            All
+          </button>
+          <button
+            type="button"
+            [class.active]="status === 'IN_JAMBIX'"
+            (click)="status = 'IN_JAMBIX'; load(true)"
+          >
+            Linked
+          </button>
+          <button
+            type="button"
+            [class.active]="status === 'NOT_IN_JAMBIX'"
+            (click)="status = 'NOT_IN_JAMBIX'; load(true)"
+          >
+            Needs link
+          </button>
+        </div>
+      </label>
+    </div>
+  </section>
+
+  <section class="import-summary" *ngIf="importResult as result">
+    <button [disabled]="!result.summary.inserted" (click)="openImportSection('NEW')">
+      <span class="summary-icon new"
+        ><svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 5v14M5 12h14"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          /></svg
+      ></span>
+      <span class="summary-label">New</span><strong>{{ result.summary.inserted }}</strong
+      ><small>Lihat daftar ›</small>
+    </button>
+    <button [disabled]="!result.summary.updated" (click)="openImportSection('UPDATED')">
+      <span class="summary-icon updated"
+        ><svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M21 12a9 9 0 1 1-3-6.7"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M21 3v6h-6"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          /></svg
+      ></span>
+      <span class="summary-label">Updated</span><strong>{{ result.summary.updated }}</strong
+      ><small>Lihat perubahan ›</small>
+    </button>
+    <button [disabled]="!result.summary.unchanged" (click)="openImportSection('UNCHANGED')">
+      <span class="summary-icon unchanged"
+        ><svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M5 12.5l4.5 4.5L19 7"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          /></svg
+      ></span>
+      <span class="summary-label">Unchanged</span><strong>{{ result.summary.unchanged }}</strong
+      ><small>Lihat daftar ›</small>
+    </button>
+    <button
+      class="skipped"
+      [disabled]="!result.summary.skipped"
+      (click)="openImportSection('SKIPPED')"
+    >
+      <span class="summary-icon skipped"
+        ><svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path
+            d="M12 9v4M12 17h.01"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M10.3 4.4L2.7 17.5a1.6 1.6 0 0 0 1.4 2.4h15.8a1.6 1.6 0 0 0 1.4-2.4L13.7 4.4a1.6 1.6 0 0 0-2.8 0Z"
+            stroke="currentColor"
+            stroke-width="1.8"
+            stroke-linejoin="round"
+          /></svg
+      ></span>
+      <span class="summary-label">Skipped</span><strong>{{ result.summary.skipped }}</strong
+      ><small>Lihat alasan ›</small>
+    </button>
+  </section>
+
+  <nav class="region-nav" *ngIf="destinationGroups.length > 1">
+    <a *ngFor="let d of destinationGroups" [attr.href]="'#region-' + d.region">{{ d.region }}</a>
+  </nav>
+
+  <div class="list-loading" *ngIf="listLoading">
+    <span class="spinner spinner-dark"></span> Loading hotel options…
+  </div>
+  <section class="results" [class.is-loading]="listLoading">
+    <section
+      class="destination"
+      *ngFor="let destination of destinationGroups"
+      [attr.id]="'region-' + destination.region"
+    >
+      <div class="destination-head">
+        <h2>{{ destination.region }}</h2>
+      </div>
+
+      <div class="location" *ngFor="let place of destination.locations">
+        <div class="location-head">
+          <h3>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linejoin="round"
+              />
+              <circle cx="12" cy="9.5" r="2.3" stroke="currentColor" stroke-width="1.8" />
+            </svg>
+            {{ place.name }}
+          </h3>
+          <div class="location-meta">
+            <span>{{ place.options.length }} / 3 options</span>
+            <button
+              type="button"
+              class="location-add"
+              [disabled]="place.options.length >= 3"
+              (click)="addOption(destination.region, place.name, place.options)"
+              aria-label="Add hotel option"
+            >
+              + Add option
+            </button>
+          </div>
+        </div>
+
+        <ul class="option-list">
+          <li
+            class="option-row"
+            [class.needs-link]="!item.supplier_id || !item.product_id"
+            *ngFor="let item of place.options; let optionIndex = index; trackBy: trackByOptionId"
+          >
+            <div class="option-hotel">
+              <span
+                class="hotel-avatar"
+                [attr.title]="'Option ' + optionLabel(item, optionIndex)"
+                >{{ optionLabel(item, optionIndex) }}</span
+              >
+              <div class="option-main">
+                <small>{{ item.segment || 'Selected stay' }}</small>
+                <h4>{{ item.hotel_name }}</h4>
+                <span class="option-room"
+                  >Room <b>{{ item.room_type || 'not specified' }}</b></span
+                >
+              </div>
+            </div>
+
+            <div class="option-status">
+              <span class="status-badge" [class.missing]="!item.supplier_id || !item.product_id">
+                <span class="status-dot"></span>
+                {{ item.supplier_id && item.product_id ? 'Active' : 'Needs link' }}
+              </span>
+              <span class="option-link-detail">
+                <span class="link-line">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M4 21V7l8-4 8 4v14"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M9 21v-5h6v5"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  {{ item.company_name || 'Supplier not linked' }}
+                </span>
+                <span class="link-line">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none">
+                    <path
+                      d="M3 18v-7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v7"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linejoin="round"
+                    />
+                    <path
+                      d="M3 18v2M21 18v2M3 11V9a2 2 0 0 1 2-2h4v4"
+                      stroke="currentColor"
+                      stroke-width="1.8"
+                      stroke-linejoin="round"
+                    />
+                  </svg>
+                  {{ item.product_name || 'Product not linked' }}
+                </span>
+              </span>
+            </div>
+
+            <div class="option-actions">
+              <button class="btn btn-ghost" (click)="showHistory(item)">
+                Updates
+                <em class="count-pill" *ngIf="item.update_count">{{ item.update_count }}</em>
+              </button>
+              <button
+                class="icon-action edit"
+                type="button"
+                (click)="editOption(item)"
+                title="Edit option"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M4 20h4l11-11-4-4L4 16v4Z"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                    stroke-linejoin="round"
+                  />
+                  <path d="m13.5 6.5 4 4" stroke="currentColor" stroke-width="1.9" />
+                </svg>
+                <span>Edit</span>
+              </button>
+              <button
+                class="icon-action danger"
+                type="button"
+                (click)="deleteOption(item)"
+                title="Delete option"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path
+                    d="M5 7h14M9 7V4h6v3M7 7l1 13h8l1-13"
+                    stroke="currentColor"
+                    stroke-width="1.9"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
+                <span>Delete</span>
+              </button>
+            </div>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <div class="empty" *ngIf="!options.length">
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M4 21V9l8-6 8 6v12"
+          stroke="currentColor"
+          stroke-width="1.3"
+          stroke-linejoin="round"
+        />
+        <path d="M9 21v-7h6v7" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" />
+        <path d="M2 21h20" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" />
+      </svg>
+      <strong>No hotel options match the selected filters.</strong>
+      Try a different region, destination, or link status.
+    </div>
+    <nav class="option-pager" *ngIf="totalPages > 1" aria-label="Hotel option pages">
+      <button
+        class="btn btn-ghost"
+        [disabled]="page === 1 || listLoading"
+        (click)="changePage(page - 1)"
+      >
+        ‹ Previous
+      </button>
+      <span
+        >Page <strong>{{ page }}</strong> of {{ totalPages }} · {{ total }} options</span
+      >
+      <button
+        class="btn btn-ghost"
+        [disabled]="page === totalPages || listLoading"
+        (click)="changePage(page + 1)"
+      >
+        Next ›
+      </button>
+    </nav>
+  </section>
+</main>
+
+<div class="modal-backdrop" *ngIf="optionForm as form" (click)="closeOptionForm()">
+  <section class="modal option-form-modal" (click)="$event.stopPropagation()">
+    <header class="modal-head">
+      <div>
+        <span>{{ editItem ? 'EDIT HOTEL OPTION' : 'ADD HOTEL OPTION' }}</span>
+        <h2>{{ form.location }}</h2>
+        <p>Each location can contain Option A, B, and C only.</p>
+      </div>
+      <button type="button" class="modal-close" (click)="closeOptionForm()">&times;</button>
+    </header>
+    <div class="option-form-grid">
+      <label>
+        Option
+        <select [(ngModel)]="form.option_code">
+          <option value="A">Option A</option>
+          <option value="B">Option B</option>
+          <option value="C">Option C</option>
+        </select>
+      </label>
+      <label>
+        Year
+        <input type="text" [(ngModel)]="form.option_year" />
+      </label>
+      <label>
+        Region
+        <input type="text" [(ngModel)]="form.region" />
+      </label>
+      <label>
+        Location category
+        <input type="text" [(ngModel)]="form.location" placeholder="UBUD / Wellness" />
+      </label>
+      <label class="wide">
+        Hotel name
+        <input type="text" [(ngModel)]="form.hotel_name" />
+      </label>
+      <label class="wide">
+        Room product name
+        <input type="text" [(ngModel)]="form.room_type" />
+      </label>
+    </div>
+    <section class="form-link-panel">
+      <div class="form-link-heading">
+        <div>
+          <span>JAMBIX DATABASE</span>
+          <strong>Connect supplier & room product</strong>
+        </div>
+        <button
+          *ngIf="selectedSupplier"
+          type="button"
+          class="clear-link"
+          (click)="clearSelectedLink()"
+        >
+          Clear link
+        </button>
+      </div>
+      <div class="form-link-columns">
+        <div class="search-block">
+          <label>
+            Search supplier
+            <div class="input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+                <path
+                  d="M20 20l-3.5-3.5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <input
+                type="search"
+                [(ngModel)]="supplierQuery"
+                (ngModelChange)="searchSuppliers()"
+                placeholder="Hotel or supplier name"
+              />
+            </div>
+          </label>
+          <div class="search-results compact">
+            <button
+              type="button"
+              class="search-result"
+              *ngFor="let supplier of supplierResults"
+              [class.selected]="selectedSupplier?.supplier_id === supplier.supplier_id"
+              (click)="chooseSupplier(supplier)"
+            >
+              <span>
+                <strong>{{ supplier.company_name }}</strong>
+                <small>{{ supplier.location || supplier.region || 'Location unavailable' }}</small>
+              </span>
+              <span
+                class="result-check"
+                *ngIf="selectedSupplier?.supplier_id === supplier.supplier_id"
+                >✓</span
+              >
+            </button>
+          </div>
+        </div>
+        <div class="search-block" [class.disabled]="!selectedSupplier">
+          <label>
+            Search room product
+            <div class="input-icon">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+                <path
+                  d="M20 20l-3.5-3.5"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                />
+              </svg>
+              <input
+                type="search"
+                [(ngModel)]="productQuery"
+                (ngModelChange)="searchProducts()"
+                [disabled]="!selectedSupplier"
+                placeholder="Room product name"
+              />
+            </div>
+          </label>
+          <div class="search-results compact">
+            <button
+              type="button"
+              class="search-result"
+              *ngFor="let product of productResults"
+              [class.selected]="selectedProduct?.product_id === product.product_id"
+              (click)="selectedProduct = product"
+            >
+              <span>
+                <strong>{{ product.name }}</strong>
+                <small>{{ product.type || 'Product' }}</small>
+              </span>
+              <span class="result-check" *ngIf="selectedProduct?.product_id === product.product_id"
+                >✓</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="selected-link" *ngIf="selectedSupplier">
+        <span>Connected to</span>
+        <strong>{{ selectedSupplier.company_name }}</strong>
+        <span *ngIf="selectedProduct">/ {{ selectedProduct.name }}</span>
+        <em *ngIf="!selectedProduct">Select a room product to complete the link</em>
+      </div>
+    </section>
+    <footer class="modal-foot">
+      <span>Supplier and product are searched live from the Jambix database.</span>
+      <div class="option-form-actions">
+        <button
+          type="button"
+          class="btn btn-ghost"
+          [disabled]="optionSaving"
+          (click)="closeOptionForm()"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          [class.is-busy]="optionSaving"
+          [disabled]="
+            optionSaving ||
+            !form.region ||
+            !form.location ||
+            !form.hotel_name ||
+            !form.room_type ||
+            !!selectedSupplier !== !!selectedProduct
+          "
+          (click)="saveOption()"
+        >
+          <span class="spinner" *ngIf="optionSaving"></span>
+          {{ optionSaving ? 'Saving…' : 'Save option' }}
+        </button>
+      </div>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="importSection" (click)="importSection = null">
+  <section class="modal import-detail" (click)="$event.stopPropagation()">
+    <header class="modal-head">
+      <div>
+        <span>IMPORT RESULT</span>
+        <h2>{{ importSection }} hotel options</h2>
+        <p>
+          {{ activeImportRows.length }} total · showing {{ importPageStart }}–{{ importPageEnd }}
+        </p>
+      </div>
+      <button class="modal-close" (click)="importSection = null">×</button>
+    </header>
+    <div class="import-rows">
+      <article *ngFor="let row of activeImportPageRows; trackBy: trackByImportRow">
+        <div class="row-number">Row {{ row.row_number || row.source_row }}</div>
+        <div>
+          <strong>{{ row.hotel_name }}</strong
+          ><small
+            >{{ row.room_type || 'Room unavailable' }} · {{ row.sheet_name || row.region }}</small
+          >
+          <p *ngIf="row.reason">{{ row.reason }}</p>
+          <p *ngFor="let change of row.changes">
+            <b>{{ change.field }}:</b> {{ change.old || '—' }} → {{ change.new || '—' }}
+          </p>
+        </div>
+      </article>
+      <div class="empty small" *ngIf="!activeImportRows.length">No rows to display.</div>
+    </div>
+    <footer class="import-pager" *ngIf="importTotalPages > 1">
+      <button
+        class="btn btn-ghost"
+        [disabled]="importPage === 1"
+        (click)="importPage = importPage - 1"
+      >
+        ‹ Previous
+      </button>
+      <span
+        >Rows {{ importPageStart }}–{{ importPageEnd }} · Page {{ importPage }} of
+        {{ importTotalPages }}</span
+      >
+      <button
+        class="btn btn-ghost"
+        [disabled]="importPage === importTotalPages"
+        (click)="importPage = importPage + 1"
+      >
+        Next ›
+      </button>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="linkItem" (click)="closeLink()">
+  <section class="modal" (click)="$event.stopPropagation()">
+    <header class="modal-head">
+      <div>
+        <span>Link Jambix data</span>
+        <h2>{{ linkItem.hotel_name }}</h2>
+        <p>{{ linkItem.room_type }}</p>
+      </div>
+      <button class="modal-close" (click)="closeLink()">×</button>
+    </header>
+
+    <div class="search-block">
+      <label>
+        Search supplier
+        <div class="input-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+            <path
+              d="M20 20l-3.5-3.5"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+          </svg>
+          <input
+            type="text"
+            [(ngModel)]="supplierQuery"
+            (ngModelChange)="searchSuppliers()"
+            placeholder="Type supplier name"
+          />
+        </div>
+      </label>
+      <div class="search-results">
+        <button
+          class="search-result"
+          *ngFor="let supplier of supplierResults"
+          [class.selected]="selectedSupplier?.supplier_id === supplier.supplier_id"
+          (click)="chooseSupplier(supplier)"
+        >
+          <span>
+            <strong>{{ supplier.company_name }}</strong>
+            <small>{{ supplier.location || supplier.region || 'Location unavailable' }}</small>
+          </span>
+          <svg
+            *ngIf="selectedSupplier?.supplier_id === supplier.supplier_id"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M5 12.5l4.5 4.5L19 7"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+        <div class="empty small" *ngIf="supplierQuery && !supplierResults.length">
+          Tidak ada supplier ditemukan.
+        </div>
+      </div>
+    </div>
+
+    <div class="search-block" [class.disabled]="!selectedSupplier">
+      <label>
+        Search room product
+        <div class="input-icon">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
+            <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
+            <path
+              d="M20 20l-3.5-3.5"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+          </svg>
+          <input
+            type="text"
+            [(ngModel)]="productQuery"
+            (ngModelChange)="searchProducts()"
+            [disabled]="!selectedSupplier"
+            placeholder="Type product or room name"
+          />
+        </div>
+      </label>
+      <div class="search-results">
+        <button
+          class="search-result"
+          *ngFor="let product of productResults"
+          [class.selected]="selectedProduct?.product_id === product.product_id"
+          (click)="selectedProduct = product"
+        >
+          <span>
+            <strong>{{ product.name }}</strong>
+            <small>{{ product.type || 'Product' }}</small>
+          </span>
+          <svg
+            *ngIf="selectedProduct?.product_id === product.product_id"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+          >
+            <path
+              d="M5 12.5l4.5 4.5L19 7"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <footer class="modal-foot">
+      <div class="modal-foot-selection">
+        <span *ngIf="selectedSupplier">{{ selectedSupplier.company_name }}</span>
+        <span *ngIf="selectedProduct" class="muted"> / {{ selectedProduct.name }}</span>
+      </div>
+      <button
+        class="btn btn-primary"
+        [class.is-busy]="linkSaving"
+        [disabled]="linkSaving || !selectedSupplier || !selectedProduct"
+        (click)="saveLink()"
+      >
+        <span class="spinner" *ngIf="linkSaving"></span>
+        {{ linkSaving ? 'Saving link…' : 'Save Jambix link' }}
+      </button>
+    </footer>
+  </section>
+</div>
+
+<div class="modal-backdrop" *ngIf="historyItem" (click)="historyItem = null">
+  <section class="modal" (click)="$event.stopPropagation()">
+    <header class="modal-head">
+      <div>
+        <span>Update history</span>
+        <h2>{{ historyItem.hotel_name }}</h2>
+      </div>
+      <button class="modal-close" (click)="historyItem = null">×</button>
+    </header>
+
+    <div class="timeline">
+      <article class="history-entry" *ngFor="let revision of revisions">
+        <span class="timeline-dot"></span>
+        <div class="history-entry-head">
+          <span class="history-action">{{ revision.action }}</span>
+          <time>{{ revision.changed_at | date: 'dd/MM/yyyy HH:mm' }}</time>
+        </div>
+        <p *ngFor="let label of changeLabels(revision)">{{ label }}</p>
+        <p *ngIf="!changeLabels(revision).length">Initial option imported.</p>
+      </article>
+    </div>
+
+    <div class="empty small" *ngIf="!revisions.length">No update history yet.</div>
+  </section>
+</div>

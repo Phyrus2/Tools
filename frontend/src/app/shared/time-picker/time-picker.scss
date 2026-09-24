@@ -1,0 +1,9 @@
+:host { display: block; }
+* { box-sizing: border-box; }
+.time-picker { min-height: 39px; display: flex; align-items: center; gap: .28rem; padding: .28rem .45rem; border: 1px solid #c7bc9f; border-radius: 8px; color: #20261f; background: #fffdf8; }
+.time-picker:focus-within { border-color: #35564d; outline: 3px solid rgba(53,86,77,.11); }
+svg { width: 17px; height: 17px; flex: 0 0 auto; margin-right: .1rem; color: #35564d; }
+select { width: 48px; padding: .25rem .1rem; border: 0; border-radius: 5px; color: #20261f; background: #eef3f1; font: inherit; font-size: .75rem; font-weight: 700; text-align: center; cursor: pointer; }
+select:focus { outline: 1px solid #35564d; }
+strong { color: #35564d; }
+span { margin-left: .15rem; color: #a97e37; font-size: .55rem; font-weight: 800; letter-spacing: .05em; }

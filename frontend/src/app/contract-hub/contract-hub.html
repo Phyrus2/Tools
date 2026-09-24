@@ -1,0 +1,76 @@
+<main class="contract-shell">
+  <a class="back-link" routerLink="/" aria-label="Back to home">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" />
+    </svg>
+    <span>Back to home</span>
+  </a>
+
+  <header class="contract-header">
+    <div>
+      <p>OPERATIONS DATABASE</p>
+      <h1>Contract Module</h1>
+      <span>Manage supplier contracts, hotel options, and future stop-sale operations.</span>
+    </div>
+    <aside>
+      <strong>3</strong>
+      <span>contract tools</span>
+    </aside>
+  </header>
+
+  <section class="module-intro">
+    <span>CONTRACT WORKSPACE</span>
+    <h2>Choose a workflow</h2>
+    <p>Each tool has its own focused workspace while sharing the same contract module.</p>
+  </section>
+
+  <section class="contract-grid">
+    <a class="contract-card contract-card--monitoring" routerLink="/contract-monitoring">
+      <span class="card-number">01</span>
+      <span class="card-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M12 7h20l6 6v28H12zM32 7v7h6M18 22h14M18 29h10" />
+          <circle cx="34" cy="34" r="6" /><path d="m38.5 38.5 5 5" />
+        </svg>
+      </span>
+      <span class="card-copy">
+        <small>CONTRACT CONTROL</small>
+        <strong>Contract Monitoring</strong>
+        <span>Scan contract folders, process pending updates, and review supplier contract reports.</span>
+      </span>
+      <span class="card-action">Open workspace <b>&rarr;</b></span>
+    </a>
+
+    <a class="contract-card contract-card--hotel" routerLink="/hotel-options/2026">
+      <span class="card-number">02</span>
+      <span class="card-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M9 40h30M13 40V13h22v27M19 19h4M29 19h4M19 26h4M29 26h4M22 40v-7h4v7" />
+        </svg>
+      </span>
+      <span class="card-copy">
+        <small>HOTEL INVENTORY</small>
+        <strong>Hotel Options</strong>
+        <span>Manage the 2026 and 2027 collections and link every option to Jambix data.</span>
+      </span>
+      <span class="card-action">Open collections <b>&rarr;</b></span>
+    </a>
+
+    <article class="contract-card contract-card--soon" aria-disabled="true">
+      <span class="card-number">03</span>
+      <span class="coming-badge">Coming soon</span>
+      <span class="card-icon" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none">
+          <path d="M10 14h28v24H10zM16 9v10M32 9v10M10 22h28" />
+          <path d="m18 29 12 8M30 29l-12 8" />
+        </svg>
+      </span>
+      <span class="card-copy">
+        <small>SALES RESTRICTION</small>
+        <strong>Stop Sale</strong>
+        <span>Track hotel stop-sale periods, affected products, and operational availability.</span>
+      </span>
+      <span class="card-action">In development</span>
+    </article>
+  </section>
+</main>
