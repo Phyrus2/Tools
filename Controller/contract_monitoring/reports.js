@@ -256,7 +256,10 @@ async function listReports(req, res) {
               s.company_name, s.category_supplier,
               EXISTS (SELECT 1 FROM hotel_options ho WHERE ho.supplier_id = r.supplier_id) AS has_hotel_option
          FROM contract_reports r JOIN suppliers s ON s.supplier_id = r.supplier_id
-         ${where} ORDER BY r.validity_end DESC, r.id DESC LIMIT ? OFFSET ?`,
+         ${where}
+         ORDER BY ${REGION_SQL} ASC, ${LOCATION_SQL} ASC,
+                  s.company_name ASC, r.validity_end DESC, r.id DESC
+         LIMIT ? OFFSET ?`,
       [...params, limit, offset],
     );
     for (const row of rows) {

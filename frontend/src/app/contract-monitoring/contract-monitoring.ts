@@ -1159,6 +1159,10 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     name: string;
     locations: { name: string; reports: ContractReport[] }[];
   }[] {
+    const alphabetical = new Intl.Collator('id-ID', {
+      sensitivity: 'base',
+      numeric: true,
+    });
     const regions = new Map<string, Map<string, ContractReport[]>>();
     for (const report of reports) {
       const region = report.region || 'Other';
@@ -1169,12 +1173,17 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       locations.get(location)!.push(report);
     }
     return [...regions.entries()]
-      .sort(([left], [right]) => left.localeCompare(right))
+      .sort(([left], [right]) => alphabetical.compare(left, right))
       .map(([name, locations]) => ({
         name,
         locations: [...locations.entries()]
-          .sort(([left], [right]) => left.localeCompare(right))
-          .map(([locationName, reports]) => ({ name: locationName, reports })),
+          .sort(([left], [right]) => alphabetical.compare(left, right))
+          .map(([locationName, locationReports]) => ({
+            name: locationName,
+            reports: [...locationReports].sort((left, right) =>
+              alphabetical.compare(left.company_name, right.company_name),
+            ),
+          })),
       }));
   }
 

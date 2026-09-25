@@ -19,10 +19,23 @@ interface LoginResponse {
 
 const TOKEN_KEY = 'database-tools-admin-session';
 
+function readStoredToken(): string | null {
+  const persistentToken = localStorage.getItem(TOKEN_KEY);
+  if (persistentToken) return persistentToken;
+
+  // Migrate sessions created before authentication was shared between tabs.
+  const legacyToken = sessionStorage.getItem(TOKEN_KEY);
+  if (legacyToken) {
+    localStorage.setItem(TOKEN_KEY, legacyToken);
+    sessionStorage.removeItem(TOKEN_KEY);
+  }
+  return legacyToken;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   readonly user = signal<AdminUser | null>(null);
-  private tokenValue = sessionStorage.getItem(TOKEN_KEY);
+  private tokenValue = readStoredToken();
 
   constructor(private readonly http: HttpClient) {}
 
@@ -34,7 +47,8 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${API_URL}/auth/login`, { username, password }).pipe(
       tap((response) => {
         this.tokenValue = response.token;
-        sessionStorage.setItem(TOKEN_KEY, response.token);
+        localStorage.setItem(TOKEN_KEY, response.token);
+        sessionStorage.removeItem(TOKEN_KEY);
         this.user.set(response.user);
       }),
       map((response) => response.user),
@@ -62,6 +76,7 @@ export class AuthService {
   clearSession(): void {
     this.tokenValue = null;
     this.user.set(null);
+    localStorage.removeItem(TOKEN_KEY);
     sessionStorage.removeItem(TOKEN_KEY);
   }
 }

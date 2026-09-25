@@ -9,6 +9,7 @@ describe('AuthService', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
+    localStorage.clear();
     sessionStorage.clear();
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
@@ -30,6 +31,7 @@ describe('AuthService', () => {
       user: { id: 1, fullname: 'Administrator', username: 'admin', role: 'ADMIN' },
     });
     expect(auth.token).toBe('test-token');
+    expect(localStorage.getItem('database-tools-admin-session')).toBe('test-token');
     expect(auth.user()?.role).toBe('ADMIN');
   });
 
