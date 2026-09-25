@@ -1293,6 +1293,26 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     };
     if (unresolvedIndex >= 0) this.pending.suppliers.splice(unresolvedIndex, 1, selected);
     else this.pending.suppliers.push(selected);
+
+    this.api.getSupplierContracts(input.supplier_id).subscribe({
+      next: (response) => {
+        if (!this.pending) return;
+        const current = this.pending.suppliers.find(
+          (item) => item.supplier_id === input.supplier_id,
+        );
+        if (!current) return;
+
+        current.active_contracts = response.contracts;
+        if (response.contracts.length) {
+          current.detection = 'ACTIVE_CONTRACT';
+          current.action = 'UPDATE';
+          current.target_contract_report_id = response.contracts[0].id;
+          this.prefillContractUpdate(current);
+        }
+        this.render();
+      },
+      error: (error) => this.fail(error),
+    });
   }
 
   private folderName(parentPath: string): string {

@@ -477,6 +477,14 @@ export class ContractMonitoringService {
     }>(`${this.base}/reports`, { params });
   }
 
+  getSupplierContracts(
+    supplierId: number,
+  ): Observable<{ success: true; contracts: ExistingContract[] }> {
+    return this.http.get<{ success: true; contracts: ExistingContract[] }>(
+      `${this.base}/suppliers/${supplierId}/contracts`,
+    );
+  }
+
   importReports(file: File): Observable<ContractImportResult> {
     const form = new FormData();
     form.append('file', file);

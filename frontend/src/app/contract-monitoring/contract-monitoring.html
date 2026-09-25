@@ -716,23 +716,27 @@
                 />
                 <span>Select</span>
               </label>
-              <div>
+              <div class="cm-queue-supplier-copy">
                 <span>SUPPLIER</span>
                 <h3>{{ supplier.company_name }}</h3>
                 <small
                   ><ng-container *ngIf="supplier.supplier_id"
                     >ID {{ supplier.supplier_id }} · </ng-container
                   >{{
-                    supplier.supplier_type || supplier.category_supplier[0] || 'Type unavailable'
+                    supplier.supplier_type || 'Type unavailable'
                   }}
                   · {{ supplier.supplier_location || 'Location unavailable' }}</small
                 >
+                <div class="cm-queue-categories">
+                  <em>Categories</em>
+                  <span *ngFor="let category of supplier.category_supplier">{{ category }}</span>
+                  <span *ngIf="!supplier.category_supplier.length">Uncategorized</span>
+                </div>
               </div>
               <div class="cm-queue-badges">
                 <span
                   class="cm-status"
                   [attr.data-status]="supplier.jambix_status"
-                  *ngIf="!supplier.has_booked_product"
                   >{{ statusLabel(supplier.jambix_status) }}</span
                 >
                 <span class="cm-status" data-status="BOOKED" *ngIf="supplier.has_booked_product"
