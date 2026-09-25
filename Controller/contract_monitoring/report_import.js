@@ -367,6 +367,37 @@ async function importReport(req, res) {
       }
     }
 
+    // The same row can occur twice in the workbook. During a first import the
+    // first copy is inserted, so without this pass the second copy is
+    // misleadingly reported as "unchanged" even though the database was empty.
+    const uniqueCandidates = [];
+    const candidateFingerprints = new Set();
+    for (const item of candidates) {
+      const fingerprint = JSON.stringify({
+        supplier_id: item.supplier_id,
+        folder: item.payload.folder,
+        region: item.payload.region,
+        location: item.payload.location,
+        supplier_type: item.payload.supplier_type,
+        validity_start: item.payload.validity_start,
+        validity_end: item.payload.validity_end,
+        source_status: item.payload.source_status,
+        reference: item.payload.reference,
+        note: item.payload.note,
+      });
+      if (candidateFingerprints.has(fingerprint)) {
+        skippedRows.push({
+          ...item,
+          reason: "Duplicate contract report row in the Excel file.",
+          can_link_supplier: false,
+        });
+        continue;
+      }
+      candidateFingerprints.add(fingerprint);
+      uniqueCandidates.push(item);
+    }
+    candidates = uniqueCandidates;
+
     const locationsByContract = new Map();
     for (const item of candidates) {
       const key = `${item.supplier_id}:${item.payload.validity_start}:${item.payload.validity_end}`;

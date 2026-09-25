@@ -122,6 +122,19 @@ async function importHotelOptions(req, res) {
     const parsed = [];
     const skippedRows = [];
     const locationOptions = new Map();
+    const locationRows = new Map();
+    // Reserve codes already stored for a location before parsing Excel rows.
+    // Without this, a new row that appears before an existing hotel can take
+    // its A/B/C code and make a valid third option look like a fourth option.
+    for (const option of storedOptions) {
+      const code = text(option.option_code).toUpperCase();
+      if (!["A", "B", "C"].includes(code)) continue;
+      const locationKey =
+        `${optionYear}:${text(option.region)}:${cleanLocation(option.location)}`.toLowerCase();
+      if (!locationOptions.has(locationKey))
+        locationOptions.set(locationKey, new Set());
+      locationOptions.get(locationKey).add(code);
+    }
     let unmatched = 0;
     for (const sheetName of workbook.SheetNames) {
       const rows = xlsx.utils.sheet_to_json(workbook.Sheets[sheetName], {
@@ -164,6 +177,21 @@ async function importHotelOptions(req, res) {
         ].join(":");
         const savedCandidates = storedByHotel.get(storedKey) || [];
         const sourceCode = optionCode(first);
+        const rowIdentity = [
+          normalizeName(name, { keepGeneric: true }),
+          normalizeName(roomType, { keepGeneric: true }),
+        ].join(":");
+        const seenRows = locationRows.get(locationKey) || new Set();
+        if (seenRows.has(rowIdentity)) {
+          skippedRows.push({
+            sheet_name: sheetName,
+            row_number: index + 1,
+            hotel_name: name,
+            room_type: roomType || null,
+            reason: `Duplicate hotel and room option in the Excel file for ${location}.`,
+          });
+          continue;
+        }
         const storedMatch =
           savedCandidates.find(
             (option) =>
@@ -179,12 +207,9 @@ async function importHotelOptions(req, res) {
         // A/B/C capacity check so a moved Excel row is reported as unchanged.
         const code =
           storedMatch?.option_code ||
-          sourceCode ||
+          (sourceCode && !usedCodes.has(sourceCode) ? sourceCode : null) ||
           ["A", "B", "C"].find((value) => !usedCodes.has(value));
-        if (
-          !code ||
-          (!storedMatch && (usedCodes.size >= 3 || usedCodes.has(code)))
-        ) {
+        if (!code) {
           skippedRows.push({
             sheet_name: sheetName,
             row_number: index + 1,
@@ -237,6 +262,8 @@ async function importHotelOptions(req, res) {
         if (!supplier) unmatched += 1;
         usedCodes.add(code);
         locationOptions.set(locationKey, usedCodes);
+        seenRows.add(rowIdentity);
+        locationRows.set(locationKey, seenRows);
         parsed.push({
           option_year: optionYear,
           supplier_id: supplier?.supplier_id || null,

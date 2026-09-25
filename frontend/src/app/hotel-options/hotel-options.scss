@@ -770,6 +770,9 @@ input:focus {
   gap: 0.75rem;
 }
 .location-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
   padding: 0.38rem 0.65rem;
   color: var(--pine);
   border: 1px solid var(--pine-soft-line);
@@ -779,6 +782,11 @@ input:focus {
     700 0.7rem Inter,
     sans-serif;
   cursor: pointer;
+}
+
+.location-add:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(46, 74, 63, 0.18);
 }
 .location-add:disabled {
   opacity: 0.4;
@@ -980,6 +988,20 @@ input:focus {
   background: #b34f35;
   box-shadow: 0 5px 12px rgba(179, 79, 53, 0.22);
 }
+.icon-action.updates {
+  color: #375d8a;
+  border-color: #c4d3e3;
+  background: var(--blue-soft);
+}
+.icon-action.updates:hover {
+  color: #fff;
+  border-color: var(--blue);
+  background: var(--blue);
+  box-shadow: 0 5px 12px rgba(55, 93, 138, 0.22);
+}
+.icon-action.updates .count-pill {
+  margin-left: 0.05rem;
+}
 .option-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1009,7 +1031,8 @@ input:focus {
   padding: 1rem;
   border: 1px solid var(--pine-soft-line);
   border-radius: var(--r-md);
-  background: linear-gradient(145deg, #f7fbf9, #edf6f2);
+  background: linear-gradient(145deg, #fbfdfc, #edf6f2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 .form-link-heading,
 .form-link-columns,
@@ -1038,14 +1061,21 @@ input:focus {
 }
 .form-link-columns {
   align-items: flex-start;
-  gap: 0.8rem;
+  gap: 1rem;
 }
 .form-link-columns > .search-block {
   flex: 1 1 0;
   min-width: 0;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid #dce7e1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.74);
+  box-shadow: 0 5px 16px rgba(27, 43, 36, 0.06);
 }
 .search-results.compact {
-  max-height: 150px;
+  max-height: 180px;
+  padding-right: 0.2rem;
 }
 .clear-link {
   border: 0;
@@ -1061,20 +1091,38 @@ input:focus {
   font-weight: 800;
 }
 .selected-link {
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  gap: 0.7rem;
   margin-top: 0.8rem;
-  padding: 0.55rem 0.7rem;
-  border-radius: var(--r-sm);
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--pine-soft-line);
+  border-radius: 11px;
   background: #fff;
   color: var(--muted);
   font-size: 0.72rem;
 }
+.selected-link::before {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--pine);
+  content: '\2713';
+  font-size: 0.78rem;
+  font-weight: 800;
+}
 .selected-link strong {
+  display: block;
   color: var(--pine-deep);
+  font-size: 0.8rem;
+}
+.selected-link > span:not(:first-child) {
+  color: var(--muted);
 }
 .selected-link em {
-  width: 100%;
+  display: block;
   color: var(--rust);
   font-style: normal;
 }
@@ -1195,6 +1243,160 @@ input:focus {
 .search-block {
   margin-top: 1.25rem;
   transition: opacity 0.15s var(--ease);
+}
+
+.form-link-columns .search-block label {
+  color: var(--pine-deep);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.link-search-head {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.link-search-head > div {
+  display: grid;
+  min-width: 0;
+  gap: 0.08rem;
+}
+
+.link-search-head strong {
+  color: var(--pine-deep);
+  font-size: 0.82rem;
+}
+
+.link-search-head small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.link-search-step {
+  display: grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  background: linear-gradient(145deg, var(--pine), var(--pine-deep));
+  font-size: 0.7rem;
+  font-weight: 800;
+  box-shadow: 0 4px 9px rgba(46, 74, 63, 0.2);
+}
+
+.link-search-input {
+  display: block;
+  margin-top: 0.65rem;
+}
+
+.form-link-columns .input-icon {
+  margin-top: 0.38rem;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(27, 43, 36, 0.04);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.form-link-columns .input-icon:focus-within {
+  border-color: var(--pine);
+  box-shadow: 0 0 0 3px rgba(46, 74, 63, 0.12);
+}
+
+.form-link-columns .input-icon input {
+  min-height: 42px;
+  padding-right: 2.2rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-spinner {
+  position: absolute;
+  right: 0.75rem;
+  width: 15px;
+  height: 15px;
+  border: 2px solid #d3dfd9;
+  border-top-color: var(--pine);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+.form-link-columns .search-result {
+  position: relative;
+  min-height: 56px;
+  padding-left: 0.85rem;
+  padding-right: 2.3rem;
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 3px rgba(27, 43, 36, 0.07);
+}
+
+.form-link-columns .search-result::after {
+  position: absolute;
+  right: 0.85rem;
+  color: var(--faint);
+  content: '\203A';
+  font-size: 1.2rem;
+  transition: transform 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.form-link-columns .search-result:hover::after {
+  color: var(--pine);
+  transform: translateX(2px);
+}
+
+.form-link-columns .search-result.selected::after {
+  color: var(--pine);
+  content: '\2713';
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.form-link-columns .result-check {
+  display: none;
+}
+
+.form-link-columns .search-result:hover:not(:disabled) {
+  border-color: var(--pine-soft-line);
+  background: #fff;
+  transform: translateY(-1px);
+}
+
+.search-results.is-loading {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+.link-search-state {
+  display: grid;
+  min-height: 76px;
+  place-items: center;
+  padding: 0.8rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: 10px;
+  color: var(--muted);
+  background: rgba(245, 244, 238, 0.6);
+  font-size: 0.72rem;
+  line-height: 1.45;
+  text-align: center;
 }
 
 .search-block.disabled {

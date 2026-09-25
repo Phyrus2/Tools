@@ -160,6 +160,10 @@ app.post(
 
 app.get("/contract-monitoring/management-groups", contractGroups.listGroups);
 app.post("/contract-monitoring/management-groups", contractGroups.createGroup);
+app.post(
+  "/contract-monitoring/management-groups/assign-pending",
+  contractGroups.assignPending,
+);
 app.get("/contract-monitoring/management-groups/:id", contractGroups.getGroup);
 app.patch(
   "/contract-monitoring/management-groups/:id",

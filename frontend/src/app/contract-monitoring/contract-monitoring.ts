@@ -82,6 +82,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   queueCategory: string[] = [];
   queueSupplierStatus: string[] = [];
   queueCategories: string[] = [];
+  readonly selectedQueuePendingIds = new Set<number>();
+  queueManagementOpen = false;
+  queueManagementMode: 'CREATE' | 'EXISTING' = 'CREATE';
+  queueManagementGroupId: number | null = null;
+  queueManagementName = '';
+  queueManagementSaving = false;
   groups: ManagementGroup[] = [];
   reports: ContractReport[] = [];
   reportRegionGroups: {
@@ -119,6 +125,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   private queueRequestId = 0;
   private readonly collapsedQueueGroups = new Set<string>();
   private readonly knownQueueManagementGroups = new Set<string>();
+  private editorOriginTab: WorkspaceTab = 'scan';
   readonly queueMetaSaving = new Set<number>();
 
   constructor(
@@ -295,6 +302,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   openResult(result: ScanResult): void {
     this.clearFeedback();
+    this.editorOriginTab = this.tab;
     this.busy = true;
     forkJoin({
       analysis: this.api.analyzeResult(result.id),
@@ -320,7 +328,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   openPending(id: number): void {
     this.clearFeedback();
-    this.tab = 'scan';
+    this.editorOriginTab = this.tab;
     const queueSupplier = this.queue
       .flatMap((group) => group.suppliers)
       .find((supplier) => supplier.files.some((item) => item.id === id));
@@ -362,6 +370,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.analysis = null;
     this.manualResults = [];
     this.newGroupName = '';
+    this.tab = this.editorOriginTab;
     this.loadResults();
   }
 
@@ -748,6 +757,106 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       });
   }
 
+  queueSupplierPendingIds(supplier: PendingSupplierGroup): number[] {
+    return supplier.files
+      .filter((item) => item.status !== 'IGNORED')
+      .map((item) => item.id);
+  }
+
+  isQueueSupplierSelected(supplier: PendingSupplierGroup): boolean {
+    const ids = this.queueSupplierPendingIds(supplier);
+    return Boolean(ids.length) && ids.every((id) => this.selectedQueuePendingIds.has(id));
+  }
+
+  toggleQueueSupplierSelection(supplier: PendingSupplierGroup, selected: boolean): void {
+    for (const id of this.queueSupplierPendingIds(supplier)) {
+      if (selected) this.selectedQueuePendingIds.add(id);
+      else this.selectedQueuePendingIds.delete(id);
+    }
+    this.render();
+  }
+
+  get selectedQueuePendingCount(): number {
+    return this.selectedQueuePendingIds.size;
+  }
+
+  get selectedQueueSupplierNames(): string[] {
+    return [
+      ...new Set(
+        this.queue
+          .flatMap((group) => group.suppliers)
+          .filter((supplier) =>
+            supplier.files.some((item) => this.selectedQueuePendingIds.has(item.id)),
+          )
+          .map((supplier) => supplier.company_name),
+      ),
+    ];
+  }
+
+  openQueueManagement(): void {
+    if (!this.selectedQueuePendingIds.size) {
+      this.error = 'Select at least one supplier from the Pending Queue.';
+      return;
+    }
+    this.queueManagementOpen = true;
+    this.queueManagementMode = 'CREATE';
+    this.queueManagementGroupId = null;
+    this.queueManagementName = '';
+    this.clearFeedback();
+    this.render();
+  }
+
+  closeQueueManagement(): void {
+    if (this.queueManagementSaving) return;
+    this.queueManagementOpen = false;
+    this.queueManagementGroupId = null;
+    this.queueManagementName = '';
+    this.render();
+  }
+
+  addQueueItemToManagement(): void {
+    const group = this.groups.find((candidate) => candidate.id === this.queueManagementGroupId);
+    const name = this.queueManagementName.trim();
+    if (this.queueManagementSaving) return;
+    if (!this.selectedQueuePendingIds.size) {
+      this.error = 'Select at least one supplier from the Pending Queue.';
+      return;
+    }
+    if (this.queueManagementMode === 'CREATE' && !name) {
+      this.error = 'Enter a name for the new management group.';
+      return;
+    }
+    if (this.queueManagementMode === 'EXISTING' && !group) {
+      this.error = 'Select an existing management group.';
+      return;
+    }
+    this.clearFeedback();
+    this.queueManagementSaving = true;
+    this.api
+      .assignPendingToManagement({
+        pending_ids: [...this.selectedQueuePendingIds],
+        ...(this.queueManagementMode === 'CREATE' ? { name } : { group_id: group!.id }),
+      })
+      .pipe(
+        finalize(() => {
+          this.queueManagementSaving = false;
+          this.render();
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.queueManagementOpen = false;
+          this.queueManagementGroupId = null;
+          this.queueManagementName = '';
+          this.selectedQueuePendingIds.clear();
+          this.message = response.message;
+          this.loadGroups();
+          this.loadQueue(true);
+        },
+        error: (error) => this.fail(error),
+      });
+  }
+
   queueSupplierNumber(groupIndex: number, supplierIndex: number): number {
     return (
       this.queue.slice(0, groupIndex).reduce((total, group) => total + group.suppliers.length, 0) +
@@ -880,7 +989,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
   get resultYearGroups(): {
     year: number;
-    suppliers: { key: string; supplierName: string; result: ScanResult; updateCount: number }[];
+    suppliers: { key: string; supplierName: string; results: ScanResult[] }[];
   }[] {
     const years = new Map<number, ScanResult[]>();
     for (const result of this.results) {
@@ -892,16 +1001,14 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       .map(([year, results]) => {
         const suppliers = new Map<
           string,
-          { key: string; supplierName: string; result: ScanResult; updateCount: number }
+          { key: string; supplierName: string; results: ScanResult[] }
         >();
         for (const result of results) {
           const supplierName = this.folderName(result.parent_path);
           const key = supplierName.toLocaleLowerCase();
           const current = suppliers.get(key);
-          if (current) {
-            current.updateCount += 1;
-            if (current.result.processed && !result.processed) current.result = result;
-          } else suppliers.set(key, { key, supplierName, result, updateCount: 1 });
+          if (current) current.results.push(result);
+          else suppliers.set(key, { key, supplierName, results: [result] });
         }
         return { year, suppliers: [...suppliers.values()] };
       });
@@ -952,7 +1059,6 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     if (item.can_link_supplier) this.openManualImport(item);
   }
   openManualImport(item: ContractImportItem): void {
-    this.closeReportReview();
     this.reportManualItem = item;
     this.reportManualQuery = item.supplier_name || '';
     this.reportManualSupplier = null;
@@ -1009,10 +1115,10 @@ export class ContractMonitoring implements OnInit, OnDestroy {
               this.reportImportResult.unchangedRows.unshift(resolvedItem);
             }
           }
+          if (this.reportReviewPage > this.reportReviewTotalPages)
+            this.reportReviewPage = this.reportReviewTotalPages;
           this.closeManualImport();
           if (!this.activeReportReviewItems.length) this.closeReportReview();
-          else if (this.reportReviewPage > this.reportReviewTotalPages)
-            this.reportReviewPage = this.reportReviewTotalPages;
           this.loadReports();
         },
         error: (e) => this.fail(e),

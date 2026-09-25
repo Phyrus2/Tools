@@ -46,6 +46,8 @@ export class HotelOptions implements OnInit {
   productQuery = '';
   supplierResults: HotelLinkSupplier[] = [];
   productResults: HotelLinkProduct[] = [];
+  supplierSearchLoading = false;
+  productSearchLoading = false;
   selectedSupplier: HotelLinkSupplier | null = null;
   selectedProduct: HotelLinkProduct | null = null;
   historyItem: HotelOption | null = null;
@@ -57,6 +59,8 @@ export class HotelOptions implements OnInit {
   editItem: HotelOption | null = null;
   optionForm: HotelOptionInput | null = null;
   optionSaving = false;
+  private supplierSearchRequestId = 0;
+  private productSearchRequestId = 0;
   constructor(
     private api: HotelOptionsService,
     private cdr: ChangeDetectorRef,
@@ -230,13 +234,32 @@ export class HotelOptions implements OnInit {
     this.cdr.markForCheck();
   }
   searchSuppliers(): void {
-    this.api.searchLinks(this.supplierQuery).subscribe({
+    const requestId = ++this.supplierSearchRequestId;
+    if (this.supplierQuery.trim().length < 2) {
+      this.supplierResults = [];
+      this.supplierSearchLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.supplierSearchLoading = true;
+    this.api
+      .searchLinks(this.supplierQuery)
+      .pipe(
+        finalize(() => {
+          if (requestId === this.supplierSearchRequestId) {
+            this.supplierSearchLoading = false;
+            this.cdr.markForCheck();
+          }
+        }),
+      )
+      .subscribe({
       next: (r) => {
+        if (requestId !== this.supplierSearchRequestId) return;
         this.supplierResults = r.suppliers;
         this.cdr.markForCheck();
       },
       error: () => undefined,
-    });
+      });
   }
   chooseSupplier(supplier: HotelLinkSupplier): void {
     this.selectedSupplier = supplier;
@@ -245,6 +268,7 @@ export class HotelOptions implements OnInit {
     this.searchProducts();
   }
   clearSelectedLink(): void {
+    this.productSearchRequestId += 1;
     this.selectedSupplier = null;
     this.selectedProduct = null;
     this.productResults = [];
@@ -252,14 +276,32 @@ export class HotelOptions implements OnInit {
     this.cdr.markForCheck();
   }
   searchProducts(): void {
-    if (!this.selectedSupplier) return;
-    this.api.searchLinks(this.productQuery, this.selectedSupplier.supplier_id).subscribe({
+    const requestId = ++this.productSearchRequestId;
+    if (!this.selectedSupplier) {
+      this.productResults = [];
+      this.productSearchLoading = false;
+      this.cdr.markForCheck();
+      return;
+    }
+    this.productSearchLoading = true;
+    this.api
+      .searchLinks(this.productQuery, this.selectedSupplier.supplier_id)
+      .pipe(
+        finalize(() => {
+          if (requestId === this.productSearchRequestId) {
+            this.productSearchLoading = false;
+            this.cdr.markForCheck();
+          }
+        }),
+      )
+      .subscribe({
       next: (r) => {
+        if (requestId !== this.productSearchRequestId) return;
         this.productResults = r.products;
         this.cdr.markForCheck();
       },
       error: () => undefined,
-    });
+      });
   }
   saveLink(): void {
     if (this.linkSaving || !this.linkItem || !this.selectedSupplier || !this.selectedProduct)
@@ -356,6 +398,10 @@ export class HotelOptions implements OnInit {
   }
   closeOptionForm(): void {
     if (this.optionSaving) return;
+    this.supplierSearchRequestId += 1;
+    this.productSearchRequestId += 1;
+    this.supplierSearchLoading = false;
+    this.productSearchLoading = false;
     this.editItem = null;
     this.optionForm = null;
     this.selectedSupplier = null;

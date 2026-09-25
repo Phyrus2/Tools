@@ -421,6 +421,28 @@ export class ContractMonitoringService {
     });
   }
 
+  assignPendingToManagement(body: {
+    pending_ids: number[];
+    group_id?: number;
+    name?: string;
+  }): Observable<{
+    success: true;
+    id: number;
+    name: string;
+    pending_count: number;
+    supplier_count: number;
+    message: string;
+  }> {
+    return this.http.post<{
+      success: true;
+      id: number;
+      name: string;
+      pending_count: number;
+      supplier_count: number;
+      message: string;
+    }>(`${this.base}/management-groups/assign-pending`, body);
+  }
+
   listReports(
     filters: {
       status?: string[];

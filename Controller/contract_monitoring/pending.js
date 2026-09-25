@@ -440,15 +440,20 @@ async function listPending(req, res) {
           is_management: Boolean(row.is_management_contract),
           management_group_id: row.management_group_id,
           management_group_name:
-            row.management_group_name ||
-            (row.is_management_contract ? "Management contract" : null),
+              row.management_group_name ||
+              (row.is_management_contract ? "Management contract" : null),
           suppliers: [],
+          supplier_lookup: new Map(),
         });
       }
       const group = grouped.get(groupKey);
-      let supplier = group.suppliers.find(
-        (item) => item.supplier_id === row.supplier_id,
-      );
+      const detectedName = String(row.detected_supplier_name || "").trim();
+      const supplierKey = row.supplier_id
+        ? `jambix-${row.supplier_id}`
+        : detectedName
+          ? `detected-${normalizeName(detectedName, { keepGeneric: true })}`
+          : `pending-${row.id}`;
+      let supplier = group.supplier_lookup.get(supplierKey);
       if (!supplier) {
         supplier = {
           supplier_id: row.supplier_id,
@@ -472,6 +477,7 @@ async function listPending(req, res) {
           files: [],
         };
         group.suppliers.push(supplier);
+        group.supplier_lookup.set(supplierKey, supplier);
       }
       supplier.files.push({
         id: row.id,
@@ -495,7 +501,9 @@ async function listPending(req, res) {
         detected_signed_status: row.detected_signed_status,
       });
     }
-    const queueGroups = [...grouped.values()];
+    const queueGroups = [...grouped.values()].map(
+      ({ supplier_lookup: _supplierLookup, ...group }) => group,
+    );
     const categories = [
       ...new Set(rows.flatMap((row) => parseCategories(row.category_supplier))),
     ].sort();
@@ -912,6 +920,29 @@ async function saveSuppliers(req, res) {
           textValue(input.note, "Note", { max: 10000 }),
         ],
       );
+    }
+    if (pending.management_group_id && ids.length) {
+      const membershipStart = todayWita();
+      for (const supplierId of ids) {
+        await connection.execute(
+          `INSERT INTO supplier_management_group_history
+             (supplier_id, group_id, start_date, created_by)
+           SELECT ?, ?, ?, ? FROM DUAL
+            WHERE NOT EXISTS (
+              SELECT 1 FROM supplier_management_group_history
+               WHERE supplier_id = ? AND group_id = ? AND end_date IS NULL
+            )
+           ON DUPLICATE KEY UPDATE end_date = NULL, created_by = VALUES(created_by)`,
+          [
+            supplierId,
+            pending.management_group_id,
+            membershipStart,
+            req.admin.id,
+            supplierId,
+            pending.management_group_id,
+          ],
+        );
+      }
     }
     await connection.execute(
       "UPDATE contract_pending SET version = version + 1 WHERE id = ?",

@@ -31,7 +31,7 @@
     {{ message }} <button type="button" (click)="message = ''">×</button>
   </section>
 
-  <ng-container *ngIf="tab === 'scan'">
+  <ng-container *ngIf="tab === 'scan' || pending">
     <section class="cm-scan-card" *ngIf="!pending">
       <div class="cm-section-title">
         <div>
@@ -183,26 +183,40 @@
             </div>
             <div class="cm-file-copy">
               <strong>{{ row.supplierName }}</strong>
-              <small>Contract update detected</small>
-              <div>
-                <span>{{ utcLabel(row.result.date_modified_utc) }}</span>
-                <span>{{ row.result.year }}</span>
-                <span *ngIf="row.updateCount > 1">{{ row.updateCount }} updates found</span>
-                <span>{{
-                  statusLabel(
-                    row.result.pending_status || (row.result.processed ? 'PROCESSED' : 'NEW')
-                  )
-                }}</span>
+              <small>{{ row.results.length }} contract file(s) detected</small>
+              <div class="cm-scan-files">
+                <article *ngFor="let result of row.results; trackBy: trackById">
+                  <span class="cm-scan-file-icon" aria-hidden="true">DOC</span>
+                  <div>
+                    <b>{{ result.file_name }}</b>
+                    <button
+                      type="button"
+                      class="cm-scan-path"
+                      (click)="copyPath(result.full_path)"
+                      [title]="result.full_path"
+                    >
+                      {{ result.parent_path }}
+                    </button>
+                    <small>
+                      {{ utcLabel(result.date_modified_utc) }} &middot;
+                      {{
+                        statusLabel(
+                          result.pending_status || (result.processed ? 'PROCESSED' : 'NEW')
+                        )
+                      }}
+                    </small>
+                  </div>
+                  <button
+                    class="cm-primary cm-primary--small"
+                    type="button"
+                    [disabled]="busy || !!result.processed"
+                    (click)="openResult(result)"
+                  >
+                    {{ result.pending_id ? 'Continue' : 'Add to queue' }}
+                  </button>
+                </article>
               </div>
             </div>
-            <button
-              class="cm-primary cm-primary--small"
-              type="button"
-              [disabled]="busy || !!row.result.processed"
-              (click)="openResult(row.result)"
-            >
-              {{ row.result.pending_id ? 'Continue' : 'Add to queue' }}
-            </button>
           </article>
         </div>
       </section>
@@ -542,7 +556,7 @@
     </section>
   </ng-container>
 
-  <section class="cm-panel" *ngIf="tab === 'queue'">
+  <section class="cm-panel" *ngIf="tab === 'queue' && !pending">
     <div class="cm-panel-head">
       <div>
         <h2>Pending queue</h2>
@@ -552,6 +566,15 @@
         </p>
       </div>
       <div class="cm-queue-import">
+        <button
+          type="button"
+          class="cm-management-bulk"
+          [disabled]="!selectedQueuePendingCount"
+          (click)="openQueueManagement()"
+        >
+          <span>Create management</span>
+          <b>{{ selectedQueuePendingCount }}</b>
+        </button>
         <label class="cm-secondary">
           <span>{{ pendingImportFile ? pendingImportFile.name : 'Choose Excel' }}</span>
           <input type="file" accept=".xlsx,.xls" (change)="selectPendingImport($event)" />
@@ -685,6 +708,14 @@
             *ngFor="let supplier of group.suppliers; let supplierIndex = index; trackBy: trackById"
           >
             <header>
+              <label class="cm-queue-select" *ngIf="!group.is_management">
+                <input
+                  type="checkbox"
+                  [checked]="isQueueSupplierSelected(supplier)"
+                  (change)="toggleQueueSupplierSelection(supplier, $any($event.target).checked)"
+                />
+                <span>Select</span>
+              </label>
               <div>
                 <span>SUPPLIER</span>
                 <h3>{{ supplier.company_name }}</h3>
@@ -785,6 +816,101 @@
       </button>
     </footer>
   </section>
+
+  <div
+    class="cm-management-modal-backdrop"
+    *ngIf="queueManagementOpen"
+    (click)="closeQueueManagement()"
+  >
+    <section
+      class="cm-management-modal"
+      role="dialog"
+      aria-modal="true"
+      (click)="$event.stopPropagation()"
+    >
+      <header>
+        <div>
+          <p>ADD TO MANAGEMENT</p>
+          <h2>Group selected suppliers</h2>
+          <span>{{ selectedQueuePendingCount }} pending item(s) selected</span>
+        </div>
+        <button
+          type="button"
+          aria-label="Close"
+          [disabled]="queueManagementSaving"
+          (click)="closeQueueManagement()"
+        >
+          &times;
+        </button>
+      </header>
+      <div class="cm-management-selected">
+        <span *ngFor="let supplierName of selectedQueueSupplierNames">{{ supplierName }}</span>
+        <small *ngIf="!selectedQueueSupplierNames.length">
+          Selection includes suppliers from another queue page.
+        </small>
+      </div>
+      <div class="cm-management-mode" role="group" aria-label="Management group mode">
+        <button
+          type="button"
+          [class.active]="queueManagementMode === 'CREATE'"
+          (click)="queueManagementMode = 'CREATE'"
+        >
+          Create new
+        </button>
+        <button
+          type="button"
+          [class.active]="queueManagementMode === 'EXISTING'"
+          (click)="queueManagementMode = 'EXISTING'"
+        >
+          Use existing
+        </button>
+      </div>
+      <label *ngIf="queueManagementMode === 'CREATE'">
+        <span>New management name</span>
+        <input
+          [(ngModel)]="queueManagementName"
+          [disabled]="queueManagementSaving"
+          placeholder="Example: Sanur Hotel Management"
+        />
+      </label>
+      <label *ngIf="queueManagementMode === 'EXISTING'">
+        <span>Existing management group</span>
+        <select [(ngModel)]="queueManagementGroupId" [disabled]="queueManagementSaving">
+          <option [ngValue]="null">Choose a group</option>
+          <option *ngFor="let group of groups" [ngValue]="group.id">
+            {{ group.name }} ({{ group.active_member_count }} members)
+          </option>
+        </select>
+      </label>
+      <p class="cm-management-modal-note">
+        All selected pending items will be grouped together. Existing supplier, workflow status,
+        notes, and file data will be kept.
+      </p>
+      <footer>
+        <button
+          type="button"
+          class="cm-secondary"
+          [disabled]="queueManagementSaving"
+          (click)="closeQueueManagement()"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          class="cm-primary"
+          [disabled]="
+            queueManagementSaving ||
+            (queueManagementMode === 'CREATE'
+              ? !queueManagementName.trim()
+              : !queueManagementGroupId)
+          "
+          (click)="addQueueItemToManagement()"
+        >
+          {{ queueManagementSaving ? 'Adding…' : 'Add to management' }}
+        </button>
+      </footer>
+    </section>
+  </div>
 
   <section class="cm-panel rp" *ngIf="tab === 'reports'">
     <!-- Header -->

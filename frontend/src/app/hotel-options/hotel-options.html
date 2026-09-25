@@ -282,7 +282,10 @@
               (click)="addOption(destination.region, place.name, place.options)"
               aria-label="Add hotel option"
             >
-              + Add option
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+              </svg>
+              Add option
             </button>
           </div>
         </div>
@@ -352,8 +355,12 @@
             </div>
 
             <div class="option-actions">
-              <button class="btn btn-ghost" (click)="showHistory(item)">
-                Updates
+              <button class="icon-action updates" type="button" (click)="showHistory(item)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M4 12a8 8 0 1 0 2.35-5.65L4 8.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                  <path d="M4 4v4.7h4.7M12 8v4l2.7 1.7" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                Logs
                 <em class="count-pill" *ngIf="item.update_count">{{ item.update_count }}</em>
               </button>
               <button
@@ -489,8 +496,12 @@
       </div>
       <div class="form-link-columns">
         <div class="search-block">
-          <label>
-            Search supplier
+          <div class="link-search-head">
+            <span class="link-search-step">1</span>
+            <div><strong>Choose supplier</strong><small>Search the Jambix database</small></div>
+          </div>
+          <label class="link-search-input">
+            <span class="sr-only">Search supplier</span>
             <div class="input-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
@@ -507,9 +518,10 @@
                 (ngModelChange)="searchSuppliers()"
                 placeholder="Hotel or supplier name"
               />
+              <span class="search-spinner" *ngIf="supplierSearchLoading"></span>
             </div>
           </label>
-          <div class="search-results compact">
+          <div class="search-results compact" [class.is-loading]="supplierSearchLoading">
             <button
               type="button"
               class="search-result"
@@ -527,11 +539,38 @@
                 >✓</span
               >
             </button>
+            <div
+              class="link-search-state"
+              *ngIf="!supplierSearchLoading && supplierQuery.trim().length < 2"
+            >
+              Type at least 2 characters to find a supplier.
+            </div>
+            <div
+              class="link-search-state"
+              *ngIf="
+                !supplierSearchLoading &&
+                supplierQuery.trim().length >= 2 &&
+                !supplierResults.length
+              "
+            >
+              No matching supplier found.
+            </div>
           </div>
         </div>
         <div class="search-block" [class.disabled]="!selectedSupplier">
-          <label>
-            Search room product
+          <div class="link-search-head">
+            <span class="link-search-step">2</span>
+            <div>
+              <strong>Choose room product</strong>
+              <small>{{
+                selectedSupplier
+                  ? 'Products from ' + selectedSupplier.company_name
+                  : 'Choose a supplier first'
+              }}</small>
+            </div>
+          </div>
+          <label class="link-search-input">
+            <span class="sr-only">Search room product</span>
             <div class="input-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="1.8" />
@@ -549,9 +588,10 @@
                 [disabled]="!selectedSupplier"
                 placeholder="Room product name"
               />
+              <span class="search-spinner" *ngIf="productSearchLoading"></span>
             </div>
           </label>
-          <div class="search-results compact">
+          <div class="search-results compact" [class.is-loading]="productSearchLoading">
             <button
               type="button"
               class="search-result"
@@ -567,6 +607,15 @@
                 >✓</span
               >
             </button>
+            <div class="link-search-state" *ngIf="!selectedSupplier">
+              Supplier selection unlocks room products.
+            </div>
+            <div
+              class="link-search-state"
+              *ngIf="selectedSupplier && !productSearchLoading && !productResults.length"
+            >
+              No room products match this search.
+            </div>
           </div>
         </div>
       </div>
@@ -603,7 +652,7 @@
           (click)="saveOption()"
         >
           <span class="spinner" *ngIf="optionSaving"></span>
-          {{ optionSaving ? 'Saving…' : 'Save option' }}
+          {{ optionSaving ? 'Saving…' : editItem ? 'Update option' : 'Add option' }}
         </button>
       </div>
     </footer>

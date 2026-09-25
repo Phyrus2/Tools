@@ -9,6 +9,14 @@ function supplierIds(value) {
   return ids;
 }
 
+function pendingIds(value) {
+  if (!Array.isArray(value) || !value.length)
+    throw new Error("Pilih minimal satu pending item.");
+  const ids = Array.from(new Set(value.map(parseId)));
+  if (ids.some((id) => !id)) throw new Error("Pending item ID tidak valid.");
+  return ids;
+}
+
 async function ensureSuppliers(connection, ids) {
   if (!ids.length) return;
   const [rows] = await connection.execute(
@@ -73,6 +81,31 @@ async function listGroups(req, res) {
         GROUP BY g.id ORDER BY g.name`,
       params,
     );
+    const [memberRows] = await pool.execute(
+      `SELECT h.group_id, CONCAT('jambix-', h.supplier_id) AS member_key
+         FROM supplier_management_group_history h
+        WHERE h.end_date IS NULL
+       UNION
+       SELECT p.management_group_id AS group_id,
+              CASE
+                WHEN ps.supplier_id IS NOT NULL THEN CONCAT('jambix-', ps.supplier_id)
+                WHEN TRIM(COALESCE(ps.detected_supplier_name, '')) <> ''
+                  THEN CONCAT('detected-', LOWER(TRIM(ps.detected_supplier_name)))
+                ELSE CONCAT('pending-', p.id)
+              END AS member_key
+         FROM contract_pending p
+         JOIN contract_pending_suppliers ps ON ps.pending_id = p.id
+        WHERE p.management_group_id IS NOT NULL
+          AND p.status NOT IN ('DONE', 'IGNORED')`,
+    );
+    const membersByGroup = new Map();
+    for (const member of memberRows) {
+      if (!membersByGroup.has(member.group_id))
+        membersByGroup.set(member.group_id, new Set());
+      membersByGroup.get(member.group_id).add(member.member_key);
+    }
+    for (const group of rows)
+      group.active_member_count = membersByGroup.get(group.id)?.size || 0;
     return res.json({ success: true, groups: rows });
   } catch (error) {
     console.error("List contract management groups error:", error);
@@ -102,6 +135,97 @@ async function createGroup(req, res) {
     if (isValidationError(error) || /supplier|group/i.test(error.message || "")) return badRequest(res, error);
     console.error("Create contract management group error:", error);
     return res.status(500).json({ success: false, message: "Gagal membuat management group." });
+  } finally {
+    connection.release();
+  }
+}
+
+async function assignPending(req, res) {
+  const connection = await pool.getConnection();
+  try {
+    const selectedPendingIds = pendingIds(req.body?.pending_ids);
+    const requestedGroupId = req.body?.group_id ? parseId(req.body.group_id) : null;
+    const requestedName = requestedGroupId
+      ? null
+      : textValue(req.body?.name, "Nama group", { required: true, max: 255 });
+    if (req.body?.group_id && !requestedGroupId)
+      throw new Error("Management group ID tidak valid.");
+
+    await connection.beginTransaction();
+    const placeholders = selectedPendingIds.map(() => "?").join(",");
+    const [pendingRows] = await connection.execute(
+      `SELECT p.id, p.claimed_by, ps.supplier_id
+         FROM contract_pending p
+         JOIN contract_pending_suppliers ps ON ps.pending_id = p.id
+        WHERE p.id IN (${placeholders}) AND p.status NOT IN ('DONE', 'IGNORED')
+        FOR UPDATE`,
+      selectedPendingIds,
+    );
+    const foundPendingIds = new Set(pendingRows.map((row) => row.id));
+    if (foundPendingIds.size !== selectedPendingIds.length)
+      throw new Error("Sebagian pending item tidak ditemukan atau sudah selesai.");
+    if (pendingRows.some((row) => row.claimed_by && row.claimed_by !== req.admin.id))
+      throw new Error("Sebagian pending item sedang diproses oleh user lain.");
+    const selectedSupplierIds = Array.from(
+      new Set(pendingRows.map((row) => row.supplier_id).filter(Boolean)),
+    );
+    let groupId = requestedGroupId;
+    let groupName = requestedName;
+    if (groupId) {
+      const [groups] = await connection.execute(
+        "SELECT id, name FROM contract_management_groups WHERE id = ? AND status = 'ACTIVE' FOR UPDATE",
+        [groupId],
+      );
+      if (!groups.length) throw new Error("Management group tidak ditemukan atau tidak aktif.");
+      groupName = groups[0].name;
+      const [memberRows] = await connection.execute(
+        "SELECT supplier_id FROM supplier_management_group_history WHERE group_id = ? AND end_date IS NULL",
+        [groupId],
+      );
+      await applyMembers(
+        connection,
+        groupId,
+        Array.from(new Set([...memberRows.map((row) => row.supplier_id), ...selectedSupplierIds])),
+        req.admin.id,
+      );
+    } else {
+      const normalized = normalizeName(groupName, {
+        keepGeneric: true,
+        keepCompanySuffixes: true,
+      });
+      if (!normalized) throw new Error("Nama group tidak valid.");
+      const [created] = await connection.execute(
+        `INSERT INTO contract_management_groups (name, normalized_name, created_by)
+         VALUES (?, ?, ?)`,
+        [groupName, normalized, req.admin.id],
+      );
+      groupId = created.insertId;
+      await applyMembers(connection, groupId, selectedSupplierIds, req.admin.id);
+    }
+
+    await connection.execute(
+      `UPDATE contract_pending
+          SET is_management_contract = 1, management_group_id = ?, management_name = ?, version = version + 1
+        WHERE id IN (${placeholders})`,
+      [groupId, groupName, ...selectedPendingIds],
+    );
+    await connection.commit();
+    return res.status(requestedGroupId ? 200 : 201).json({
+      success: true,
+      id: groupId,
+      name: groupName,
+      pending_count: selectedPendingIds.length,
+      supplier_count: selectedSupplierIds.length,
+      message: `${selectedPendingIds.length} pending item berhasil dimasukkan ke management ${groupName}.`,
+    });
+  } catch (error) {
+    await connection.rollback();
+    if (error.code === "ER_DUP_ENTRY")
+      return res.status(409).json({ success: false, message: "Nama management group sudah digunakan." });
+    if (isValidationError(error) || /pending|supplier|group|management|diproses/i.test(error.message || ""))
+      return badRequest(res, error);
+    console.error("Assign pending management group error:", error);
+    return res.status(500).json({ success: false, message: "Gagal membuat management dari pending queue." });
   } finally {
     connection.release();
   }
@@ -193,4 +317,4 @@ async function getHistory(req, res) {
   }
 }
 
-module.exports = { createGroup, getGroup, getHistory, listGroups, updateGroup, updateMembers };
+module.exports = { assignPending, createGroup, getGroup, getHistory, listGroups, updateGroup, updateMembers };
