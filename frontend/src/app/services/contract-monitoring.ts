@@ -145,12 +145,15 @@ export interface PendingFileItem {
   is_management_contract: number | boolean;
   management_group_name: string | null;
   claimed_by_name: string | null;
+  handled_by: number | null;
+  handled_by_name: string | null;
   version: number;
   date_modified_utc: string;
   detected_signed_status: SignedStatus;
 }
 
 export interface PendingSupplierGroup {
+  queue_number: number;
   supplier_id: number | null;
   company_name: string;
   supplier_location: string | null;

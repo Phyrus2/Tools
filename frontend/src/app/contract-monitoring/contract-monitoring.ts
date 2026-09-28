@@ -857,14 +857,6 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       });
   }
 
-  queueSupplierNumber(groupIndex: number, supplierIndex: number): number {
-    return (
-      this.queue.slice(0, groupIndex).reduce((total, group) => total + group.suppliers.length, 0) +
-      supplierIndex +
-      1
-    );
-  }
-
   queueContractLabel(supplier: PendingSupplierGroup): string {
     return [
       ...new Set(supplier.files.map((item) => item.contract_period || String(item.year))),
@@ -1210,6 +1202,17 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   statusLabel(value: string): string {
     return value.replaceAll('_', ' ');
+  }
+
+  workflowStatusLabel(value: PendingFileItem['workflow_state']): string {
+    const labels: Record<PendingFileItem['workflow_state'], string> = {
+      UNHANDLED: 'Not handled',
+      IN_PROGRESS: 'In progress',
+      OP_NO_RESPONSE: '(OP) No response',
+      OP_WAITING: '(OP) Waiting',
+      DB_PENDING_VARIANT: '(Database) Pending variant',
+    };
+    return labels[value];
   }
 
   dateLabel(value: string | null): string {

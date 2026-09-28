@@ -380,7 +380,7 @@ textarea { min-height: 0; resize: vertical; }
 .cm-management-bulk:hover:not(:disabled) { background: #f2e2bd; }
 .cm-management-bulk:disabled { opacity: .45; cursor: not-allowed; }
 
-.cm-queue-list { display: grid; gap: 1rem; counter-reset: queue-row; }
+.cm-queue-list { display: grid; gap: 1rem; }
 .cm-queue-group { border: 1px solid var(--line); border-radius: var(--r-m); overflow: hidden; background: #fff; }
 .cm-queue-group--management { border-color: #e2d3a8; }
 .cm-management-head { background: var(--amber-soft); }
@@ -397,11 +397,10 @@ textarea { min-height: 0; resize: vertical; }
 
 /* Read like a plain numbered list first (number + supplier name); everything
    else — status, contract, note, actions — stays present but visually quiet. */
-.cm-queue-supplier { border: 0; counter-increment: queue-row; }
+.cm-queue-supplier { border: 0; }
 .cm-queue-supplier + .cm-queue-supplier { border-top: 1px solid var(--line); }
 .cm-queue-supplier > header { display: flex; align-items: center; gap: 0.85rem; padding: 1rem 1.2rem 0.8rem; }
-.cm-queue-supplier > header::before {
-  content: counter(queue-row);
+.cm-queue-sequence {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -448,10 +447,31 @@ textarea { min-height: 0; resize: vertical; }
   padding-top: 0.7rem;
   border-top: 1px dashed var(--line);
 }
-.cm-queue-number { display: none; }
 .cm-queue-contract { display: flex; align-items: center; gap: 0.4rem; }
 .cm-queue-contract small { color: var(--faint); font-size: 0.72rem; font-weight: 600; }
 .cm-queue-contract strong { font-size: 0.8rem; font-weight: 600; color: var(--soft); }
+.cm-queue-item-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.cm-handler-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38rem;
+  min-height: 27px;
+  padding: 0.28rem 0.58rem;
+  border: 1px solid #d8cfb7;
+  border-radius: 999px;
+  color: #655022;
+  background: #fff8e6;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.cm-handler-badge i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #b87919;
+  box-shadow: 0 0 0 3px rgba(184, 121, 25, 0.13);
+}
 .cm-queue-field { display: flex; align-items: center; gap: 0.45rem; }
 .cm-queue-field > span { color: var(--faint); font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
 .cm-queue-field select, .cm-queue-field input {

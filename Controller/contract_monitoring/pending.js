@@ -413,10 +413,12 @@ async function listPending(req, res) {
               EXISTS (SELECT 1 FROM booked_products bp WHERE bp.supplier_id = ps.supplier_id) AS has_booked_product,
               EXISTS (SELECT 1 FROM hotel_options ho WHERE ho.supplier_id = ps.supplier_id) AS has_hotel_option,
               p.id, p.scan_result_id, p.is_management_contract, p.management_group_id, p.contract_period, p.queue_supplier_status,
-              ps.supplier_type, p.status, p.workflow_state, p.claimed_by, p.claimed_at, p.completed_at, p.version, p.note,
+              ps.supplier_type, p.status, p.workflow_state, p.claimed_by, p.claimed_at, p.handled_by,
+              p.completed_at, p.version, p.note,
               r.file_name, r.full_path, r.detected_signed_status, src.year,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc,
-              COALESCE(p.management_name, g.name) AS management_group_name, u.fullname AS claimed_by_name
+              COALESCE(p.management_name, g.name) AS management_group_name,
+              u.fullname AS claimed_by_name, handler.fullname AS handled_by_name
          FROM contract_pending p
          JOIN contract_pending_suppliers ps ON ps.pending_id = p.id
          LEFT JOIN suppliers s ON s.supplier_id = ps.supplier_id
@@ -424,6 +426,7 @@ async function listPending(req, res) {
          JOIN contract_scan_sources src ON src.id = r.source_id
          LEFT JOIN contract_management_groups g ON g.id = p.management_group_id
          LEFT JOIN users u ON u.id = p.claimed_by
+         LEFT JOIN users handler ON handler.id = p.handled_by
          ${where} ORDER BY s.company_name, p.updated_at DESC`,
       params,
     );
@@ -491,6 +494,8 @@ async function listPending(req, res) {
         year: Number(row.year),
         claimed_by: row.claimed_by,
         claimed_by_name: row.claimed_by_name,
+        handled_by: row.handled_by,
+        handled_by_name: row.handled_by_name,
         claimed_at: row.claimed_at,
         completed_at: row.completed_at,
         version: row.version,
@@ -504,6 +509,13 @@ async function listPending(req, res) {
     const queueGroups = [...grouped.values()].map(
       ({ supplier_lookup: _supplierLookup, ...group }) => group,
     );
+    let queueNumber = 0;
+    for (const group of queueGroups) {
+      for (const supplier of group.suppliers) {
+        queueNumber += 1;
+        supplier.queue_number = queueNumber;
+      }
+    }
     const categories = [
       ...new Set(rows.flatMap((row) => parseCategories(row.category_supplier))),
     ].sort();
@@ -945,8 +957,13 @@ async function saveSuppliers(req, res) {
       }
     }
     await connection.execute(
-      "UPDATE contract_pending SET version = version + 1 WHERE id = ?",
-      [id],
+      `UPDATE contract_pending
+          SET status = IF(? > 0, 'IN_PROGRESS', status),
+              workflow_state = IF(? > 0 AND workflow_state = 'UNHANDLED', 'IN_PROGRESS', workflow_state),
+              handled_by = IF(? > 0, ?, handled_by),
+              version = version + 1
+        WHERE id = ?`,
+      [ids.length, ids.length, ids.length, req.admin.id, id],
     );
     await connection.commit();
     return res.json({
@@ -1007,8 +1024,11 @@ async function startPending(req, res) {
         "Add a supplier or queue the detected folder name before starting progress.",
       );
     await connection.execute(
-      `UPDATE contract_pending SET status = 'IN_PROGRESS', workflow_state = 'IN_PROGRESS', version = version + 1 WHERE id = ?`,
-      [id],
+      `UPDATE contract_pending
+          SET status = 'IN_PROGRESS', workflow_state = 'IN_PROGRESS', handled_by = ?,
+              version = version + 1
+        WHERE id = ?`,
+      [req.admin.id, id],
     );
     await connection.commit();
     return res.json({
@@ -1085,7 +1105,10 @@ async function queueUnmatched(req, res) {
       [id, detectedName, pending.detected_signed_status],
     );
     await connection.execute(
-      "UPDATE contract_pending SET version = version + 1 WHERE id = ?",
+      `UPDATE contract_pending
+          SET status = 'NEW', workflow_state = 'UNHANDLED',
+              version = version + 1
+        WHERE id = ?`,
       [id],
     );
     await connection.commit();
@@ -1405,9 +1428,16 @@ async function updateQueueMeta(req, res) {
     );
     const note = textValue(req.body?.note, "Problem note", { max: 10000 });
     const [result] = await pool.execute(
-      `UPDATE contract_pending SET workflow_state=?, note=?, version=version+1
+      `UPDATE contract_pending
+          SET workflow_state=?, note=?,
+              handled_by=CASE
+                WHEN ? = 'IN_PROGRESS' THEN ?
+                WHEN ? = 'UNHANDLED' THEN NULL
+                ELSE handled_by
+              END,
+              version=version+1
         WHERE id=? AND status NOT IN ('DONE', 'IGNORED')`,
-      [workflowState, note, id],
+      [workflowState, note, workflowState, req.admin.id, workflowState, id],
     );
     if (!result.affectedRows)
       return res.status(404).json({

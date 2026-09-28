@@ -671,7 +671,7 @@
     <div class="cm-queue-list">
       <section
         class="cm-queue-group"
-        *ngFor="let group of queue; let groupIndex = index; trackBy: trackById"
+        *ngFor="let group of queue; trackBy: trackById"
         [class.cm-queue-group--management]="group.is_management"
       >
         <header *ngIf="group.is_management" class="cm-management-head">
@@ -705,9 +705,10 @@
         >
           <article
             class="cm-queue-supplier"
-            *ngFor="let supplier of group.suppliers; let supplierIndex = index; trackBy: trackById"
+            *ngFor="let supplier of group.suppliers; trackBy: trackById"
           >
             <header>
+              <span class="cm-queue-sequence">{{ supplier.queue_number }}</span>
               <label class="cm-queue-select" *ngIf="!group.is_management">
                 <input
                   type="checkbox"
@@ -749,12 +750,18 @@
               </div>
             </header>
             <div class="cm-queue-file" *ngIf="supplier.files[0] as item">
-              <span class="cm-queue-number">{{
-                queueSupplierNumber(groupIndex, supplierIndex)
-              }}</span>
               <div class="cm-queue-contract">
                 <small>CONTRACT</small>
                 <strong>{{ queueContractLabel(supplier) }}</strong>
+              </div>
+              <div class="cm-queue-item-badges">
+                <span class="cm-status" [attr.data-status]="item.workflow_state">
+                  {{ workflowStatusLabel(item.workflow_state) }}
+                </span>
+                <span class="cm-handler-badge" *ngIf="item.handled_by_name">
+                  <i aria-hidden="true"></i>
+                  Handled by {{ item.handled_by_name }}
+                </span>
               </div>
               <label class="cm-queue-field">
                 <span>WORKFLOW STATUS</span>
