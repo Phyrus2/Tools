@@ -206,6 +206,16 @@ npm run server:autostart:status
 Get-Content .server-logs\watchdog.log -Tail 100
 ```
 
+Untuk memantau seluruh log penting secara real time dalam satu terminal:
+
+```powershell
+npm run server:logs
+```
+
+Monitor memberi label dan warna berbeda untuk watchdog, Node.js, Cloudflare Tunnel,
+dan worker backup. Tekan `Ctrl+C` untuk menutup monitor; proses server tidak ikut
+dihentikan.
+
 Untuk maintenance, gunakan perintah berikut agar watchdog tidak langsung menyalakan
 server yang baru dihentikan:
 

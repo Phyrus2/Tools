@@ -12,6 +12,7 @@
     "server:autostart:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/configure-autostart.ps1 -Action Start",
     "server:autostart:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/configure-autostart.ps1 -Action Stop",
     "server:autostart:uninstall": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/configure-autostart.ps1 -Action Uninstall",
+    "server:logs": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/watch-logs.ps1",
     "db:backup": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/backup-database.ps1",
     "db:backup:download": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1 -DownloadOnly",
     "db:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1"
