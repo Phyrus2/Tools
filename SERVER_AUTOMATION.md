@@ -214,7 +214,11 @@ npm run server:logs
 
 Monitor memberi label dan warna berbeda untuk watchdog, Node.js, Cloudflare Tunnel,
 dan worker backup. Tekan `Ctrl+C` untuk menutup monitor; proses server tidak ikut
-dihentikan.
+dihentikan. Tahap `server:up` seperti Git pull, restore database, dependency, Node,
+tunnel, publish API URL, dan deploy frontend ikut tampil langsung melalui log watchdog.
+Status watchdog menggunakan `STARTING`, `HEALTHY`, `DEGRADED`, `STOPPING`, dan
+`RETRYING`. Jika Scheduled Task mengarah ke copy project lain, monitor menampilkan
+peringatan beserta kedua lokasinya.
 
 Untuk maintenance, gunakan perintah berikut agar watchdog tidak langsung menyalakan
 server yang baru dihentikan:

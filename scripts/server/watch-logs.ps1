@@ -9,6 +9,7 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new($false) } catch {}
 
 $directories = Initialize-ServerDirectories
 $definitions = @(
@@ -117,6 +118,27 @@ Write-Host ''
 Write-Host 'Memantau log server secara real time. Tekan Ctrl+C untuk menutup monitor.' -ForegroundColor White
 Write-Host "Folder log: $($directories.Logs)" -ForegroundColor DarkGray
 Write-Host 'Menutup monitor tidak menghentikan server.' -ForegroundColor DarkGray
+
+$statusPath = Join-Path $directories.State 'watchdog-status.json'
+if (Test-Path -LiteralPath $statusPath) {
+  try {
+    $status = Get-Content -LiteralPath $statusPath -Raw -Encoding UTF8 | ConvertFrom-Json
+    Write-Host "Status saat ini: $($status.state) / $($status.phase) - $($status.detail)" -ForegroundColor Cyan
+  } catch {}
+}
+
+try {
+  $scheduledTask = Get-ScheduledTask -TaskName 'C2I Tools Server' -ErrorAction SilentlyContinue
+  if ($scheduledTask) {
+    $taskDirectory = [string](@($scheduledTask.Actions)[0].WorkingDirectory)
+    if ($taskDirectory -and
+        -not [string]::Equals($taskDirectory.TrimEnd('\'), $directories.Root.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+      Write-Host 'PERINGATAN: Scheduled Task memakai copy project yang berbeda.' -ForegroundColor Red
+      Write-Host "Task      : $taskDirectory" -ForegroundColor Red
+      Write-Host "Monitor   : $($directories.Root)" -ForegroundColor Red
+    }
+  }
+} catch {}
 Write-Host ''
 
 while ($true) {

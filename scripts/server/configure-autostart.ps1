@@ -217,5 +217,12 @@ switch ($Action) {
     Write-Host "Last result: $($info.LastTaskResult)"
     Write-Host "Next run   : saat Windows boot"
     Write-Host "Log        : $($directories.Logs)\watchdog.log"
+    $taskAction = @($task.Actions)[0]
+    Write-Host "Task folder: $($taskAction.WorkingDirectory)"
+    Write-Host "Project    : $($directories.Root)"
+    if ($taskAction.WorkingDirectory -and
+        -not [string]::Equals($taskAction.WorkingDirectory.TrimEnd('\'), $directories.Root.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
+      Write-Host 'PERINGATAN: task memakai copy project yang berbeda. Jalankan install ulang dari folder yang benar.' -ForegroundColor Red
+    }
   }
 }
