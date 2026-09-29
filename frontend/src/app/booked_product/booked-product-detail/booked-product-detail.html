@@ -12,13 +12,13 @@
         <p class="subtitle">Booking #{{ record.id }} &middot; {{ record.dossier_name || record.dossier_id }}</p>
       </div>
       <div class="record-actions">
-        <button type="button" class="record-button record-button--secondary" *ngIf="editing" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
-        <button type="button" class="record-button" *ngIf="!editing" (click)="startEdit()">Edit data</button>
-        <button type="button" class="record-button" *ngIf="editing" (click)="save()" [disabled]="saving">{{ saving ? 'Saving...' : 'Save changes' }}</button>
+        <button type="button" class="record-button record-button--secondary" *ngIf="editing && canEdit" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
+        <button type="button" class="record-button" *ngIf="!editing && canEdit" (click)="startEdit()">Edit data</button>
+        <button type="button" class="record-button" *ngIf="editing && canEdit" (click)="save()" [disabled]="saving">{{ saving ? 'Saving...' : 'Save changes' }}</button>
       </div>
     </header>
 
-    <section class="booked-relations" aria-label="Relasi booked product">
+    <section class="booked-relations" aria-label="Relasi booked product" *ngIf="auth.hasPermission('analytics')">
       <a [routerLink]="['/analytics/suppliers', record.supplier_id]" [state]="{ backLabel: 'Back to Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Supplier</span><strong>{{ record.company_name }}</strong><small>ID {{ record.supplier_id }} &rarr;</small></a>
       <a [routerLink]="['/analytics/products', record.product_id]" [state]="{ backLabel: 'Back to Booked Product Detail', returnTo: '/booked-product/' + record.id }"><span>Master Product</span><strong>{{ record.master_product_name }}</strong><small>ID {{ record.product_id }} &rarr;</small></a>
     </section>

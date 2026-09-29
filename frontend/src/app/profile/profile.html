@@ -1,0 +1,53 @@
+<main class="profile-shell">
+  <section class="profile-heading">
+    <div class="profile-avatar" aria-hidden="true">
+      <svg viewBox="0 0 32 32"><circle cx="16" cy="11" r="6"/><path d="M5.5 28c1.1-6.5 4.6-10 10.5-10s9.4 3.5 10.5 10"/></svg>
+    </div>
+    <div>
+      <p>MY PROFILE</p>
+      <h1>{{ auth.user()?.fullname }}</h1>
+      <span>{{ '@' + auth.user()?.username }} &middot; {{ auth.user()?.role }}</span>
+    </div>
+  </section>
+
+  <div class="profile-grid">
+    <section class="profile-card">
+      <header><span>IDENTITY</span><h2>Name and username</h2><p>Your current password is required to protect account changes.</p></header>
+      <p class="notice notice--success" *ngIf="profileMessage()">{{ profileMessage() }}</p>
+      <p class="notice notice--error" *ngIf="profileError()">{{ profileError() }}</p>
+      <form [formGroup]="profileForm" (ngSubmit)="saveProfile()">
+        <label>
+          <span>Full name</span>
+          <input formControlName="fullname" autocomplete="name" maxlength="150" />
+          <small *ngIf="profileForm.controls.fullname.touched && profileForm.controls.fullname.invalid">Enter at least 2 characters.</small>
+        </label>
+        <label>
+          <span>Username</span>
+          <input formControlName="username" autocomplete="username" maxlength="100" />
+          <small *ngIf="profileForm.controls.username.touched && profileForm.controls.username.invalid">Use 3+ letters, numbers, dot, underscore, or dash.</small>
+        </label>
+        <label>
+          <span>Current password</span>
+          <input type="password" formControlName="currentPassword" autocomplete="current-password" maxlength="128" />
+        </label>
+        <button type="submit" [disabled]="savingProfile()">{{ savingProfile() ? 'Saving...' : 'Save profile' }}</button>
+      </form>
+    </section>
+
+    <section class="profile-card">
+      <header><span>SECURITY</span><h2>Change password</h2><p>Use a unique password with at least 8 characters.</p></header>
+      <p class="notice notice--success" *ngIf="passwordMessage()">{{ passwordMessage() }}</p>
+      <p class="notice notice--error" *ngIf="passwordError()">{{ passwordError() }}</p>
+      <form [formGroup]="passwordForm" (ngSubmit)="changePassword()">
+        <label><span>Current password</span><input type="password" formControlName="currentPassword" autocomplete="current-password" maxlength="128" /></label>
+        <label>
+          <span>New password</span>
+          <input type="password" formControlName="newPassword" autocomplete="new-password" maxlength="128" />
+          <small *ngIf="passwordForm.controls.newPassword.touched && passwordForm.controls.newPassword.invalid">Password must contain at least 8 characters.</small>
+        </label>
+        <label><span>Repeat new password</span><input type="password" formControlName="confirmation" autocomplete="new-password" maxlength="128" /></label>
+        <button type="submit" [disabled]="savingPassword()">{{ savingPassword() ? 'Changing...' : 'Change password' }}</button>
+      </form>
+    </section>
+  </div>
+</main>

@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { AuthService, PermissionKey } from '../auth/auth.service';
 
 interface DirectoryTool {
   number: string;
@@ -11,6 +12,7 @@ interface DirectoryTool {
   action: string;
   route: string;
   tone: 'forest' | 'blue' | 'gold' | 'plum';
+  permission: PermissionKey;
 }
 
 interface DirectoryData {
@@ -29,5 +31,10 @@ interface DirectoryData {
 })
 export class ModuleDirectory {
   private readonly route = inject(ActivatedRoute);
-  readonly data = this.route.snapshot.data as DirectoryData;
+  private readonly auth = inject(AuthService);
+  private readonly routeData = this.route.snapshot.data as DirectoryData;
+  readonly data: DirectoryData = {
+    ...this.routeData,
+    tools: this.routeData.tools.filter((tool) => this.auth.hasPermission(tool.permission)),
+  };
 }

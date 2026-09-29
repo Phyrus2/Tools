@@ -3,11 +3,23 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, finalize, map, of, tap } from 'rxjs';
 import { API_URL } from '../services/api-config';
 
+export type PermissionKey =
+  | 'supplier_import'
+  | 'product_import'
+  | 'booked_product_import'
+  | 'booking_search'
+  | 'catalog_search'
+  | 'analytics'
+  | 'contract_monitoring'
+  | 'hotel_options'
+  | 'user_management';
+
 export interface AdminUser {
   id: number;
   fullname: string;
   username: string;
-  role: 'ADMIN';
+  role: 'ADMIN' | 'USER' | 'OPERATION' | 'SALES';
+  permissions: PermissionKey[];
 }
 
 interface LoginResponse {
@@ -41,6 +53,30 @@ export class AuthService {
 
   get token(): string | null {
     return this.tokenValue;
+  }
+
+  hasPermission(permission: PermissionKey): boolean {
+    const user = this.user();
+    return !!user && (user.role === 'ADMIN' || user.permissions?.includes(permission) === true);
+  }
+
+  hasAnyPermission(permissions: PermissionKey[]): boolean {
+    return permissions.some((permission) => this.hasPermission(permission));
+  }
+
+  updateProfile(fullname: string, username: string, currentPassword: string): Observable<AdminUser> {
+    return this.http.patch<{ success: true; user: AdminUser }>(`${API_URL}/profile`, {
+      fullname,
+      username,
+      currentPassword,
+    }).pipe(
+      tap((response) => this.user.set(response.user)),
+      map((response) => response.user),
+    );
+  }
+
+  changePassword(currentPassword: string, newPassword: string): Observable<unknown> {
+    return this.http.post(`${API_URL}/profile/change-password`, { currentPassword, newPassword });
   }
 
   login(username: string, password: string): Observable<AdminUser> {

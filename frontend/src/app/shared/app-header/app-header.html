@@ -1,0 +1,46 @@
+@if (auth.user()) {
+  <header class="app-header">
+    <div class="app-header__inner">
+      <a class="brand" routerLink="/" (click)="closeMenu()" aria-label="Database Tools home">
+        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand__copy"><strong>DATABASE TOOLS</strong><small>Internal workspace</small></span>
+      </a>
+
+      <nav aria-label="Primary navigation">
+        <a routerLink="/">Home</a>
+      </nav>
+
+      <div class="profile-menu" (click)="$event.stopPropagation()">
+        <button
+          class="profile-trigger"
+          type="button"
+          aria-label="Open profile menu"
+          [attr.aria-expanded]="menuOpen()"
+          (click)="toggleMenu($event)"
+        >
+          <span class="profile-trigger__avatar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4.5 3.3-7 7.5-7s6.7 2.5 7.5 7"/></svg>
+          </span>
+          <span class="profile-trigger__chevron" [class.profile-trigger__chevron--open]="menuOpen()" aria-hidden="true"></span>
+        </button>
+
+        @if (menuOpen()) {
+          <section class="profile-popover" aria-label="Profile menu">
+            <header>
+              <span class="profile-popover__avatar">{{ initials }}</span>
+              <div><strong>{{ auth.user()?.fullname }}</strong><small>{{ '@' + auth.user()?.username }}</small></div>
+            </header>
+            <span class="role-badge">{{ auth.user()?.role }}</span>
+            <div class="profile-popover__links">
+              <a routerLink="/profile" (click)="closeMenu()">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4.5 3.3-7 7.5-7s6.7 2.5 7.5 7"/></svg>
+                <span><strong>My Profile</strong><small>Name, username, and password</small></span>
+              </a>
+            </div>
+            <button class="profile-popover__logout" type="button" (click)="logout()">Log out</button>
+          </section>
+        }
+      </div>
+    </div>
+  </header>
+}

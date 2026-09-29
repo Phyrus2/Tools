@@ -3,6 +3,8 @@ const runMigrations = require("./Database/migrate");
 require("dotenv").config();
 const cors = require("cors");
 const auth = require("./Security/auth");
+const userAdmin = require("./Controller/admin/users");
+const profile = require("./Controller/profile");
 
 // SUPPLIER API
 const supplier = require("./Controller/data_analyst/excel/Supplier/upload_supplier");
@@ -65,50 +67,67 @@ app.get("/health", (req, res) => {
 });
 
 app.post("/auth/login", auth.login);
-app.get("/auth/me", auth.requireAdmin, auth.me);
-app.post("/auth/logout", auth.requireAdmin, auth.logout);
+app.get("/auth/me", auth.requireAuth, auth.me);
+app.post("/auth/logout", auth.requireAuth, auth.logout);
 
-app.use(auth.requireAdmin);
+app.use(auth.requireAuth);
+
+// SELF-SERVICE PROFILE
+app.patch("/profile", profile.updateProfile);
+app.post("/profile/change-password", profile.changePassword);
+
+// USER MANAGEMENT
+app.get("/admin/permissions", auth.requirePermission("user_management"), userAdmin.listPermissionCatalog);
+app.get("/admin/users", auth.requirePermission("user_management"), userAdmin.listUsers);
+app.post("/admin/users", auth.requirePermission("user_management"), userAdmin.createUser);
+app.patch("/admin/users/:id", auth.requirePermission("user_management"), userAdmin.updateUser);
+app.put("/admin/users/:id/permissions", auth.requirePermission("user_management"), userAdmin.updatePermissions);
+app.post("/admin/users/:id/reset-password", auth.requirePermission("user_management"), userAdmin.resetPassword);
+app.post("/admin/users/:id/logout-sessions", auth.requirePermission("user_management"), userAdmin.logoutSessions);
 
 //SUPPLIER
-app.post("/supplier/import", supplier.importSupplier);
-app.get("/supplier/import/latest", supplier.getLatestSupplierImport);
-app.post("/supplier/import/:importId/undo", supplier.undoSupplierImport);
+app.post("/supplier/import", auth.requirePermission("supplier_import"), supplier.importSupplier);
+app.get("/supplier/import/latest", auth.requirePermission("supplier_import"), supplier.getLatestSupplierImport);
+app.post("/supplier/import/:importId/undo", auth.requirePermission("supplier_import"), supplier.undoSupplierImport);
 
 //PRODUCT
-app.post("/product/import", product.importProduct);
+app.post("/product/import", auth.requirePermission("product_import"), product.importProduct);
 
 //BOOKED PRODUCT
-app.post("/booked-product/import", booked_product.importBookedProduct);
-app.post("/booked-product/manual", booked_product.createManualBookedProduct);
+app.post("/booked-product/import", auth.requirePermission("booked_product_import"), booked_product.importBookedProduct);
+app.post("/booked-product/manual", auth.requirePermission("booked_product_import"), booked_product.createManualBookedProduct);
 app.get(
   "/booked-product/import/status",
+  auth.requirePermission("booked_product_import", "booking_search"),
   booked_product.getBookedProductImportStatus,
 );
 
 //SEARCH BOOKED PRODUCT
-app.get("/booked-product/search", search.searchBookedProduct);
+app.get("/booked-product/search", auth.requirePermission("booking_search"), search.searchBookedProduct);
 
 // SEARCH MASTER SUPPLIER / PRODUCT
-app.get("/catalog/search", catalogSearch.searchCatalog);
-app.get("/catalog/categories", catalogSearch.getCatalogCategories);
+app.get("/catalog/search", auth.requirePermission("catalog_search"), catalogSearch.searchCatalog);
+app.get("/catalog/categories", auth.requirePermission("catalog_search"), catalogSearch.getCatalogCategories);
 
 // SUPPLIER & PRODUCT PERFORMANCE ANALYTICS
-app.get("/analytics/overview", performanceAnalytics.overview);
+app.get("/analytics/overview", auth.requirePermission("analytics"), performanceAnalytics.overview);
 app.get(
   "/analytics/suppliers/:supplierId",
+  auth.requirePermission("analytics"),
   performanceAnalytics.supplierDetail,
 );
-app.get("/analytics/products/:productId", performanceAnalytics.productDetail);
-app.patch("/analytics/suppliers/:supplierId", recordDetails.updateSupplier);
-app.patch("/analytics/products/:productId", recordDetails.updateProduct);
-app.get("/booked-product/:bookedProductId", recordDetails.getBookedProduct);
+app.get("/analytics/products/:productId", auth.requirePermission("analytics"), performanceAnalytics.productDetail);
+app.patch("/analytics/suppliers/:supplierId", auth.requirePermission("analytics"), recordDetails.updateSupplier);
+app.patch("/analytics/products/:productId", auth.requirePermission("analytics"), recordDetails.updateProduct);
+app.get("/booked-product/:bookedProductId", auth.requirePermission("analytics", "booking_search", "booked_product_import"), recordDetails.getBookedProduct);
 app.patch(
   "/booked-product/:bookedProductId",
+  auth.requirePermission("analytics", "booked_product_import"),
   recordDetails.updateBookedProduct,
 );
 
 // CONTRACT MONITORING
+app.use("/contract-monitoring", auth.requirePermission("contract_monitoring"));
 app.get("/contract-monitoring/scan-sources", contractScan.listSources);
 app.post("/contract-monitoring/scan-sources", contractScan.createSource);
 app.patch("/contract-monitoring/scan-sources/:id", contractScan.updateSource);
@@ -194,14 +213,14 @@ app.get(
   "/contract-monitoring/suppliers/:supplierId/contracts",
   contractReports.supplierContracts,
 );
-app.get("/hotel-options", hotelOptions.listHotelOptions);
-app.post("/hotel-options/import", hotelOptions.importHotelOptions);
-app.post("/hotel-options", hotelOptions.saveManualOption);
-app.get("/hotel-options/link-search", hotelOptions.searchLinks);
-app.get("/hotel-options/:id/history", hotelOptions.optionHistory);
-app.patch("/hotel-options/:id/supplier", hotelOptions.assignHotelOption);
-app.patch("/hotel-options/:id", hotelOptions.saveManualOption);
-app.delete("/hotel-options/:id", hotelOptions.deleteHotelOption);
+app.get("/hotel-options", auth.requirePermission("hotel_options"), hotelOptions.listHotelOptions);
+app.post("/hotel-options/import", auth.requirePermission("hotel_options"), hotelOptions.importHotelOptions);
+app.post("/hotel-options", auth.requirePermission("hotel_options"), hotelOptions.saveManualOption);
+app.get("/hotel-options/link-search", auth.requirePermission("hotel_options"), hotelOptions.searchLinks);
+app.get("/hotel-options/:id/history", auth.requirePermission("hotel_options"), hotelOptions.optionHistory);
+app.patch("/hotel-options/:id/supplier", auth.requirePermission("hotel_options"), hotelOptions.assignHotelOption);
+app.patch("/hotel-options/:id", auth.requirePermission("hotel_options"), hotelOptions.saveManualOption);
+app.delete("/hotel-options/:id", auth.requirePermission("hotel_options"), hotelOptions.deleteHotelOption);
 
 app.get("/", (req, res) => {
   res.json({
@@ -217,6 +236,9 @@ app.use((err, req, res, next) => {
     return res
       .status(413)
       .json({ success: false, message: "Ukuran file maksimal 10 MB." });
+  }
+  if (Number.isInteger(err?.statusCode) && err.statusCode >= 400 && err.statusCode < 500) {
+    return res.status(err.statusCode).json({ success: false, message: err.message });
   }
   return res
     .status(500)

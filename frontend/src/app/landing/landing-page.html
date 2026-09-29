@@ -1,16 +1,4 @@
 <main class="hub-shell">
-  <header class="hub-topbar">
-    <a class="hub-brand" routerLink="/" aria-label="Back to home">
-      <span class="hub-brand__mark" aria-hidden="true"><span></span><span></span><span></span></span>
-      <span><strong>DATABASE TOOLS</strong><small>Internal workspace</small></span>
-    </a>
-    <div class="hub-topbar__meta">
-      <span class="hub-status"><i aria-hidden="true"></i> System active</span>
-      <span class="hub-user">{{ auth.user()?.fullname }}</span>
-      <button class="hub-logout" type="button" (click)="logout()">Log out</button>
-    </div>
-  </header>
-
   <div class="hub-content">
     <section class="hub-hero" aria-labelledby="hub-title">
       <div>
@@ -21,7 +9,7 @@
         </p>
       </div>
       <div class="hub-hero__ornament" aria-hidden="true">
-        <span>4</span><small>active modules</small>
+        <span>{{ availableModuleCount() }}</span><small>available {{ availableModuleCount() === 1 ? 'module' : 'modules' }}</small>
       </div>
     </section>
 
@@ -35,6 +23,7 @@
       </header>
 
       <div class="hub-grid hub-grid--modules">
+        @if (canOpenImport()) {
         <a class="hub-app hub-app--forest" routerLink="/import-module">
           <span class="hub-app__icon" aria-hidden="true">
             <svg viewBox="0 0 48 48"><path d="M24 7v24M15 22l9 9 9-9M10 36v5h28v-5" /></svg>
@@ -43,10 +32,12 @@
             <strong>Import Module</strong>
             <small>Supplier, product, and booked product Excel imports</small>
           </span>
-          <span class="hub-app__meta">3 tools</span>
+          <span class="hub-app__meta">{{ toolLabel(importToolCount()) }}</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
+        }
 
+        @if (canOpenSearch()) {
         <a class="hub-app hub-app--blue" routerLink="/search-module">
           <span class="hub-app__icon" aria-hidden="true">
             <svg viewBox="0 0 48 48"><circle cx="21" cy="21" r="11" /><path d="m29 29 10 10M16 18h10M16 23h7" /></svg>
@@ -55,10 +46,12 @@
             <strong>Search Module</strong>
             <small>Supplier, product, and booked product operational search</small>
           </span>
-          <span class="hub-app__meta">2 tools</span>
+          <span class="hub-app__meta">{{ toolLabel(searchToolCount()) }}</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
+        }
 
+        @if (canOpenContract()) {
         <a class="hub-app hub-app--gold" routerLink="/contract">
           <span class="hub-app__icon" aria-hidden="true">
             <svg viewBox="0 0 48 48"><path d="M13 8h18l6 6v26H13zM31 8v7h6M19 22h12M19 28h12M19 34h7" /></svg>
@@ -67,10 +60,12 @@
             <strong>Contract Module</strong>
             <small>Contract monitoring, hotel options, and stop-sale workflows</small>
           </span>
-          <span class="hub-app__meta">3 tools</span>
+          <span class="hub-app__meta">{{ toolLabel(contractToolCount()) }}</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
+        }
 
+        @if (canOpenAnalytics()) {
         <a class="hub-app hub-app--plum" routerLink="/analytics">
           <span class="hub-app__icon" aria-hidden="true">
             <svg viewBox="0 0 48 48"><path d="M11 38V25h7v13M21 38V16h7v22M31 38V10h7v28M8 38h33" /></svg>
@@ -82,6 +77,21 @@
           <span class="hub-app__meta">Analytics</span>
           <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
         </a>
+        }
+
+        @if (canManageUsers()) {
+        <a class="hub-app hub-app--forest" routerLink="/users">
+          <span class="hub-app__icon" aria-hidden="true">
+            <svg viewBox="0 0 48 48"><circle cx="19" cy="17" r="7" /><path d="M7 37c1.5-7 5.5-11 12-11s10.5 4 12 11M34 19v12M28 25h12" /></svg>
+          </span>
+          <span class="hub-app__copy">
+            <strong>User Management</strong>
+            <small>Create accounts, assign page access, reset passwords, and revoke sessions</small>
+          </span>
+          <span class="hub-app__meta">Administration</span>
+          <span class="hub-app__arrow" aria-hidden="true">&rarr;</span>
+        </a>
+        }
 
         <article class="hub-app hub-app--disabled" aria-disabled="true">
           <span class="hub-app__badge">Coming soon</span>

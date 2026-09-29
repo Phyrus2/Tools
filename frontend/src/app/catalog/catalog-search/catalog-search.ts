@@ -12,6 +12,7 @@ import {
   ProductSearchResult,
   SupplierSearchResult,
 } from '../../services/catalog-search';
+import { AuthService } from '../../auth/auth.service';
 
 @Component({
   selector: 'app-catalog-search',
@@ -46,6 +47,7 @@ export class CatalogSearch implements OnInit, OnDestroy {
   constructor(
     private readonly catalogSearch: CatalogSearchService,
     private readonly cdr: ChangeDetectorRef,
+    readonly auth: AuthService,
   ) {}
 
   ngOnInit(): void {

@@ -19,7 +19,7 @@
   --hub-plum-wash: #f0e7ed;
 
   display: block;
-  min-height: 100dvh;
+  min-height: calc(100dvh - 72px);
   color: var(--hub-ink);
   background:
     radial-gradient(circle at 82% 5%, rgba(53, 86, 77, 0.1), transparent 28rem),
@@ -38,7 +38,7 @@
 }
 
 .hub-shell {
-  min-height: 100dvh;
+  min-height: calc(100dvh - 72px);
   display: flex;
   flex-direction: column;
 }
@@ -152,9 +152,13 @@
   overflow: hidden;
   color: var(--hub-ink-soft);
   font-size: 0.76rem;
+  font-weight: 600;
+  text-decoration: none;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.hub-user:hover { color: var(--hub-forest); text-decoration: underline; }
 
 .hub-logout {
   padding: 0.48rem 0.72rem;

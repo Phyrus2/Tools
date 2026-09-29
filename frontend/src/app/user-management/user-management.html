@@ -1,0 +1,186 @@
+<main class="users-shell">
+  <section class="users-heading">
+    <div>
+      <p>ACCESS CONTROL</p>
+      <h1>User Management</h1>
+      <span>Create accounts, control page access, and revoke active sessions.</span>
+    </div>
+    <button type="button" class="primary-button" (click)="toggleCreate()">
+      {{ createOpen() ? 'Close form' : 'Create user' }}
+    </button>
+  </section>
+
+  <div class="notice notice--success" *ngIf="message()">{{ message() }}</div>
+  <div class="notice notice--error" *ngIf="errorMessage()">{{ errorMessage() }}</div>
+
+  <section class="create-panel" *ngIf="createOpen()">
+    <div class="section-title">
+      <span>NEW ACCOUNT</span>
+      <h2>Create a user</h2>
+      <p>The new user receives no page access unless it is selected below.</p>
+    </div>
+    <form [formGroup]="createForm" (ngSubmit)="createUser()">
+      <div class="field-grid">
+        <label>
+          <span>Full name</span>
+          <input formControlName="fullname" autocomplete="off" maxlength="150" />
+          <small *ngIf="createForm.controls.fullname.touched && createForm.controls.fullname.invalid">Enter at least 2 characters.</small>
+        </label>
+        <label>
+          <span>Username</span>
+          <input formControlName="username" autocomplete="off" maxlength="100" />
+          <small *ngIf="createForm.controls.username.touched && createForm.controls.username.invalid">Use 3+ letters, numbers, dot, underscore, or dash.</small>
+        </label>
+        <label>
+          <span>Temporary password</span>
+          <input type="password" formControlName="password" autocomplete="new-password" maxlength="128" />
+          <small *ngIf="createForm.controls.password.touched && createForm.controls.password.invalid">Password must contain at least 8 characters.</small>
+        </label>
+        <label>
+          <span>Role</span>
+          <select formControlName="role">
+            <option value="USER">User</option>
+            <option value="ADMIN" *ngIf="canManageAdmins()">Administrator</option>
+          </select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select formControlName="status">
+            <option value="ACTIVE">Active</option>
+            <option value="INACTIVE">Inactive</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="permissions" *ngIf="createForm.controls.role.value !== 'ADMIN'">
+        <div class="permission-group" *ngFor="let group of permissionGroups()">
+          <h3>{{ group.name }}</h3>
+          <label class="check-row" *ngFor="let permission of group.permissions">
+            <input
+              type="checkbox"
+              [checked]="permissionChecked('create', permission.key)"
+              [disabled]="permission.key === 'user_management' && !canManageAdmins()"
+              (change)="togglePermission('create', permission.key, $any($event.target).checked)"
+            />
+            <span>{{ permission.label }}</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="secondary-button" (click)="toggleCreate()">Cancel</button>
+        <button type="submit" class="primary-button" [disabled]="saving()">{{ saving() ? 'Saving…' : 'Create user' }}</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="workspace">
+    <aside class="user-list">
+      <div class="list-toolbar">
+        <div>
+          <span>ACCOUNTS</span>
+          <strong>{{ users().length }} users</strong>
+        </div>
+        <input type="search" placeholder="Search user…" aria-label="Search users" (input)="setSearch($event)" />
+      </div>
+
+      <p class="empty-state" *ngIf="loading()">Loading users…</p>
+      <p class="empty-state" *ngIf="!loading() && filteredUsers().length === 0">No users found.</p>
+
+      <button
+        type="button"
+        class="user-row"
+        *ngFor="let user of filteredUsers()"
+        [class.user-row--selected]="selectedId() === user.id"
+        (click)="selectUser(user.id)"
+      >
+        <span class="user-avatar">{{ user.fullname.slice(0, 1).toUpperCase() }}</span>
+        <span class="user-copy">
+          <strong>{{ user.fullname }}</strong>
+          <small>{{ '@' + user.username }}</small>
+        </span>
+        <span class="user-badges">
+          <i [class.inactive]="user.status === 'INACTIVE'">{{ user.status }}</i>
+          <b>{{ user.role }}</b>
+        </span>
+      </button>
+    </aside>
+
+    <section class="user-detail" *ngIf="selectedUser() as user; else selectPrompt">
+      <header>
+        <div class="detail-avatar">{{ user.fullname.slice(0, 1).toUpperCase() }}</div>
+        <div>
+          <p>ACCOUNT #{{ user.id }}</p>
+          <h2>{{ user.fullname }}</h2>
+          <span>Last login: {{ user.last_login ? (user.last_login | date:'medium') : 'Never' }}</span>
+        </div>
+      </header>
+
+      <div class="locked-note" *ngIf="!canEdit(user)">
+        {{ isSelf(user) ? 'Use My Profile to change your own account securely.' : 'Only an administrator can modify this protected account.' }}
+      </div>
+
+      <form class="detail-section" [formGroup]="editForm" (ngSubmit)="saveProfile()">
+        <div class="section-title section-title--compact">
+          <span>PROFILE</span><h3>Account details</h3>
+        </div>
+        <div class="field-grid field-grid--profile">
+          <label><span>Full name</span><input formControlName="fullname" maxlength="150" [readonly]="!canEdit(user)" /></label>
+          <label><span>Username</span><input formControlName="username" maxlength="100" [readonly]="!canEdit(user)" /></label>
+          <label>
+            <span>Role</span>
+            <select formControlName="role" [attr.disabled]="!canEdit(user) || isSelf(user) ? true : null">
+              <option value="USER">User</option>
+              <option value="ADMIN" *ngIf="canManageAdmins()">Administrator</option>
+            </select>
+          </label>
+          <label>
+            <span>Status</span>
+            <select formControlName="status" [attr.disabled]="!canEdit(user) || isSelf(user) ? true : null">
+              <option value="ACTIVE">Active</option><option value="INACTIVE">Inactive</option>
+            </select>
+          </label>
+        </div>
+        <div class="detail-actions">
+          <button class="primary-button" type="submit" [disabled]="saving() || !canEdit(user)">Save profile</button>
+        </div>
+      </form>
+
+      <section class="detail-section" *ngIf="user.role !== 'ADMIN'; else adminAccess">
+        <div class="section-title section-title--compact">
+          <span>PAGE ACCESS</span><h3>Allowed workspaces</h3>
+          <p>Changes revoke the user's current session immediately.</p>
+        </div>
+        <div class="permissions permissions--detail">
+          <div class="permission-group" *ngFor="let group of permissionGroups()">
+            <h3>{{ group.name }}</h3>
+            <label class="check-row" *ngFor="let permission of group.permissions">
+              <input
+                type="checkbox"
+                [checked]="permissionChecked('edit', permission.key)"
+                [disabled]="!canEdit(user) || (permission.key === 'user_management' && !canManageAdmins())"
+                (change)="togglePermission('edit', permission.key, $any($event.target).checked)"
+              />
+              <span>{{ permission.label }}</span>
+            </label>
+          </div>
+        </div>
+        <button class="primary-button" type="button" [disabled]="saving() || !canEdit(user)" (click)="savePermissions()">Save page access</button>
+      </section>
+      <ng-template #adminAccess><div class="admin-access">Administrators automatically have access to every page and API.</div></ng-template>
+
+      <section class="detail-section security-section">
+        <div class="section-title section-title--compact"><span>SECURITY</span><h3>Password and sessions</h3></div>
+        <form [formGroup]="passwordForm" (ngSubmit)="resetPassword()">
+          <label><span>New password</span><input type="password" formControlName="password" autocomplete="new-password" maxlength="128" /></label>
+          <button class="secondary-button" type="submit" [disabled]="saving() || !canEdit(user)">Reset password</button>
+        </form>
+        <button class="danger-button" type="button" [disabled]="saving() || isSelf(user) || !canEdit(user)" (click)="revokeSessions()">Log out all sessions</button>
+      </section>
+    </section>
+
+    <ng-template #selectPrompt>
+      <section class="select-prompt"><span>←</span><h2>Select a user</h2><p>Choose an account to review its profile and page access.</p></section>
+    </ng-template>
+  </section>
+</main>

@@ -3,6 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { AuthService } from '../../auth/auth.service';
 import { Subscription } from 'rxjs';
 import { BookedProductRecord, PerformanceAnalyticsService } from '../../services/performance-analytics';
 
@@ -45,7 +46,12 @@ export class BookedProductDetail implements OnInit, OnDestroy {
     private readonly cdr: ChangeDetectorRef,
     private readonly browserLocation: Location,
     private readonly router: Router,
+    readonly auth: AuthService,
   ) {}
+
+  get canEdit(): boolean {
+    return this.auth.hasAnyPermission(['analytics', 'booked_product_import']);
+  }
 
   ngOnInit(): void {
     const state = this.browserLocation.getState() as { backLabel?: string; returnTo?: string };
@@ -77,6 +83,7 @@ export class BookedProductDetail implements OnInit, OnDestroy {
   }
 
   startEdit(): void {
+    if (!this.canEdit) return;
     if (!this.data) return;
     this.syncForm(this.data);
     this.feedbackMessage = '';

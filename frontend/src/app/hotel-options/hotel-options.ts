@@ -456,24 +456,10 @@ export class HotelOptions implements OnInit {
     this.api.delete(item.id).subscribe({
       next: (response) => {
         this.message = response.message;
-        void Swal.fire({
-          title: 'Deleted',
-          text: `${item.hotel_name} was removed from the hotel options.`,
-          icon: 'success',
-          confirmButtonColor: '#31584d',
-          timer: 1800,
-          timerProgressBar: true,
-        });
         this.load();
       },
       error: (error) => {
         this.error = error.error?.message || 'Failed to delete hotel option.';
-        void Swal.fire({
-          title: 'Delete failed',
-          text: this.error,
-          icon: 'error',
-          confirmButtonColor: '#31584d',
-        });
         this.cdr.markForCheck();
       },
     });

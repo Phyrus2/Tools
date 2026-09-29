@@ -187,6 +187,7 @@
           <span>product</span>
           <small *ngIf="row.matched_field !== 'all'">Matched on {{ matchedFieldLabel(row.matched_field) }}</small>
           <a
+            *ngIf="auth.hasPermission('analytics')"
             class="analytics-link"
             [routerLink]="['/analytics/suppliers', row.supplier_id]"
             [state]="{ backLabel: 'Back to Supplier Search', returnTo: '/catalog-search' }"
@@ -231,6 +232,7 @@
         <aside class="result-card__meta result-card__meta--product">
           <small *ngIf="row.matched_field !== 'all'">Matched on {{ matchedFieldLabel(row.matched_field) }}</small>
           <a
+            *ngIf="auth.hasPermission('analytics')"
             class="analytics-link"
             [routerLink]="['/analytics/products', row.product_id]"
             [state]="{ backLabel: 'Back to Product Search', returnTo: '/catalog-search' }"

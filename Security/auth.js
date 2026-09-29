@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const pool = require('../Database/connection');
 const { verifyPassword } = require('./password');
+const { PERMISSION_KEYS, hasAnyPermission } = require('./permissions');
 
 const SESSION_HOURS = 8;
 const MAX_FAILURES = 5;
@@ -37,6 +38,25 @@ function bearerToken(req) {
   return match?.[1] || null;
 }
 
+async function loadPermissions(userId, role) {
+  if (role === 'ADMIN') return [...PERMISSION_KEYS];
+  const [rows] = await pool.execute(
+    'SELECT permission_key FROM user_permissions WHERE user_id = ? ORDER BY permission_key',
+    [userId],
+  );
+  return rows.map((row) => row.permission_key);
+}
+
+async function publicUser(user) {
+  return {
+    id: Number(user.id),
+    fullname: user.fullname,
+    username: user.username,
+    role: user.role,
+    permissions: await loadPermissions(user.id, user.role),
+  };
+}
+
 async function login(req, res) {
   res.set('Cache-Control', 'no-store');
   if (!allowLoginAttempt(req)) {
@@ -66,7 +86,7 @@ async function login(req, res) {
     activePasswordChecks -= 1;
   }
   const locked = user?.locked_until && new Date(user.locked_until).getTime() > Date.now();
-  const eligible = user && user.status === 'ACTIVE' && user.role === 'ADMIN';
+  const eligible = user && user.status === 'ACTIVE';
 
   if (!passwordValid || locked || !eligible) {
     if (user && !passwordValid) {
@@ -104,15 +124,16 @@ async function login(req, res) {
     connection.release();
   }
 
+  const authenticatedUser = await publicUser(user);
   return res.json({
     success: true,
     token,
     expiresInSeconds: SESSION_HOURS * 3600,
-    user: { id: user.id, fullname: user.fullname, username: user.username, role: user.role },
+    user: authenticatedUser,
   });
 }
 
-async function requireAdmin(req, res, next) {
+async function requireAuth(req, res, next) {
   res.set('Cache-Control', 'no-store');
   const token = bearerToken(req);
   if (!token) return res.status(401).json({ success: false, message: 'Sesi tidak valid atau telah berakhir.' });
@@ -121,16 +142,24 @@ async function requireAdmin(req, res, next) {
     `SELECT s.id AS session_id, u.id, u.fullname, u.username, u.role
      FROM admin_sessions s JOIN users u ON u.id = s.user_id
      WHERE s.token_hash = ? AND s.expires_at > NOW()
-       AND u.status = 'ACTIVE' AND u.role = 'ADMIN' LIMIT 1`,
+       AND u.status = 'ACTIVE' LIMIT 1`,
     [tokenHash(token)],
   );
   const user = rows[0];
   if (!user) return res.status(401).json({ success: false, message: 'Sesi tidak valid atau telah berakhir.' });
 
-  req.admin = { id: user.id, fullname: user.fullname, username: user.username, role: user.role };
+  req.admin = await publicUser(user);
+  req.user = req.admin;
   req.sessionId = user.session_id;
   await pool.execute('UPDATE admin_sessions SET last_used_at = NOW() WHERE id = ?', [user.session_id]);
   return next();
+}
+
+function requirePermission(...permissionKeys) {
+  return (req, res, next) => {
+    if (hasAnyPermission(req.admin, permissionKeys)) return next();
+    return res.status(403).json({ success: false, message: 'Kamu tidak memiliki akses untuk fitur ini.' });
+  };
 }
 
 async function logout(req, res) {
@@ -142,4 +171,11 @@ function me(req, res) {
   return res.json({ success: true, user: req.admin });
 }
 
-module.exports = { login, logout, me, requireAdmin };
+module.exports = {
+  login,
+  logout,
+  me,
+  requireAuth,
+  requireAdmin: requireAuth,
+  requirePermission,
+};

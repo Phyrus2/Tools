@@ -13,8 +13,8 @@
       <span>Manage supplier contracts, hotel options, and future stop-sale operations.</span>
     </div>
     <aside>
-      <strong>3</strong>
-      <span>contract tools</span>
+      <strong>{{ toolCount }}</strong>
+      <span>available {{ toolCount === 1 ? 'tool' : 'tools' }}</span>
     </aside>
   </header>
 
@@ -25,7 +25,7 @@
   </section>
 
   <section class="contract-grid">
-    <a class="contract-card contract-card--monitoring" routerLink="/contract-monitoring">
+    <a *ngIf="auth.hasPermission('contract_monitoring')" class="contract-card contract-card--monitoring" routerLink="/contract-monitoring">
       <span class="card-number">01</span>
       <span class="card-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none">
@@ -41,7 +41,7 @@
       <span class="card-action">Open workspace <b>&rarr;</b></span>
     </a>
 
-    <a class="contract-card contract-card--hotel" routerLink="/hotel-options/2026">
+    <a *ngIf="auth.hasPermission('hotel_options')" class="contract-card contract-card--hotel" routerLink="/hotel-options/2026">
       <span class="card-number">02</span>
       <span class="card-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none">

@@ -71,6 +71,10 @@ async function main() {
       'DELETE s FROM admin_sessions s JOIN users u ON u.id = s.user_id WHERE u.username = ?',
       [username],
     );
+    await pool.execute(
+      'DELETE p FROM user_permissions p JOIN users u ON u.id = p.user_id WHERE u.username = ?',
+      [username],
+    );
     console.log(`Admin "${username}" berhasil dibuat/reset. Semua sesi lama telah dicabut.`);
   } finally {
     if (!terminal.closed) terminal.close();

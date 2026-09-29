@@ -76,7 +76,9 @@ npm run admin:create
 npm start
 ```
 
-Perintah `admin:create` menjalankan migrasi keamanan lalu meminta username, nama, dan password admin. Password harus 14-128 karakter, tidak ditampilkan saat diketik, dan disimpan sebagai hash scrypt dengan salt acak. Jalankan perintah yang sama untuk mengganti password admin; semua sesi login lama akan otomatis dicabut. Akun lama `admin/admin123` tidak lagi dapat dipakai.
+Perintah `admin:create` menjalankan migrasi keamanan lalu meminta username, nama, dan password admin. Password harus 8-128 karakter, tidak ditampilkan saat diketik, dan disimpan sebagai hash scrypt dengan salt acak. Jalankan perintah yang sama untuk mengganti password admin; semua sesi login lama akan otomatis dicabut. Akun lama `admin/admin123` tidak lagi dapat dipakai.
+
+Setelah admin pertama berhasil masuk, buka modul **User Management** atau route `/#/users` untuk membuat akun lain. Pilih hanya halaman yang memang dibutuhkan oleh setiap user. Role `ADMIN` selalu memiliki semua izin; role `USER` mendapat akses berdasarkan daftar permission yang dipilih. Setiap user dapat membuka namanya di header atau route `/#/profile` untuk mengganti nama, username, dan password sendiri.
 
 Biarkan terminal ini terbuka. Di terminal lain, periksa:
 
@@ -100,7 +102,7 @@ Panduan resmi: https://developers.cloudflare.com/tunnel/setup/
 
 Tunnel menyediakan akses ke service lokal tanpa membuka port router. Jangan membuka port MySQL 3306 ke internet.
 
-Endpoint data sekarang dilindungi login admin. Tetap jangan menaruh password database, token sesi, atau secret API di frontend maupun repository GitHub.
+Endpoint data sekarang dilindungi login dan pemeriksaan permission di backend. Menyembunyikan menu di frontend hanya untuk tampilan; backend tetap menolak request tanpa permission dengan status `403`. Tetap jangan menaruh password database, token sesi, atau secret API di frontend maupun repository GitHub.
 
 Untuk uji sementara dengan data dummy, setelah memahami akses publik tersebut, jalankan di terminal kedua dari root proyek:
 
@@ -180,9 +182,13 @@ PC harus menyala, tersambung internet, dan tidak sleep selama backend dibutuhkan
 
 Jika koneksi gagal, periksa JSON di URL publik backend, proses MySQL/Express/tunnel, nilai `API_URL` dalam `api-config.js` pada situs Pages, dan kecocokan `CORS_ORIGINS`. URL `localhost` pada browser pengunjung menunjuk perangkat pengunjung, bukan PC server.
 
-## 5. Keamanan login admin
+## 5. Keamanan login dan pengelolaan user
 
-Semua endpoint supplier, product, booked product, dan pencarian membutuhkan sesi admin. Hanya `/health` dan `/auth/login` yang dapat diakses tanpa login. Sesi memakai token acak 256-bit, token asli hanya berada di tab browser, database menyimpan SHA-256 token, dan sesi habis setelah 8 jam. Menutup tab menghapus token dari browser. Lima kegagalan pada username yang sama mengunci akun selama 15 menit; backend juga membatasi percobaan per alamat IP dan jumlah pemeriksaan password bersamaan.
+Semua endpoint data membutuhkan sesi login dan permission yang sesuai. Hanya `/health` dan `/auth/login` yang dapat diakses tanpa login. Sesi memakai token acak 256-bit, database hanya menyimpan hash SHA-256 token, dan sesi habis setelah 8 jam. Token disimpan di penyimpanan lokal browser agar login berlaku antar-tab; gunakan **Logout** setelah selesai, terutama pada PC bersama. Lima kegagalan pada username yang sama mengunci akun selama 15 menit; backend juga membatasi percobaan per alamat IP dan jumlah pemeriksaan password bersamaan.
+
+Modul **User Management** memerlukan permission `user_management`. Admin dapat membuat dan mengelola admin lain. User yang diberi `user_management` dapat mengelola user biasa, tetapi tidak dapat membuat/mengubah admin, mengubah pengelola user lain, atau memberikan permission `user_management`. Sistem mencegah admin aktif terakhir dinonaktifkan atau diturunkan rolenya. Perubahan oleh pengelola mencabut seluruh sesi milik user terkait agar aturan baru langsung berlaku.
+
+Halaman **My Profile** tersedia untuk semua user yang sudah login. Perubahan nama/username dan password wajib dikonfirmasi dengan password saat ini, dibatasi setelah lima kegagalan selama 15 menit, dan mengeluarkan sesi lain tanpa memutus sesi yang sedang dipakai. Aktivitas pengelolaan maupun perubahan profil dicatat di tabel `user_management_audit`.
 
 Password memakai scrypt dengan konfigurasi memory-hard. Respons gagal login tidak mengungkap apakah username ada. Upload dibatasi 10 MB dan satu file per request. Backend menolak origin browser di luar `CORS_ORIGINS` dan mengirim header keamanan dasar.
 
