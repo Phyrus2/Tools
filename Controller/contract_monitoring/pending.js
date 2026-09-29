@@ -6,6 +6,7 @@ const path = require("node:path");
 const {
   normalizeName,
   parseCategories,
+  parseContractPeriods,
   todayWita,
 } = require("../../Utils/contract_monitoring");
 const {
@@ -110,68 +111,17 @@ async function importPendingQueue(req, res) {
         const supplierName = importCell(row[columns.supplier]);
         if (!supplierName) continue;
         summary.totalRows += 1;
-        const contractPeriod =
+        const rawContractPeriod =
           importCell(row[columns.contract]) || "Unspecified";
-        const year =
-          Number.parseInt(contractPeriod.match(/(?:19|20)\d{2}/)?.[0], 10) ||
-          new Date().getFullYear();
+        const contractPeriods = parseContractPeriods(rawContractPeriod);
         const fullPath =
           importCell(row[columns.file]) ||
           `Excel import/${req.file.originalname}/${sheetName}/row-${rowIndex + 1}`;
-        const fileName =
-          path.win32.basename(fullPath) || `${supplierName} ${year}`;
         const parentPath = path.win32.dirname(fullPath);
-        const fingerprint = crypto
-          .createHash("sha256")
-          .update(`pending:${year}:${fullPath}`)
-          .digest();
         const pathHash = crypto
           .createHash("sha256")
           .update(fullPath.toLowerCase())
           .digest();
-        const [existing] = await connection.execute(
-          "SELECT id FROM contract_scan_results WHERE fingerprint=? LIMIT 1",
-          [fingerprint],
-        );
-        if (existing.length) {
-          summary.skipped += 1;
-          skippedRows.push({
-            sheet_name: sheetName,
-            row_number: rowIndex + 1,
-            supplier_name: supplierName,
-            reason: "This pending row was already imported.",
-          });
-          continue;
-        }
-        await connection.execute(
-          `INSERT INTO contract_scan_sources (server_id, year, base_path, target_folder, module_key, enabled, created_by, updated_by)
-           VALUES ('excel-pending', ?, 'C:\\\\Excel Imports', ?, 'CONTRACT', 0, ?, ?)
-           ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`,
-          [
-            year,
-            req.file.originalname.slice(0, 512),
-            req.admin.id,
-            req.admin.id,
-          ],
-        );
-        const [[source]] = await connection.execute(
-          "SELECT id FROM contract_scan_sources WHERE server_id='excel-pending' AND year=? AND base_path='C:\\\\Excel Imports' AND target_folder=? LIMIT 1",
-          [year, req.file.originalname.slice(0, 512)],
-        );
-        const [scanResult] = await connection.execute(
-          `INSERT INTO contract_scan_results
-             (source_id, full_path, parent_path, file_name, extension, date_modified_utc, path_hash, fingerprint, detected_signed_status)
-           VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, 'BELUM_SIGNED')`,
-          [
-            source.id,
-            fullPath,
-            parentPath,
-            fileName,
-            path.win32.extname(fileName).slice(0, 50) || null,
-            pathHash,
-            fingerprint,
-          ],
-        );
         const managementName = importCell(row[columns.management]);
         const supplierStatusText = importCell(
           row[statusColumns[0]],
@@ -200,20 +150,6 @@ async function importPendingQueue(req, res) {
         const workflowState = WORKFLOW_STATES.includes(rawState)
           ? rawState
           : stateAliases[rawState] || "UNHANDLED";
-        const [pendingResult] = await connection.execute(
-          `INSERT INTO contract_pending
-             (scan_result_id, is_management_contract, management_name, status, workflow_state, contract_period, queue_supplier_status, note)
-           VALUES (?, ?, ?, 'NEW', ?, ?, ?, ?)`,
-          [
-            scanResult.insertId,
-            managementName ? 1 : 0,
-            managementName || null,
-            workflowState,
-            contractPeriod,
-            queueSupplierStatus,
-            importCell(row[columns.note]) || null,
-          ],
-        );
         const supplierLookupName = supplierName
           .replace(/\([^)]*(?:jambix|booked product)[^)]*\)/gi, "")
           .trim();
@@ -221,20 +157,88 @@ async function importPendingQueue(req, res) {
           suppliers.get(
             normalizeName(supplierLookupName, { keepGeneric: true }),
           ) || null;
-        await connection.execute(
-          `INSERT INTO contract_pending_suppliers
-             (pending_id, supplier_id, detected_supplier_name, recommendation_source, detection, supplier_type, location_jambix, signed_status)
-           VALUES (?, ?, ?, 'MANUAL', ?, ?, ?, 'BELUM_SIGNED')`,
-          [
-            pendingResult.insertId,
-            supplier?.supplier_id || null,
-            supplier ? null : supplierName,
-            supplier ? "SUPPLIER_MATCH" : "NO_MATCH",
-            importCell(row[columns.type]) || null,
-            supplier?.location || null,
-          ],
-        );
-        summary.inserted += 1;
+        for (const contractPeriod of contractPeriods) {
+          const year =
+            Number.parseInt(contractPeriod.match(/(?:19|20)\d{2}/)?.[0], 10) ||
+            new Date().getFullYear();
+          const fileName =
+            path.win32.basename(fullPath) || `${supplierName} ${year}`;
+          const fingerprint = crypto
+            .createHash("sha256")
+            .update(`pending:${year}:${fullPath}`)
+            .digest();
+          const [existing] = await connection.execute(
+            "SELECT id FROM contract_scan_results WHERE fingerprint=? LIMIT 1",
+            [fingerprint],
+          );
+          if (existing.length) {
+            summary.skipped += 1;
+            skippedRows.push({
+              sheet_name: sheetName,
+              row_number: rowIndex + 1,
+              supplier_name: supplierName,
+              reason: `Contract ${contractPeriod} from this row was already imported.`,
+            });
+            continue;
+          }
+          await connection.execute(
+            `INSERT INTO contract_scan_sources (server_id, year, base_path, target_folder, module_key, enabled, created_by, updated_by)
+             VALUES ('excel-pending', ?, 'C:\\\\Excel Imports', ?, 'CONTRACT', 0, ?, ?)
+             ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)`,
+            [
+              year,
+              req.file.originalname.slice(0, 512),
+              req.admin.id,
+              req.admin.id,
+            ],
+          );
+          const [[source]] = await connection.execute(
+            "SELECT id FROM contract_scan_sources WHERE server_id='excel-pending' AND year=? AND base_path='C:\\\\Excel Imports' AND target_folder=? LIMIT 1",
+            [year, req.file.originalname.slice(0, 512)],
+          );
+          const [scanResult] = await connection.execute(
+            `INSERT INTO contract_scan_results
+               (source_id, full_path, parent_path, file_name, extension, date_modified_utc, path_hash, fingerprint, detected_signed_status)
+             VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(3), ?, ?, 'BELUM_SIGNED')`,
+            [
+              source.id,
+              fullPath,
+              parentPath,
+              fileName,
+              path.win32.extname(fileName).slice(0, 50) || null,
+              pathHash,
+              fingerprint,
+            ],
+          );
+          const [pendingResult] = await connection.execute(
+            `INSERT INTO contract_pending
+               (scan_result_id, is_management_contract, management_name, status, workflow_state, contract_period, queue_supplier_status, note)
+             VALUES (?, ?, ?, 'NEW', ?, ?, ?, ?)`,
+            [
+              scanResult.insertId,
+              managementName ? 1 : 0,
+              managementName || null,
+              workflowState,
+              contractPeriod,
+              queueSupplierStatus,
+              importCell(row[columns.note]) || null,
+            ],
+          );
+          await connection.execute(
+            `INSERT INTO contract_pending_suppliers
+               (pending_id, supplier_id, detected_supplier_name, recommendation_source, detection, supplier_type, location_jambix, signed_status)
+             VALUES (?, ?, ?, 'MANUAL', ?, ?, ?, 'BELUM_SIGNED')`,
+            [
+              pendingResult.insertId,
+              supplier?.supplier_id || null,
+              supplier ? null : supplierName,
+              supplier ? "SUPPLIER_MATCH" : "NO_MATCH",
+              importCell(row[columns.type]) || null,
+              supplier?.location || null,
+            ],
+          );
+          summary.inserted += 1;
+        }
       }
     }
     await connection.commit();
@@ -369,6 +373,15 @@ async function listPending(req, res) {
       );
       params.push(...valid);
     }
+    const contractPeriods = multiValues(req.query.period).map((period) =>
+      textValue(period, "Contract period", { max: 100 }),
+    );
+    if (contractPeriods.length) {
+      conditions.push(
+        `COALESCE(NULLIF(TRIM(p.contract_period), ''), CAST(src.year AS CHAR)) IN (${contractPeriods.map(() => "?").join(",")})`,
+      );
+      params.push(...contractPeriods);
+    }
     const categoriesFilter = multiValues(req.query.category).map((category) =>
       textValue(category, "Category", { max: 100 }),
     );
@@ -427,7 +440,9 @@ async function listPending(req, res) {
          LEFT JOIN contract_management_groups g ON g.id = p.management_group_id
          LEFT JOIN users u ON u.id = p.claimed_by
          LEFT JOIN users handler ON handler.id = p.handled_by
-         ${where} ORDER BY s.company_name, p.updated_at DESC`,
+         ${where}
+         ORDER BY COALESCE(s.company_name, ps.detected_supplier_name),
+                  p.created_at ASC, p.id ASC`,
       params,
     );
     const grouped = new Map();
@@ -519,12 +534,16 @@ async function listPending(req, res) {
     const categories = [
       ...new Set(rows.flatMap((row) => parseCategories(row.category_supplier))),
     ].sort();
+    const periods = [
+      ...new Set(rows.map((row) => row.contract_period || String(row.year))),
+    ].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
     return res.json({
       success: true,
       page,
       limit,
       total: queueGroups.length,
       categories,
+      periods,
       pending: queueGroups.slice(offset, offset + limit),
     });
   } catch (error) {
@@ -959,11 +978,9 @@ async function saveSuppliers(req, res) {
     await connection.execute(
       `UPDATE contract_pending
           SET status = IF(? > 0, 'IN_PROGRESS', status),
-              workflow_state = IF(? > 0 AND workflow_state = 'UNHANDLED', 'IN_PROGRESS', workflow_state),
-              handled_by = IF(? > 0, ?, handled_by),
               version = version + 1
         WHERE id = ?`,
-      [ids.length, ids.length, ids.length, req.admin.id, id],
+      [ids.length, id],
     );
     await connection.commit();
     return res.json({
@@ -1431,20 +1448,31 @@ async function updateQueueMeta(req, res) {
       `UPDATE contract_pending
           SET workflow_state=?, note=?,
               handled_by=CASE
-                WHEN ? = 'IN_PROGRESS' THEN ?
                 WHEN ? = 'UNHANDLED' THEN NULL
-                ELSE handled_by
+                ELSE ?
               END,
               version=version+1
         WHERE id=? AND status NOT IN ('DONE', 'IGNORED')`,
-      [workflowState, note, workflowState, req.admin.id, workflowState, id],
+      [workflowState, note, workflowState, req.admin.id, id],
     );
     if (!result.affectedRows)
       return res.status(404).json({
         success: false,
         message: "Pending item was not found or is already completed.",
       });
-    return res.json({ success: true, message: "Queue status saved." });
+    const [[updated]] = await pool.execute(
+      `SELECT p.workflow_state, p.note, p.handled_by, p.version,
+              handler.fullname AS handled_by_name
+         FROM contract_pending p
+         LEFT JOIN users handler ON handler.id = p.handled_by
+        WHERE p.id = ?`,
+      [id],
+    );
+    return res.json({
+      success: true,
+      message: "Queue status saved.",
+      item: updated,
+    });
   } catch (error) {
     if (isValidationError(error)) return badRequest(res, error);
     return res

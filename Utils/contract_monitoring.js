@@ -175,6 +175,26 @@ function parseCategories(value) {
   }
 }
 
+function parseContractPeriods(value) {
+  const original = String(value || "").trim();
+  if (!original) return [];
+
+  const years = [...original.matchAll(/(?<!\d)(?:19|20)?\d{2}(?!\d)/g)]
+    .map((match) => Number(match[0]))
+    .map((year) => (year < 100 ? 2000 + year : year))
+    .filter((year) => year >= 1900 && year <= 2099);
+  const unique = [...new Set(years)].sort((left, right) => left - right);
+  if (!unique.length) return [original];
+
+  if (unique.length === 2 && unique[1] > unique[0] && unique[1] - unique[0] <= 10) {
+    return Array.from(
+      { length: unique[1] - unique[0] + 1 },
+      (_, index) => String(unique[0] + index),
+    );
+  }
+  return unique.map(String);
+}
+
 module.exports = {
   candidateScore,
   contractStatus,
@@ -183,6 +203,7 @@ module.exports = {
   normalizeName,
   normalizeWindowsPath,
   parseCategories,
+  parseContractPeriods,
   parseSqlUtc,
   parseWitaDateTime,
   similarity,

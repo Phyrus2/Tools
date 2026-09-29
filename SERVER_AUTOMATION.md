@@ -173,3 +173,60 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/start-server.
 Restore mengganti database lokal dengan backup Drive yang telah diverifikasi. Jika
 state lokal tercatat lebih baru daripada Drive, script membatalkan startup agar data
 baru tidak tertimpa.
+
+## Otomatis hidup kembali setelah restart atau listrik padam
+
+Autostart memakai Windows Task Scheduler dengan trigger **At startup** dan berjalan
+memakai password akun Windows. Karena itu server mulai sebelum ada orang yang login;
+PIN Windows Hello tidak dapat dipakai sebagai password task. Watchdog memeriksa proses
+Node, Cloudflare, worker backup, dan endpoint `/health`. Jika salah satunya gagal,
+watchdog menjalankan shutdown/backup lalu mencoba `server:up` lagi dengan jeda bertahap.
+
+Database wajib berjalan sebagai Windows Service. Jika `MYSQL_SERVICE_NAME` masih kosong,
+installer akan mendeteksi service yang sudah ada atau mendaftarkan MySQL Laragon sebagai
+`C2IToolsMySQL`. Jika MySQL sedang berjalan manual dari Laragon, lakukan **Stop All** dan
+tutup Laragon sebelum instalasi. Nama service juga boleh diisi sendiri di `.env`, misalnya:
+
+```dotenv
+MYSQL_SERVICE_NAME=MySQL80
+```
+
+Buka PowerShell dengan **Run as administrator** di root project lalu jalankan:
+
+```powershell
+npm run server:autostart:install
+```
+
+Instalasi mengatur database service menjadi Automatic, membuat task dengan delay satu
+menit setelah boot, menonaktifkan sleep/hibernate ketika PC memakai listrik AC, dan
+langsung memulai task. Periksa hasilnya dengan:
+
+```powershell
+npm run server:autostart:status
+Get-Content .server-logs\watchdog.log -Tail 100
+```
+
+Untuk maintenance, gunakan perintah berikut agar watchdog tidak langsung menyalakan
+server yang baru dihentikan:
+
+```powershell
+npm run server:autostart:stop
+npm run server:autostart:start
+```
+
+`server:autostart:stop` hanya berlaku sampai boot berikutnya. Untuk menghapus task:
+
+```powershell
+npm run server:autostart:uninstall
+```
+
+Jika password akun Windows berubah, jalankan `server:autostart:install` lagi agar
+kredensial task diperbarui. Project, `.env`, tool portabel, dan konfigurasi autentikasi
+harus tersedia secara lokal; jangan jadikan file-file tersebut online-only di OneDrive.
+
+Terakhir, buka BIOS/UEFI PC dan aktifkan opsi yang biasanya bernama **Restore on AC
+Power Loss**, **After Power Failure**, atau **AC Back** lalu pilih **Power On**. Ini tidak
+dapat diatur secara universal dari Windows. Tanpa opsi BIOS tersebut, autostart Windows
+akan bekerja setelah restart, tetapi PC tidak bisa menyalakan dirinya sendiri setelah
+listrik padam total. UPS tetap disarankan karena software tidak dapat membuat backup
+saat daya hilang mendadak.

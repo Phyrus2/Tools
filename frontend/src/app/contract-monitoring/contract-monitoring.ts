@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { finalize, forkJoin, switchMap } from 'rxjs';
+import { finalize, forkJoin, of, switchMap } from 'rxjs';
 import { CatalogSearchService, SupplierSearchResult } from '../services/catalog-search';
 import { DatePicker } from '../shared/date-picker/date-picker';
 import { TimePicker } from '../shared/time-picker/time-picker';
@@ -79,9 +79,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   queueLoading = false;
   pendingImportFile: File | null = null;
   queueStatus: string[] = [];
+  queueContractPeriod: string[] = [];
   queueCategory: string[] = [];
   queueSupplierStatus: string[] = [];
   queueCategories: string[] = [];
+  queueContractPeriods: string[] = [];
+  queuePeriodGroups: { period: string; groups: PendingQueueGroup[] }[] = [];
   readonly selectedQueuePendingIds = new Set<number>();
   queueManagementOpen = false;
   queueManagementMode: 'CREATE' | 'EXISTING' = 'CREATE';
@@ -125,8 +128,11 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   private queueRequestId = 0;
   private readonly collapsedQueueGroups = new Set<string>();
   private readonly knownQueueManagementGroups = new Set<string>();
+  private sharedQueueSourcePaths = new Set<string>();
   private editorOriginTab: WorkspaceTab = 'scan';
   readonly queueMetaSaving = new Set<number>();
+  private readonly queueMetaResave = new Set<number>();
+  private readonly queueNoteSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
 
   constructor(
     private readonly api: ContractMonitoringService,
@@ -145,6 +151,8 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPolling();
+    for (const timer of this.queueNoteSaveTimers.values()) clearTimeout(timer);
+    this.queueNoteSaveTimers.clear();
   }
 
   selectTab(tab: WorkspaceTab): void {
@@ -338,10 +346,11 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       return;
     }
     this.busy = true;
+    const shouldStartProcessing = Boolean(queueSupplier?.supplier_id);
     this.api
       .claimResult(queueFile.scan_result_id)
       .pipe(
-        switchMap(() => this.api.startPending(id)),
+        switchMap(() => (shouldStartProcessing ? this.api.startPending(id) : of(null))),
         switchMap(() => this.api.getPending(id)),
         switchMap((pendingResponse) => {
           this.pending = pendingResponse.pending;
@@ -651,6 +660,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       .listPending(
         {
           status: this.queueStatus,
+          period: this.queueContractPeriod,
           category: this.queueCategory,
           supplier_status: this.queueSupplierStatus,
         },
@@ -674,6 +684,18 @@ export class ContractMonitoring implements OnInit, OnDestroy {
             return;
           }
           this.queue = response.pending;
+          const sourceCounts = new Map<string, number>();
+          for (const item of this.queue.flatMap((group) =>
+            group.suppliers.flatMap((supplier) => supplier.files),
+          )) {
+            sourceCounts.set(item.full_path, (sourceCounts.get(item.full_path) || 0) + 1);
+          }
+          this.sharedQueueSourcePaths = new Set(
+            [...sourceCounts.entries()]
+              .filter(([, count]) => count > 1)
+              .map(([fullPath]) => fullPath),
+          );
+          this.queuePeriodGroups = this.buildQueuePeriodGroups(this.queue);
           for (const group of this.queue) {
             if (!group.is_management || this.knownQueueManagementGroups.has(group.key)) continue;
             this.knownQueueManagementGroups.add(group.key);
@@ -682,6 +704,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
           this.queueCategories = [
             ...new Set([...this.queueCategories, ...response.categories]),
           ].sort();
+          this.queueContractPeriods = [
+            ...new Set([
+              ...this.queueContractPeriods,
+              ...(response.periods || this.queuePeriodGroups.map((group) => group.period)),
+            ]),
+          ].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
           this.render();
         },
         error: (error) => {
@@ -737,20 +765,56 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.render();
   }
 
-  saveQueueMeta(item: PendingFileItem): void {
-    if (this.queueMetaSaving.has(item.id)) return;
+  queueWorkflowChanged(item: PendingFileItem): void {
+    const timer = this.queueNoteSaveTimers.get(item.id);
+    if (timer) {
+      clearTimeout(timer);
+      this.queueNoteSaveTimers.delete(item.id);
+    }
+    if (item.workflow_state === 'UNHANDLED') {
+      item.handled_by = null;
+      item.handled_by_name = null;
+    }
+    this.saveQueueMeta(item);
+  }
+
+  queueNoteChanged(item: PendingFileItem): void {
+    const currentTimer = this.queueNoteSaveTimers.get(item.id);
+    if (currentTimer) clearTimeout(currentTimer);
+    const timer = setTimeout(() => {
+      this.queueNoteSaveTimers.delete(item.id);
+      this.saveQueueMeta(item);
+    }, 600);
+    this.queueNoteSaveTimers.set(item.id, timer);
+  }
+
+  private saveQueueMeta(item: PendingFileItem): void {
+    if (this.queueMetaSaving.has(item.id)) {
+      this.queueMetaResave.add(item.id);
+      return;
+    }
+    const savedWorkflowState = item.workflow_state;
+    const savedNote = item.note;
     this.queueMetaSaving.add(item.id);
     this.api
-      .updateQueueMeta(item.id, item.workflow_state, item.note)
+      .updateQueueMeta(item.id, savedWorkflowState, savedNote)
       .pipe(
         finalize(() => {
           this.queueMetaSaving.delete(item.id);
+          if (this.queueMetaResave.delete(item.id)) this.saveQueueMeta(item);
           this.render();
         }),
       )
       .subscribe({
         next: (response) => {
-          this.message = response.message;
+          if (
+            item.workflow_state === response.item.workflow_state &&
+            item.note === response.item.note
+          ) {
+            item.handled_by = response.item.handled_by;
+            item.handled_by_name = response.item.handled_by_name;
+            item.version = response.item.version;
+          }
           this.render();
         },
         error: (error) => this.fail(error),
@@ -791,6 +855,44 @@ export class ContractMonitoring implements OnInit, OnDestroy {
           .map((supplier) => supplier.company_name),
       ),
     ];
+  }
+
+  private buildQueuePeriodGroups(
+    queue: PendingQueueGroup[],
+  ): { period: string; groups: PendingQueueGroup[] }[] {
+    const periods = [
+      ...new Set(
+        queue.flatMap((group) =>
+          group.suppliers.flatMap((supplier) =>
+            supplier.files.map((item) => this.queueContractLabel(item)),
+          ),
+        ),
+      ),
+    ].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+
+    return periods.map((period) => ({
+      period,
+      groups: queue
+        .map((group) => ({
+          ...group,
+          suppliers: group.suppliers
+            .map((supplier) => ({
+              ...supplier,
+              files: supplier.files.filter(
+                (item) => this.queueContractLabel(item) === period,
+              ),
+            }))
+            .filter((supplier) => supplier.files.length),
+        }))
+        .filter((group) => group.suppliers.length),
+    }));
+  }
+
+  trackByPeriod(
+    _index: number,
+    periodGroup: { period: string; groups: PendingQueueGroup[] },
+  ): string {
+    return periodGroup.period;
   }
 
   openQueueManagement(): void {
@@ -857,10 +959,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       });
   }
 
-  queueContractLabel(supplier: PendingSupplierGroup): string {
-    return [
-      ...new Set(supplier.files.map((item) => item.contract_period || String(item.year))),
-    ].join(', ');
+  queueContractLabel(item: PendingFileItem): string {
+    return item.contract_period || String(item.year);
+  }
+
+  isSharedQueueSource(item: PendingFileItem): boolean {
+    return this.sharedQueueSourcePaths.has(item.full_path);
   }
 
   changeContractAction(supplier: PendingSupplier): void {

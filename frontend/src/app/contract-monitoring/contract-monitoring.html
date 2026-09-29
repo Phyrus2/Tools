@@ -618,6 +618,28 @@
       </details>
       <details class="cm-multi-filter">
         <summary>
+          <span>Contract period</span
+          ><b>{{ multiFilterLabel(queueContractPeriod, 'All contract periods') }}</b>
+        </summary>
+        <div>
+          <label *ngFor="let period of queueContractPeriods" class="cm-check-option"
+            ><input
+              type="checkbox"
+              [checked]="queueContractPeriod.includes(period)"
+              (change)="
+                toggleMultiFilter(
+                  queueContractPeriod,
+                  period,
+                  $any($event.target).checked,
+                  'queue'
+                )
+              "
+            /><span>{{ period }}</span></label
+          >
+        </div>
+      </details>
+      <details class="cm-multi-filter">
+        <summary>
           <span>Supplier data</span
           ><b>{{ multiFilterLabel(queueSupplierStatus, 'All supplier data') }}</b>
         </summary>
@@ -670,10 +692,21 @@
     </div>
     <div class="cm-queue-list">
       <section
-        class="cm-queue-group"
-        *ngFor="let group of queue; trackBy: trackById"
-        [class.cm-queue-group--management]="group.is_management"
+        class="cm-queue-period"
+        *ngFor="let periodGroup of queuePeriodGroups; trackBy: trackByPeriod"
       >
+        <header class="cm-queue-period-head">
+          <div>
+            <small>CONTRACT PERIOD</small>
+            <h3>{{ periodGroup.period }}</h3>
+          </div>
+          <span>{{ periodGroup.groups.length }} queue group(s)</span>
+        </header>
+        <section
+          class="cm-queue-group"
+          *ngFor="let group of periodGroup.groups; trackBy: trackById"
+          [class.cm-queue-group--management]="group.is_management"
+        >
         <header *ngIf="group.is_management" class="cm-management-head">
           <button
             type="button"
@@ -749,23 +782,32 @@
                 <b>{{ supplier.files.length }} file update(s)</b>
               </div>
             </header>
-            <div class="cm-queue-file" *ngIf="supplier.files[0] as item">
+            <div
+              class="cm-queue-file"
+              *ngFor="let item of supplier.files; trackBy: trackById"
+            >
               <div class="cm-queue-contract">
                 <small>CONTRACT</small>
-                <strong>{{ queueContractLabel(supplier) }}</strong>
+                <strong>{{ queueContractLabel(item) }}</strong>
               </div>
               <div class="cm-queue-item-badges">
-                <span class="cm-status" [attr.data-status]="item.workflow_state">
-                  {{ workflowStatusLabel(item.workflow_state) }}
+                <span class="cm-shared-source-badge" *ngIf="isSharedQueueSource(item)">
+                  Same source file
                 </span>
-                <span class="cm-handler-badge" *ngIf="item.handled_by_name">
+                <span
+                  class="cm-handler-badge"
+                  *ngIf="item.workflow_state !== 'UNHANDLED' && item.handled_by_name"
+                >
                   <i aria-hidden="true"></i>
                   Handled by {{ item.handled_by_name }}
                 </span>
               </div>
               <label class="cm-queue-field">
                 <span>WORKFLOW STATUS</span>
-                <select [(ngModel)]="item.workflow_state">
+                <select
+                  [(ngModel)]="item.workflow_state"
+                  (ngModelChange)="queueWorkflowChanged(item)"
+                >
                   <option value="UNHANDLED">Not handled</option>
                   <option value="IN_PROGRESS">In progress</option>
                   <option value="OP_NO_RESPONSE">(OP) No response</option>
@@ -775,17 +817,13 @@
               </label>
               <label class="cm-queue-field cm-queue-note">
                 <span>KETERANGAN</span>
-                <input [(ngModel)]="item.note" placeholder="Optional note" />
+                <input
+                  [(ngModel)]="item.note"
+                  (ngModelChange)="queueNoteChanged(item)"
+                  placeholder="Optional note"
+                />
               </label>
               <div class="cm-queue-actions">
-                <button
-                  class="cm-secondary cm-primary--small"
-                  type="button"
-                  [disabled]="queueMetaSaving.has(item.id)"
-                  (click)="saveQueueMeta(item)"
-                >
-                  {{ queueMetaSaving.has(item.id) ? 'Saving…' : 'Save' }}
-                </button>
                 <button
                   class="cm-primary cm-primary--small"
                   type="button"
@@ -804,6 +842,7 @@
             </div>
           </article>
         </div>
+        </section>
       </section>
     </div>
     <div class="cm-empty" *ngIf="!queue.length && !queueLoading">

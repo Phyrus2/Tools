@@ -4,6 +4,7 @@ const {
   contractStatus,
   detectSignedStatus,
   normalizeName,
+  parseContractPeriods,
   parseWitaDateTime,
   similarity,
   topRecommendations,
@@ -25,6 +26,13 @@ test("signed detection does not classify unsigned as signed", () => {
 
 test("supplier file normalization removes generic contract words and year", () => {
   assert.equal(normalizeName("PT. Hotel_Mawar CONTRACT RATES 2027.pdf"), "hotel mawar");
+});
+
+test("contract period ranges expand into independent years", () => {
+  assert.deepEqual(parseContractPeriods("26-27"), ["2026", "2027"]);
+  assert.deepEqual(parseContractPeriods("2026 - 2027"), ["2026", "2027"]);
+  assert.deepEqual(parseContractPeriods("2026/28"), ["2026", "2027", "2028"]);
+  assert.deepEqual(parseContractPeriods("2027"), ["2027"]);
 });
 
 test("fuzzy recommendation ranks the matching supplier first", () => {

@@ -293,7 +293,12 @@ export class ContractMonitoringService {
   }
 
   listPending(
-    filters: { status?: string[]; category?: string[]; supplier_status?: string[] } = {},
+    filters: {
+      status?: string[];
+      period?: string[];
+      category?: string[];
+      supplier_status?: string[];
+    } = {},
     page = 1,
     limit = 20,
   ): Observable<{
@@ -302,10 +307,12 @@ export class ContractMonitoringService {
     limit: number;
     total: number;
     categories: string[];
+    periods?: string[];
     pending: PendingQueueGroup[];
   }> {
     let params = new HttpParams().set('page', page).set('limit', limit);
     for (const value of filters.status || []) params = params.append('status', value);
+    for (const value of filters.period || []) params = params.append('period', value);
     for (const value of filters.category || []) params = params.append('category', value);
     for (const value of filters.supplier_status || [])
       params = params.append('supplier_status', value);
@@ -315,6 +322,7 @@ export class ContractMonitoringService {
       limit: number;
       total: number;
       categories: string[];
+      periods?: string[];
       pending: PendingQueueGroup[];
     }>(`${this.base}/pending`, { params });
   }
@@ -396,8 +404,22 @@ export class ContractMonitoringService {
     id: number,
     workflowState: PendingFileItem['workflow_state'],
     note: string | null,
-  ): Observable<{ success: true; message: string }> {
-    return this.http.patch<{ success: true; message: string }>(
+  ): Observable<{
+    success: true;
+    message: string;
+    item: Pick<
+      PendingFileItem,
+      'workflow_state' | 'note' | 'handled_by' | 'handled_by_name' | 'version'
+    >;
+  }> {
+    return this.http.patch<{
+      success: true;
+      message: string;
+      item: Pick<
+        PendingFileItem,
+        'workflow_state' | 'note' | 'handled_by' | 'handled_by_name' | 'version'
+      >;
+    }>(
       `${this.base}/pending/${id}/queue-meta`,
       { workflow_state: workflowState, note },
     );
