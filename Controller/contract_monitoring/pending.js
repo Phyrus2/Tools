@@ -36,6 +36,11 @@ const WORKFLOW_STATES = [
   "OP_WAITING",
   "DB_PENDING_VARIANT",
 ];
+const CONTRACT_PERIOD_SQL = `CASE
+  WHEN p.contract_period IS NULL OR LENGTH(TRIM(p.contract_period)) = 0
+    THEN CONVERT(src.year USING utf8mb4) COLLATE utf8mb4_unicode_ci
+  ELSE CONVERT(TRIM(p.contract_period) USING utf8mb4) COLLATE utf8mb4_unicode_ci
+END`;
 const pendingUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },
@@ -429,7 +434,12 @@ async function listPending(req, res) {
     );
     if (contractPeriods.length) {
       conditions.push(
-        `COALESCE(NULLIF(TRIM(p.contract_period), ''), CAST(src.year AS CHAR)) IN (${contractPeriods.map(() => "?").join(",")})`,
+        `${CONTRACT_PERIOD_SQL} IN (${contractPeriods
+          .map(
+            () =>
+              "CONVERT(? USING utf8mb4) COLLATE utf8mb4_unicode_ci",
+          )
+          .join(",")})`,
       );
       params.push(...contractPeriods);
     }
@@ -492,8 +502,10 @@ async function listPending(req, res) {
          LEFT JOIN users u ON u.id = p.claimed_by
          LEFT JOIN users handler ON handler.id = p.handled_by
          ${where}
-         ORDER BY COALESCE(s.company_name, ps.detected_supplier_name),
-                  p.created_at ASC, p.id ASC`,
+         ORDER BY ${CONTRACT_PERIOD_SQL} ASC,
+                  p.created_at ASC, p.id ASC,
+                  COALESCE(s.company_name, ps.detected_supplier_name) ASC,
+                  ps.id ASC`,
       params,
     );
     const grouped = new Map();
@@ -577,8 +589,69 @@ async function listPending(req, res) {
     const queueGroups = [...grouped.values()].map(
       ({ supplier_lookup: _supplierLookup, ...group }) => group,
     );
-    let queueNumber = 0;
+
+    // A supplier can have pending files for more than one contract period. Build
+    // the paginated units per period so the same supplier does not reuse a queue
+    // number in (for example) both the 2026 and 2027 sections.
+    const periodGroups = new Map();
     for (const group of queueGroups) {
+      for (const supplier of group.suppliers) {
+        for (const file of supplier.files) {
+          const period = file.contract_period;
+          const periodGroupKey = `${period}\u0000${group.key}`;
+          let periodGroup = periodGroups.get(periodGroupKey);
+          if (!periodGroup) {
+            periodGroup = {
+              ...group,
+              key: `${group.key}-period-${encodeURIComponent(period)}`,
+              contract_period: period,
+              suppliers: [],
+              supplier_lookup: new Map(),
+            };
+            periodGroups.set(periodGroupKey, periodGroup);
+          }
+
+          const supplierKey = supplier.supplier_id
+            ? `jambix-${supplier.supplier_id}`
+            : `detected-${normalizeName(supplier.company_name, { keepGeneric: true })}`;
+          let periodSupplier = periodGroup.supplier_lookup.get(supplierKey);
+          if (!periodSupplier) {
+            periodSupplier = { ...supplier, files: [] };
+            periodGroup.suppliers.push(periodSupplier);
+            periodGroup.supplier_lookup.set(supplierKey, periodSupplier);
+          }
+          periodSupplier.files.push(file);
+        }
+      }
+    }
+
+    const firstPendingId = (value) =>
+      Math.min(
+        ...value.suppliers.flatMap((supplier) =>
+          supplier.files.map((file) => Number(file.id)),
+        ),
+      );
+    const firstSupplierPendingId = (supplier) =>
+      Math.min(...supplier.files.map((file) => Number(file.id)));
+    const orderedQueueGroups = [...periodGroups.values()]
+      .sort(
+        (left, right) =>
+          String(left.contract_period).localeCompare(
+            String(right.contract_period),
+            undefined,
+            { numeric: true },
+          ) || firstPendingId(left) - firstPendingId(right),
+      )
+      .map(({ supplier_lookup: _supplierLookup, ...group }) => ({
+        ...group,
+        suppliers: group.suppliers.sort(
+          (left, right) =>
+            firstSupplierPendingId(left) - firstSupplierPendingId(right),
+        ),
+      }));
+
+    let queueNumber = 0;
+    for (const group of orderedQueueGroups) {
       for (const supplier of group.suppliers) {
         queueNumber += 1;
         supplier.queue_number = queueNumber;
@@ -594,10 +667,10 @@ async function listPending(req, res) {
       success: true,
       page,
       limit,
-      total: queueGroups.length,
+      total: orderedQueueGroups.length,
       categories,
       periods,
-      pending: queueGroups.slice(offset, offset + limit),
+      pending: orderedQueueGroups.slice(offset, offset + limit),
     });
   } catch (error) {
     if (isValidationError(error)) return badRequest(res, error);
