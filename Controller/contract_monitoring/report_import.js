@@ -5,7 +5,9 @@ const pool = require("../../Database/connection");
 const {
   contractStatus,
   normalizeName,
+  parseContractReferenceStatuses,
 } = require("../../Utils/contract_monitoring");
+const { syncSupplierContractStatus } = require("./reports");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -46,6 +48,13 @@ function normalizeHeader(value) {
     .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
+function isYellowCell(cellData) {
+  const fill = cellData?.s?.fill || cellData?.s;
+  return [fill?.fgColor, fill?.bgColor].filter(Boolean).some((color) => {
+    const rgb = String(color.rgb || '').replace(/^FF/i, '').toUpperCase();
+    return ['FFFF00', 'FFF200', 'FFD966', 'FFEB9C'].includes(rgb) || color.indexed === 5;
+  });
+}
 function parseDate(value) {
   if (typeof value === "number") {
     const parsed = xlsx.SSF.parse_date_code(value);
@@ -74,64 +83,33 @@ function parseDate(value) {
     return null;
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
-function parsePeriodStatuses(reference, validityStart) {
-  const text = cell(reference),
-    statuses = [];
-  const regex =
-    /\b((?:20)?\d{2}(?:\s*\/\s*\d{2})?)\s*(signed|done|complete|pending)\b/gi;
-  let match;
-  while ((match = regex.exec(text)))
-    statuses.push({
-      period: match[1].replace(/\s/g, ""),
-      status: /signed/i.test(match[2])
-        ? "SIGNED"
-        : /pending/i.test(match[2])
-          ? "PENDING"
-          : "DONE",
-    });
-  if (!statuses.length && text) {
-    const status = /signed/i.test(text)
-      ? "SIGNED"
-      : /done|complete/i.test(text)
-        ? "DONE"
-        : /pending/i.test(text)
-          ? "PENDING"
-          : null;
-    if (status)
-      statuses.push({
-        period: validityStart ? validityStart.slice(0, 4) : "GENERAL",
-        status,
-      });
-  }
-  return statuses;
+const parsePeriodStatuses = parseContractReferenceStatuses;
+function reportSourceKey(payload) {
+  const sourceIdentity = [
+    cell(payload.region).toLowerCase(),
+    cell(payload.folder).toLowerCase(),
+    normalizeName(payload.supplier_name, { keepGeneric: true }),
+  ].join("|");
+  return createHash("sha256").update(sourceIdentity).digest("hex");
 }
 function reportData(payload, supplierId) {
   const periods = parsePeriodStatuses(
     payload.reference,
     payload.validity_start,
   );
-  const sourceIdentity = [
-    cell(payload.region).toLowerCase(),
-    cell(payload.folder).toLowerCase(),
-    normalizeName(payload.supplier_name, { keepGeneric: true }),
-  ].join("|");
   return {
-    import_source_key: createHash("sha256")
-      .update(sourceIdentity)
-      .digest("hex"),
+    import_source_key: reportSourceKey(payload),
     file_source: payload.folder,
     location_jambix: payload.location || null,
     region: payload.region || null,
     supplier_id: supplierId,
     supplier_type: payload.supplier_type || "Unspecified",
+    report_type: "CONTRACT",
     validity_start: payload.validity_start,
     validity_end: payload.validity_end,
     status: contractStatus(payload.validity_end),
     source_status: payload.source_status || null,
     contract_reference: payload.reference || null,
-    signed_status: periods.some((item) => item.status === "SIGNED")
-      ? "SIGNED"
-      : "BELUM_SIGNED",
     period_statuses: periods,
     note: payload.note || null,
   };
@@ -143,12 +121,14 @@ function comparable(row) {
     location_jambix: row.location_jambix || null,
     region: row.region || null,
     supplier_type: row.supplier_type,
-    validity_start: String(row.validity_start).slice(0, 10),
-    validity_end: String(row.validity_end).slice(0, 10),
+    report_type: row.report_type || "CONTRACT",
+    validity_start: row.validity_start
+      ? String(row.validity_start).slice(0, 10)
+      : null,
+    validity_end: row.validity_end ? String(row.validity_end).slice(0, 10) : null,
     status: row.status,
     source_status: row.source_status || null,
     contract_reference: row.contract_reference || null,
-    signed_status: row.signed_status,
     period_statuses:
       typeof row.period_statuses === "string"
         ? JSON.parse(row.period_statuses || "[]")
@@ -172,7 +152,7 @@ function diff(before, after) {
 }
 async function insertReport(connection, data, adminId) {
   const [result] = await connection.execute(
-    `INSERT INTO contract_reports (import_source_key,file_source,location_jambix,region,supplier_id,supplier_type,validity_start,validity_end,status,source_status,contract_reference,signed_status,period_statuses,note,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO contract_reports (import_source_key,file_source,location_jambix,region,supplier_id,supplier_type,report_type,validity_start,validity_end,status,source_status,contract_reference,period_statuses,note,created_by,updated_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       data.import_source_key,
       data.file_source,
@@ -180,12 +160,12 @@ async function insertReport(connection, data, adminId) {
       data.region,
       data.supplier_id,
       data.supplier_type,
+      data.report_type,
       data.validity_start,
       data.validity_end,
       data.status,
       data.source_status,
       data.contract_reference,
-      data.signed_status,
       JSON.stringify(data.period_statuses),
       data.note,
       adminId,
@@ -219,7 +199,22 @@ async function findExistingReport(connection, data, lock = false) {
       data.validity_end,
     ],
   );
-  return rows[0] || null;
+  if (rows[0]) return rows[0];
+  const [oneTimeRows] = await connection.execute(
+    `SELECT *, CAST(validity_start AS CHAR) AS validity_start,
+            CAST(validity_end AS CHAR) AS validity_end
+       FROM contract_reports
+      WHERE report_type = 'ONE_TIME_SUPPLIER'
+        AND supplier_id = ?
+        AND LOWER(TRIM(COALESCE(region, ''))) = LOWER(TRIM(COALESCE(?, '')))
+        AND LOWER(TRIM(COALESCE(location_jambix, ''))) = LOWER(TRIM(COALESCE(?, '')))
+        AND LOWER(TRIM(COALESCE(supplier_type, ''))) = LOWER(TRIM(COALESCE(?, '')))
+      ORDER BY id
+      LIMIT 2${lock ? " FOR UPDATE" : ""}`,
+    [data.supplier_id, data.region, data.location_jambix, data.supplier_type],
+  );
+  if (oneTimeRows.length > 1) return { ambiguous_one_time: true };
+  return oneTimeRows[0] || null;
 }
 
 async function saveSupplierAlias(connection, sourceName, supplierId, adminId) {
@@ -265,6 +260,7 @@ async function importReport(req, res) {
     const workbook = xlsx.read(req.file.buffer, {
       type: "buffer",
       cellDates: false,
+      cellStyles: true,
     });
     const [suppliers] = await connection.execute(
       "SELECT supplier_id, company_name FROM suppliers",
@@ -332,9 +328,12 @@ async function importReport(req, res) {
           note: cell(row[columns.note]) || null,
         };
         const validDates = Boolean(start && end && end >= start);
+        const supplierCell = workbook.Sheets[sheetName][xlsx.utils.encode_cell({ r: rowIndex, c: columns.supplier })];
+        const oneTimeCandidate = isYellowCell(supplierCell) && !start && !end;
         let supplier = supplierMap.get(
           normalizeName(supplierName, { keepGeneric: true }),
         );
+        payload.matched_supplier_id = supplier?.supplier_id || null;
         if (!supplier && validDates) {
           supplier = await findLegacyManualLink(connection, payload);
           if (supplier)
@@ -344,6 +343,18 @@ async function importReport(req, res) {
             });
         }
         const reasons = [];
+        if (oneTimeCandidate) {
+          skippedRows.push({
+            sheet_name: sheetName,
+            row_number: rowIndex + 1,
+            supplier_name: supplierName,
+            reason: "The Supplier Name cell is yellow and the validity dates are empty. Link it to Jambix as a one-time supplier.",
+            one_time_candidate: true,
+            can_link_supplier: true,
+            payload: { ...payload, matched_supplier_id: supplier?.supplier_id || null },
+          });
+          continue;
+        }
         if (!supplier) reasons.push("Supplier not found in Jambix");
         if (!validDates) reasons.push("Validity dates are missing or invalid");
         if (reasons.length) {
@@ -352,7 +363,7 @@ async function importReport(req, res) {
             row_number: rowIndex + 1,
             supplier_name: supplierName,
             reason: reasons.join("; "),
-            can_link_supplier: !supplier && validDates,
+            can_link_supplier: true,
             payload,
           });
           continue;
@@ -389,7 +400,7 @@ async function importReport(req, res) {
         skippedRows.push({
           ...item,
           reason: "Duplicate contract report row in the Excel file.",
-          can_link_supplier: false,
+          can_link_supplier: true,
         });
         continue;
       }
@@ -445,8 +456,18 @@ async function importReport(req, res) {
     for (const item of candidates) {
       const data = reportData(item.payload, item.supplier_id);
       const existing = await findExistingReport(connection, data, true);
+      if (existing?.ambiguous_one_time) {
+        skippedRows.push({
+          ...item,
+          reason:
+            "More than one one-time supplier record matches this contract. Select the target record manually.",
+          can_link_supplier: true,
+        });
+        continue;
+      }
       if (!existing) {
         const id = await insertReport(connection, data, req.admin.id);
+        await syncSupplierContractStatus(connection, data.supplier_id);
         newRows.push({ ...item, id });
         continue;
       }
@@ -461,10 +482,11 @@ async function importReport(req, res) {
           );
         }
         unchangedRows.push({ ...item, id: existing.id });
+        await syncSupplierContractStatus(connection, data.supplier_id);
         continue;
       }
       await connection.execute(
-        `UPDATE contract_reports SET import_source_key=?,supplier_id=?,file_source=?,location_jambix=?,region=?,supplier_type=?,validity_start=?,validity_end=?,status=?,source_status=?,contract_reference=?,signed_status=?,period_statuses=?,note=?,updated_by=? WHERE id=?`,
+        `UPDATE contract_reports SET import_source_key=?,supplier_id=?,file_source=?,location_jambix=?,region=?,supplier_type=?,report_type='CONTRACT',validity_start=?,validity_end=?,status=?,source_status=?,contract_reference=?,period_statuses=?,note=?,updated_by=? WHERE id=?`,
         [
           data.import_source_key,
           data.supplier_id,
@@ -477,11 +499,22 @@ async function importReport(req, res) {
           data.status,
           data.source_status,
           data.contract_reference,
-          data.signed_status,
           JSON.stringify(data.period_statuses),
           data.note,
           req.admin.id,
           existing.id,
+        ],
+      );
+      await syncSupplierContractStatus(connection, data.supplier_id);
+      await connection.execute(
+        `INSERT INTO contract_report_revisions
+           (contract_report_id, action, before_data, after_data, changed_by)
+         VALUES (?, 'UPDATE', ?, ?, ?)`,
+        [
+          existing.id,
+          JSON.stringify(before),
+          JSON.stringify(after),
+          req.admin.id,
         ],
       );
       updatedRows.push({ ...item, id: existing.id, changes });
@@ -519,6 +552,144 @@ async function importReport(req, res) {
   }
 }
 
+async function createManualProduct(req, res) {
+  const supplierId = Number.parseInt(req.body?.supplier_id, 10);
+  const name = cell(req.body?.name);
+  const type = cell(req.body?.type) || null;
+  const status = cell(req.body?.status) || "One Time Product";
+  if (!Number.isInteger(supplierId) || supplierId < 1)
+    return res.status(400).json({ success: false, message: "Select a supplier first." });
+  if (!name || name.length > 255)
+    return res.status(400).json({ success: false, message: "Product name is required (maximum 255 characters)." });
+  if (!['Regular Product', 'One Time Product'].includes(status))
+    return res.status(400).json({ success: false, message: "Product status is invalid." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [suppliers] = await connection.execute("SELECT supplier_id FROM suppliers WHERE supplier_id=?", [supplierId]);
+    if (!suppliers.length) throw new Error("Supplier was not found.");
+    const [[lastProduct]] = await connection.execute("SELECT product_id FROM products ORDER BY product_id DESC LIMIT 1 FOR UPDATE");
+    const productId = Number(lastProduct?.product_id || 0) + 1;
+    await connection.execute(
+      `INSERT INTO products
+         (product_id, supplier_id, name, type, status, info, not_on_offer,
+          services_included, services_excluded, instructions, description)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [productId, supplierId, name, type, status, optional(req.body?.info), optional(req.body?.not_on_offer),
+       optional(req.body?.services_included), optional(req.body?.services_excluded),
+       optional(req.body?.instructions), optional(req.body?.description)],
+    );
+    await connection.commit();
+    return res.status(201).json({ success: true, message: "Product added successfully.", product_id: productId });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({ success: false, message: error.message || "Failed to add product." });
+  } finally {
+    connection.release();
+  }
+}
+
+function optional(value) {
+  const valueText = cell(value);
+  return valueText || null;
+}
+
+async function addOneTimeSupplier(req, res) {
+  const supplierId = Number.parseInt(req.body?.supplier_id, 10);
+  const payload = req.body?.payload || {};
+  if (!Number.isInteger(supplierId) || supplierId < 1)
+    return res
+      .status(400)
+      .json({ success: false, message: "Select a supplier from Jambix." });
+  if (payload.validity_start || payload.validity_end)
+    return res.status(400).json({
+      success: false,
+      message: "One-time suppliers cannot have a partial validity period.",
+    });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [suppliers] = await connection.execute(
+      "SELECT supplier_id FROM suppliers WHERE supplier_id=? LIMIT 1",
+      [supplierId],
+    );
+    if (!suppliers.length) throw new Error("Supplier was not found in Jambix.");
+    await saveSupplierAlias(
+      connection,
+      payload.supplier_name,
+      supplierId,
+      req.admin.id,
+    );
+    const data = {
+      import_source_key: reportSourceKey(payload),
+      file_source: cell(payload.folder) || "Contract report import",
+      location_jambix: cell(payload.location) || null,
+      region: cell(payload.region) || null,
+      supplier_id: supplierId,
+      supplier_type: cell(payload.supplier_type) || "Unspecified",
+      report_type: "ONE_TIME_SUPPLIER",
+      validity_start: null,
+      validity_end: null,
+      status: "NO_CONTRACT",
+      source_status: cell(payload.source_status) || null,
+      contract_reference: cell(payload.reference) || null,
+      period_statuses: [],
+      note: cell(payload.note) || null,
+    };
+    const [existing] = await connection.execute(
+      `SELECT id, report_type FROM contract_reports
+        WHERE import_source_key = ?
+           OR (supplier_id = ? AND report_type = 'ONE_TIME_SUPPLIER'
+               AND LOWER(TRIM(COALESCE(region, ''))) = LOWER(TRIM(COALESCE(?, '')))
+               AND LOWER(TRIM(COALESCE(location_jambix, ''))) = LOWER(TRIM(COALESCE(?, '')))
+               AND LOWER(TRIM(COALESCE(supplier_type, ''))) = LOWER(TRIM(COALESCE(?, ''))))
+        ORDER BY id LIMIT 1 FOR UPDATE`,
+      [
+        data.import_source_key,
+        supplierId,
+        data.region,
+        data.location_jambix,
+        data.supplier_type,
+      ],
+    );
+    if (existing.length) {
+      await connection.commit();
+      return res.json({
+        success: true,
+        id: existing[0].id,
+        created: false,
+        message:
+          existing[0].report_type === "CONTRACT"
+            ? "This supplier row is already linked to a contract report."
+            : "This one-time supplier is already listed in Contract Report.",
+      });
+    }
+    const id = await insertReport(connection, data, req.admin.id);
+    await syncSupplierContractStatus(connection, supplierId);
+    await connection.execute(
+      `INSERT INTO contract_report_revisions
+         (contract_report_id, action, before_data, after_data, changed_by)
+       VALUES (?, 'INSERT', NULL, ?, ?)`,
+      [id, JSON.stringify(comparable(data)), req.admin.id],
+    );
+    await connection.commit();
+    return res.status(201).json({
+      success: true,
+      id,
+      created: true,
+      message: "One-time supplier added to Contract Report.",
+    });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({
+      success: false,
+      message: error.message || "Failed to add the one-time supplier.",
+    });
+  } finally {
+    connection.release();
+  }
+}
+
 async function addSkippedReport(req, res) {
   const supplierId = Number.parseInt(req.body?.supplier_id, 10),
     payload = req.body?.payload || {};
@@ -536,7 +707,7 @@ async function addSkippedReport(req, res) {
       .json({
         success: false,
         message:
-          "The Excel validity dates are invalid, so this row cannot be added manually.",
+          "Enter valid start and end dates, or add this row as a one-time supplier.",
       });
   const connection = await pool.getConnection();
   try {
@@ -554,22 +725,58 @@ async function addSkippedReport(req, res) {
     );
     const data = reportData(payload, supplierId);
     const existing = await findExistingReport(connection, data, true);
+    if (existing?.ambiguous_one_time)
+      throw new Error(
+        "More than one one-time supplier record matches. Select the target contract from Pending Queue.",
+      );
     const id = existing
       ? existing.id
       : await insertReport(connection, data, req.admin.id);
-    if (existing && existing.import_source_key !== data.import_source_key) {
+    let updated = false;
+    if (existing) {
+      const before = comparable(existing);
+      const after = comparable(data);
+      const changes = diff(before, after);
       await connection.execute(
-        "UPDATE contract_reports SET import_source_key = ? WHERE id = ?",
-        [data.import_source_key, existing.id],
+        `UPDATE contract_reports SET import_source_key=?,supplier_id=?,file_source=?,location_jambix=?,region=?,
+           supplier_type=?,report_type='CONTRACT',validity_start=?,validity_end=?,status=?,source_status=?,
+           contract_reference=?,period_statuses=?,note=?,updated_by=? WHERE id=?`,
+        [
+          data.import_source_key,
+          data.supplier_id,
+          data.file_source,
+          data.location_jambix,
+          data.region,
+          data.supplier_type,
+          data.validity_start,
+          data.validity_end,
+          data.status,
+          data.source_status,
+          data.contract_reference,
+          JSON.stringify(data.period_statuses),
+          data.note,
+          req.admin.id,
+          existing.id,
+        ],
       );
+      updated = Boolean(changes.length);
+      if (updated)
+        await connection.execute(
+          `INSERT INTO contract_report_revisions
+             (contract_report_id, action, before_data, after_data, changed_by)
+           VALUES (?, 'UPDATE', ?, ?, ?)`,
+          [existing.id, JSON.stringify(before), JSON.stringify(after), req.admin.id],
+        );
     }
+    await syncSupplierContractStatus(connection, supplierId);
     await connection.commit();
     return res.json({
       success: true,
       id,
       created: !existing,
+      updated,
       message: existing
-        ? "Supplier link saved. The existing contract will be recognized on the next import."
+        ? "The one-time supplier was converted to a contract report."
         : "Skipped contract added and supplier link saved for future imports.",
     });
   } catch (error) {
@@ -587,5 +794,7 @@ async function addSkippedReport(req, res) {
 module.exports = {
   importReport: [upload.single("file"), importReport],
   addSkippedReport,
+  addOneTimeSupplier,
   parsePeriodStatuses,
+  createManualProduct,
 };

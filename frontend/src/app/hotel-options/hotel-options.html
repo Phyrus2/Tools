@@ -68,6 +68,10 @@
 
   <section class="toolbar">
     <div class="toolbar-import">
+      <div class="pending-import-notice" *ngIf="pendingQueueId">
+        <strong>Continue from Pending Queue</strong>
+        <span>Import {{ pendingFileName || 'the Hotel Option file' }}. The queue will be marked done after a successful import.</span>
+      </div>
       <div class="toolbar-import-copy">
         <span class="import-icon">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
@@ -293,7 +297,7 @@
         <ul class="option-list">
           <li
             class="option-row"
-            [class.needs-link]="!item.supplier_id || !item.product_id"
+            [class.needs-link]="optionNeedsLink(item)"
             *ngFor="let item of place.options; let optionIndex = index; trackBy: trackByOptionId"
           >
             <div class="option-hotel">
@@ -305,16 +309,26 @@
               <div class="option-main">
                 <small>{{ item.segment || 'Selected stay' }}</small>
                 <h4>{{ item.hotel_name }}</h4>
-                <span class="option-room"
-                  >Room <b>{{ item.room_type || 'not specified' }}</b></span
-                >
+                <span class="option-room-list">
+                  <span *ngFor="let room of item.rooms; trackBy: trackByRoomId">
+                    <b>{{ room.room_type }}</b>
+                    <small *ngIf="room.products.length">
+                      <ng-container *ngFor="let product of room.products; let last = last">
+                        {{ product.name }}<ng-container *ngIf="!last"> · </ng-container>
+                      </ng-container>
+                    </small>
+                    <small *ngIf="!room.products.length">Product not linked</small>
+                    <button type="button" *ngIf="!room.products.length" (click)="assign(item, room)">Link</button>
+                  </span>
+                  <span *ngIf="!item.rooms.length"><b>Room not specified</b></span>
+                </span>
               </div>
             </div>
 
             <div class="option-status">
-              <span class="status-badge" [class.missing]="!item.supplier_id || !item.product_id">
+              <span class="status-badge" [class.missing]="optionNeedsLink(item)">
                 <span class="status-dot"></span>
-                {{ item.supplier_id && item.product_id ? 'Active' : 'Needs link' }}
+                {{ optionNeedsLink(item) ? 'Needs link' : 'Active' }}
               </span>
               <span class="option-link-detail">
                 <span class="link-line">
@@ -349,7 +363,12 @@
                       stroke-linejoin="round"
                     />
                   </svg>
-                  {{ item.product_name || 'Product not linked' }}
+                  <span class="jambix-product-names">
+                    <ng-container *ngFor="let room of item.rooms">
+                      <span *ngFor="let product of room.products">{{ product.name }}</span>
+                    </ng-container>
+                    <span class="is-missing" *ngIf="!linkedProductCount(item)">Product not linked</span>
+                  </span>
                 </span>
               </span>
             </div>
@@ -474,10 +493,21 @@
         Hotel name
         <input type="text" [(ngModel)]="form.hotel_name" />
       </label>
-      <label class="wide">
-        Room product name
-        <input type="text" [(ngModel)]="form.room_type" />
-      </label>
+      <div class="wide option-room-editor">
+        <div class="option-room-editor-head">
+          <span>Excel room names</span>
+          <button type="button" (click)="addRoom()">+ Add room</button>
+        </div>
+        <label *ngFor="let room of form.rooms; let roomIndex = index">
+          <input
+            type="text"
+            [(ngModel)]="room.room_type"
+            [placeholder]="'Room ' + (roomIndex + 1)"
+            (ngModelChange)="updateRoomName(roomIndex, $event)"
+          />
+          <button type="button" [disabled]="form.rooms.length === 1" (click)="removeRoom(roomIndex)">Remove</button>
+        </label>
+      </div>
     </div>
     <section class="form-link-panel">
       <div class="form-link-heading">
@@ -557,19 +587,57 @@
             </div>
           </div>
         </div>
-        <div class="search-block" [class.disabled]="!selectedSupplier">
+        <div class="search-block room-link-block" [class.disabled]="!selectedSupplier">
           <div class="link-search-head">
             <span class="link-search-step">2</span>
             <div>
-              <strong>Choose room product</strong>
+              <strong>Link Jambix products per Excel room</strong>
               <small>{{
                 selectedSupplier
-                  ? 'Products from ' + selectedSupplier.company_name
+                  ? 'Select one or more products from ' + selectedSupplier.company_name
                   : 'Choose a supplier first'
               }}</small>
             </div>
           </div>
-          <label class="link-search-input">
+          <div class="room-product-editor" *ngFor="let room of form.rooms; let roomIndex = index">
+            <strong>{{ room.room_type || 'Room ' + (roomIndex + 1) }}</strong>
+            <div class="selected-room-products" *ngIf="roomSelectedProducts[roomIndex]?.length">
+              <button
+                type="button"
+                *ngFor="let product of roomSelectedProducts[roomIndex]"
+                (click)="toggleRoomProduct(roomIndex, product)"
+              >{{ product.name }} &times;</button>
+            </div>
+            <label class="link-search-input">
+              <span class="sr-only">Search Jambix products for {{ room.room_type }}</span>
+              <div class="input-icon">
+                <input
+                  type="search"
+                  [(ngModel)]="roomProductQueries[roomIndex]"
+                  (ngModelChange)="searchRoomProducts(roomIndex)"
+                  [disabled]="!selectedSupplier"
+                  placeholder="Search Double, Twin, Deluxe..."
+                />
+                <span class="search-spinner" *ngIf="roomProductLoading[roomIndex]"></span>
+              </div>
+            </label>
+            <div class="search-results compact" [class.is-loading]="roomProductLoading[roomIndex]">
+              <button
+                type="button"
+                class="search-result"
+                *ngFor="let product of roomProductResults[roomIndex]"
+                [class.selected]="isRoomProductSelected(roomIndex, product.product_id)"
+                (click)="toggleRoomProduct(roomIndex, product)"
+              >
+                <span><strong>{{ product.name }}</strong><small>{{ product.type || 'Product' }}</small></span>
+                <span class="result-check" *ngIf="isRoomProductSelected(roomIndex, product.product_id)">✓</span>
+              </button>
+              <div class="link-search-state" *ngIf="!selectedSupplier">
+                Supplier selection unlocks room products.
+              </div>
+            </div>
+          </div>
+          <label class="link-search-input" *ngIf="false">
             <span class="sr-only">Search room product</span>
             <div class="input-icon">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -591,7 +659,7 @@
               <span class="search-spinner" *ngIf="productSearchLoading"></span>
             </div>
           </label>
-          <div class="search-results compact" [class.is-loading]="productSearchLoading">
+          <div class="search-results compact" [class.is-loading]="productSearchLoading" *ngIf="false">
             <button
               type="button"
               class="search-result"
@@ -622,12 +690,11 @@
       <div class="selected-link" *ngIf="selectedSupplier">
         <span>Connected to</span>
         <strong>{{ selectedSupplier.company_name }}</strong>
-        <span *ngIf="selectedProduct">/ {{ selectedProduct.name }}</span>
-        <em *ngIf="!selectedProduct">Select a room product to complete the link</em>
+        <em>Each Excel room can link to multiple Jambix products.</em>
       </div>
     </section>
     <footer class="modal-foot">
-      <span>Supplier and product are searched live from the Jambix database.</span>
+      <span>Supplier and room products are searched live from the Jambix database.</span>
       <div class="option-form-actions">
         <button
           type="button"
@@ -646,8 +713,7 @@
             !form.region ||
             !form.location ||
             !form.hotel_name ||
-            !form.room_type ||
-            !!selectedSupplier !== !!selectedProduct
+            !form.rooms.length || !form.rooms[0].room_type
           "
           (click)="saveOption()"
         >
@@ -716,7 +782,7 @@
       <div>
         <span>Link Jambix data</span>
         <h2>{{ linkItem.hotel_name }}</h2>
-        <p>{{ linkItem.room_type }}</p>
+        <p>{{ linkRoom?.room_type || linkItem.room_type }}</p>
       </div>
       <button class="modal-close" (click)="closeLink()">×</button>
     </header>

@@ -22,6 +22,17 @@ export interface HotelOption {
   peak_season_period: string | null;
   remarks: string | null;
   update_count: number;
+  rooms: HotelOptionRoom[];
+}
+
+export interface HotelOptionRoom {
+  id: number;
+  hotel_option_id: number;
+  room_type: string;
+  product_id: number | null;
+  product_name: string | null;
+  products: HotelLinkProduct[];
+  is_active: number | boolean;
 }
 
 export interface HotelLinkSupplier {
@@ -52,6 +63,7 @@ export interface HotelOptionInput {
   room_type: string;
   supplier_id: number | null;
   product_id: number | null;
+  rooms: { room_type: string; product_ids: number[] }[];
 }
 export interface HotelImportRow {
   id?: number;
@@ -117,10 +129,20 @@ export class HotelOptionsService {
     form.append('file', file);
     return this.http.post<HotelImportResult>(`${API_URL}/hotel-options/import`, form);
   }
+  completePending(
+    pendingId: number,
+    pendingSupplierId: number,
+  ): Observable<{ success: true; message: string }> {
+    return this.http.post<{ success: true; message: string }>(
+      `${API_URL}/hotel-options/pending/${pendingId}/complete`,
+      { pending_supplier_id: pendingSupplierId },
+    );
+  }
   assign(
     id: number,
     supplierId: number,
     productId: number,
+    roomId?: number,
   ): Observable<{ success: true; supplier: HotelLinkSupplier; product: HotelLinkProduct }> {
     return this.http.patch<{
       success: true;
@@ -129,6 +151,7 @@ export class HotelOptionsService {
     }>(`${API_URL}/hotel-options/${id}/supplier`, {
       supplier_id: supplierId,
       product_id: productId,
+      ...(roomId ? { room_id: roomId } : {}),
     });
   }
   searchLinks(

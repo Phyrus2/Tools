@@ -8,7 +8,7 @@ import {
   OnInit,
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { finalize, forkJoin, of, switchMap } from 'rxjs';
 import { CatalogSearchService, SupplierSearchResult } from '../services/catalog-search';
 import { DatePicker } from '../shared/date-picker/date-picker';
@@ -117,6 +117,13 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   reportManualQuery = '';
   reportManualResults: SupplierSearchResult[] = [];
   reportManualSupplier: SupplierSearchResult | null = null;
+  reportEdit: ContractReport | null = null;
+  reportEditSupplierQuery = '';
+  reportEditSupplierResults: SupplierSearchResult[] = [];
+  oneTimeItem: ContractImportItem | null = null;
+  oneTimeSupplierQuery = '';
+  oneTimeSupplierResults: SupplierSearchResult[] = [];
+  oneTimeSupplier: SupplierSearchResult | null = null;
 
   analysis: ScanResultAnalysis | null = null;
   pending: PendingItem | null = null;
@@ -129,7 +136,9 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   private readonly collapsedQueueGroups = new Set<string>();
   private readonly knownQueueManagementGroups = new Set<string>();
   private sharedQueueSourcePaths = new Set<string>();
+  private readonly expandedQueueSuppliers = new Set<string>();
   private editorOriginTab: WorkspaceTab = 'scan';
+  private activePendingSupplierId: number | null = null;
   readonly queueMetaSaving = new Set<number>();
   private readonly queueMetaResave = new Set<number>();
   private readonly queueNoteSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
@@ -138,6 +147,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     private readonly api: ContractMonitoringService,
     private readonly catalog: CatalogSearchService,
     private readonly cdr: ChangeDetectorRef,
+    private readonly router: Router,
   ) {}
 
   ngOnInit(): void {
@@ -311,6 +321,30 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   openResult(result: ScanResult): void {
     this.clearFeedback();
     this.editorOriginTab = this.tab;
+    this.activePendingSupplierId = null;
+    if (this.isHotelOptionFile(result.file_name)) {
+      this.busy = true;
+      this.api
+        .claimResult(result.id)
+        .pipe(
+          switchMap((claim) => this.api.releasePending(claim.pending_id)),
+          finalize(() => {
+            this.busy = false;
+            this.render();
+          }),
+        )
+        .subscribe({
+          next: () => {
+            this.message =
+              'Hotel Option file added to Pending Queue. Continue it from the queue to import.';
+            this.tab = 'queue';
+            this.loadQueue(true);
+            this.loadResults();
+          },
+          error: (error) => this.fail(error),
+        });
+      return;
+    }
     this.busy = true;
     forkJoin({
       analysis: this.api.analyzeResult(result.id),
@@ -334,24 +368,23 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       });
   }
 
-  openPending(id: number): void {
+  openPending(queueFile: PendingFileItem): void {
     this.clearFeedback();
     this.editorOriginTab = this.tab;
+    const id = queueFile.id;
     const queueSupplier = this.queue
       .flatMap((group) => group.suppliers)
-      .find((supplier) => supplier.files.some((item) => item.id === id));
-    const queueFile = queueSupplier?.files.find((item) => item.id === id);
-    if (!queueFile) {
-      this.error = 'The pending item was not found in the queue. Refresh the page and try again.';
-      return;
-    }
+      .find((supplier) =>
+        supplier.files.some((item) => item.pending_supplier_id === queueFile.pending_supplier_id),
+      );
+    this.activePendingSupplierId = queueFile.pending_supplier_id;
     this.busy = true;
     const shouldStartProcessing = Boolean(queueSupplier?.supplier_id);
     this.api
       .claimResult(queueFile.scan_result_id)
       .pipe(
         switchMap(() => (shouldStartProcessing ? this.api.startPending(id) : of(null))),
-        switchMap(() => this.api.getPending(id)),
+        switchMap(() => this.api.getPending(id, this.activePendingSupplierId)),
         switchMap((pendingResponse) => {
           this.pending = pendingResponse.pending;
           return this.api.analyzeResult(pendingResponse.pending.scan_result_id);
@@ -369,6 +402,28 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       });
   }
 
+  continueQueueItem(item: PendingFileItem): void {
+    if (this.isHotelOptionFile(item.file_name)) {
+      this.router.navigate(['/hotel-options', item.year], {
+        queryParams: {
+          pendingId: item.id,
+          pendingSupplierId: item.pending_supplier_id,
+          pendingFileName: item.file_name,
+        },
+      });
+      return;
+    }
+    this.openPending(item);
+  }
+
+  isHotelOptionFile(fileName: string | null | undefined): boolean {
+    return String(fileName || '')
+      .toUpperCase()
+      .replace(/[_-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .includes('OPSI HOTELS');
+  }
+
   closeEditor(release = false): void {
     if (release && this.pending && ['NEW', 'IN_PROGRESS'].includes(this.pending.status)) {
       this.api
@@ -379,6 +434,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.analysis = null;
     this.manualResults = [];
     this.newGroupName = '';
+    this.activePendingSupplierId = null;
     this.tab = this.editorOriginTab;
     this.loadResults();
   }
@@ -394,6 +450,26 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     });
   }
 
+  get availableSupplierRecommendations(): SupplierRecommendation[] {
+    const selected = new Set(
+      (this.pending?.suppliers || [])
+        .map((supplier) => supplier.supplier_id)
+        .filter((id): id is number => id !== null),
+    );
+    return (this.analysis?.supplier_recommendations || []).filter(
+      (supplier) => !selected.has(supplier.id),
+    );
+  }
+
+  get availableManualSupplierResults(): SupplierSearchResult[] {
+    const selected = new Set(
+      (this.pending?.suppliers || [])
+        .map((supplier) => supplier.supplier_id)
+        .filter((id): id is number => id !== null),
+    );
+    return this.manualResults.filter((supplier) => !selected.has(supplier.supplier_id));
+  }
+
   searchSupplier(): void {
     if (this.manualKeyword.trim().length < 2) {
       this.error = 'Enter at least 2 characters to search for a supplier.';
@@ -401,7 +477,14 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     }
     this.catalog.searchSuppliers(this.manualKeyword, '', 'active', 1, 10).subscribe({
       next: (response) => {
-        this.manualResults = response.results;
+        const selected = new Set(
+          (this.pending?.suppliers || [])
+            .map((supplier) => supplier.supplier_id)
+            .filter((id): id is number => id !== null),
+        );
+        this.manualResults = response.results.filter(
+          (supplier) => !selected.has(supplier.supplier_id),
+        );
         this.render();
       },
       error: (error) => this.fail(error),
@@ -489,9 +572,9 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.clearFeedback();
     this.busy = true;
     this.api
-      .savePendingSuppliers(this.pending.id, this.pending.suppliers)
+      .savePendingSuppliers(this.pending.id, this.pending.suppliers, this.activePendingSupplierId)
       .pipe(
-        switchMap(() => this.api.getPending(this.pending!.id)),
+        switchMap(() => this.api.getPending(this.pending!.id, this.activePendingSupplierId)),
         finalize(() => {
           this.busy = false;
           this.render();
@@ -597,12 +680,16 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.clearFeedback();
     this.busy = true;
     this.api
-      .savePendingSuppliers(this.pending.id, this.pending.suppliers)
+      .savePendingSuppliers(this.pending.id, this.pending.suppliers, this.activePendingSupplierId)
       .pipe(
-        switchMap(() => this.api.getPending(this.pending!.id)),
+        switchMap(() => this.api.getPending(this.pending!.id, this.activePendingSupplierId)),
         switchMap((response) => {
           this.pending = response.pending;
-          return this.api.completePending(response.pending.id, response.pending.version);
+          return this.api.completePending(
+            response.pending.id,
+            response.pending.version,
+            this.activePendingSupplierId,
+          );
         }),
         finalize(() => {
           this.busy = false;
@@ -822,9 +909,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
 
   queueSupplierPendingIds(supplier: PendingSupplierGroup): number[] {
-    return supplier.files
-      .filter((item) => item.status !== 'IGNORED')
-      .map((item) => item.id);
+    return supplier.files.filter((item) => item.status !== 'IGNORED').map((item) => item.id);
   }
 
   isQueueSupplierSelected(supplier: PendingSupplierGroup): boolean {
@@ -870,6 +955,17 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       ),
     ].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
 
+    // Urutan tampil di dalam satu periode: nomor antrean terkecil (paling awal
+    // diinput) di atas. Kalau nomornya sama/kosong, pakai id file pending terkecil.
+    const queueOrder = (supplier: PendingSupplierGroup): number =>
+      Number(supplier.queue_number) || Number.MAX_SAFE_INTEGER;
+    const firstFileId = (supplier: PendingSupplierGroup): number =>
+      Math.min(...supplier.files.map((item) => item.id));
+    const bySupplierOrder = (left: PendingSupplierGroup, right: PendingSupplierGroup): number =>
+      queueOrder(left) - queueOrder(right) || firstFileId(left) - firstFileId(right);
+    const groupOrder = (group: PendingQueueGroup): number =>
+      Math.min(...group.suppliers.map(queueOrder));
+
     return periods.map((period) => ({
       period,
       groups: queue
@@ -878,13 +974,15 @@ export class ContractMonitoring implements OnInit, OnDestroy {
           suppliers: group.suppliers
             .map((supplier) => ({
               ...supplier,
-              files: supplier.files.filter(
-                (item) => this.queueContractLabel(item) === period,
-              ),
+              files: supplier.files
+                .filter((item) => this.queueContractLabel(item) === period)
+                .sort((left, right) => left.id - right.id),
             }))
-            .filter((supplier) => supplier.files.length),
+            .filter((supplier) => supplier.files.length)
+            .sort(bySupplierOrder),
         }))
-        .filter((group) => group.suppliers.length),
+        .filter((group) => group.suppliers.length)
+        .sort((left, right) => groupOrder(left) - groupOrder(right)),
     }));
   }
 
@@ -967,6 +1065,65 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     return this.sharedQueueSourcePaths.has(item.full_path);
   }
 
+  queueSupplierKey(supplier: PendingSupplierGroup): string {
+    return supplier.supplier_id
+      ? `supplier-${supplier.supplier_id}`
+      : `queue-${supplier.queue_number}`;
+  }
+
+  queueSupplierWorkflowState(supplier: PendingSupplierGroup): PendingFileItem['workflow_state'] {
+    const priority: PendingFileItem['workflow_state'][] = [
+      'IN_PROGRESS',
+      'OP_WAITING',
+      'OP_NO_RESPONSE',
+      'DB_PENDING_VARIANT',
+      'UNHANDLED',
+    ];
+    return (
+      priority.find((state) => supplier.files.some((item) => item.workflow_state === state)) ||
+      'UNHANDLED'
+    );
+  }
+
+  queueSupplierWorkflowLabel(supplier: PendingSupplierGroup): string {
+    const labels: Record<PendingFileItem['workflow_state'], string> = {
+      UNHANDLED: 'New / Ready',
+      IN_PROGRESS: 'In progress',
+      OP_NO_RESPONSE: 'Hold · No response',
+      OP_WAITING: 'Hold · Waiting',
+      DB_PENDING_VARIANT: 'Hold · Pending variant',
+    };
+    return labels[this.queueSupplierWorkflowState(supplier)];
+  }
+
+  visibleQueueFiles(supplier: PendingSupplierGroup): PendingFileItem[] {
+    return this.expandedQueueSuppliers.has(this.queueSupplierKey(supplier))
+      ? supplier.files
+      : supplier.files.slice(0, 1);
+  }
+
+  isQueueSupplierExpanded(supplier: PendingSupplierGroup): boolean {
+    return this.expandedQueueSuppliers.has(this.queueSupplierKey(supplier));
+  }
+
+  toggleQueueSupplierFiles(supplier: PendingSupplierGroup): void {
+    const key = this.queueSupplierKey(supplier);
+    if (this.expandedQueueSuppliers.has(key)) this.expandedQueueSuppliers.delete(key);
+    else this.expandedQueueSuppliers.add(key);
+    this.render();
+  }
+
+  removeQueueFile(item: PendingFileItem): void {
+    if (!window.confirm(`Remove ${item.file_name} from this supplier queue?`)) return;
+    this.api.removePendingSupplier(item.id, item.pending_supplier_id).subscribe({
+      next: (response) => {
+        this.message = response.message;
+        this.loadQueue();
+      },
+      error: (error) => this.fail(error),
+    });
+  }
+
   changeContractAction(supplier: PendingSupplier): void {
     if (supplier.action === 'UPDATE' && supplier.active_contracts.length) {
       supplier.target_contract_report_id ??= supplier.active_contracts[0].id;
@@ -986,7 +1143,6 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     supplier.validity_start = contract.validity_start;
     supplier.validity_end = contract.validity_end;
     supplier.contract_reference = contract.contract_reference;
-    supplier.signed_status = contract.signed_status;
     supplier.note = contract.note;
     this.render();
   }
@@ -1030,6 +1186,70 @@ export class ContractMonitoring implements OnInit, OnDestroy {
             ]),
           ].sort();
           this.render();
+        },
+        error: (error) => this.fail(error),
+      });
+  }
+
+  openReportEdit(report: ContractReport): void {
+    this.reportEdit = { ...report, category_supplier: [...report.category_supplier] };
+    this.reportEditSupplierQuery = report.company_name;
+    this.reportEditSupplierResults = [];
+    this.clearFeedback();
+  }
+
+  closeReportEdit(): void {
+    if (this.busy) return;
+    this.reportEdit = null;
+    this.reportEditSupplierResults = [];
+  }
+
+  searchReportEditSupplier(): void {
+    if (this.reportEditSupplierQuery.trim().length < 2) return;
+    this.catalog.searchSuppliers(this.reportEditSupplierQuery, '', '', 1, 15).subscribe({
+      next: (response) => {
+        this.reportEditSupplierResults = response.results;
+        this.render();
+      },
+      error: (error) => this.fail(error),
+    });
+  }
+
+  chooseReportEditSupplier(supplier: SupplierSearchResult): void {
+    if (!this.reportEdit) return;
+    this.reportEdit.supplier_id = supplier.supplier_id;
+    this.reportEdit.company_name = supplier.company_name;
+    this.reportEdit.category_supplier = [...supplier.category_supplier];
+    this.reportEdit.supplier_type = supplier.category_supplier.includes(
+      this.reportEdit.supplier_type,
+    )
+      ? this.reportEdit.supplier_type
+      : supplier.category_supplier[0] || '';
+    this.reportEditSupplierQuery = supplier.company_name;
+    this.reportEditSupplierResults = [];
+  }
+
+  saveReportEdit(): void {
+    if (!this.reportEdit || this.busy) return;
+    const report = this.reportEdit;
+    if (Boolean(report.validity_start) !== Boolean(report.validity_end)) {
+      this.error = 'Validity start and end must be filled together.';
+      return;
+    }
+    this.busy = true;
+    this.api
+      .updateReport(report.id, report)
+      .pipe(
+        finalize(() => {
+          this.busy = false;
+          this.render();
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.message = response.message;
+          this.reportEdit = null;
+          this.loadReports();
         },
         error: (error) => this.fail(error),
       });
@@ -1152,7 +1372,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.reportReviewSection = null;
   }
   resolveImportItem(item: ContractImportItem): void {
-    if (item.can_link_supplier) this.openManualImport(item);
+    this.openManualImport(item);
   }
   openManualImport(item: ContractImportItem): void {
     this.reportManualItem = item;
@@ -1170,6 +1390,11 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.catalog.searchSuppliers(this.reportManualQuery, '', '', 1, 30).subscribe({
       next: (response) => {
         this.reportManualResults = response.results;
+        const matchedId = Number(this.reportManualItem?.payload['matched_supplier_id'] || 0);
+        if (!this.reportManualSupplier && matchedId) {
+          this.reportManualSupplier =
+            response.results.find((supplier) => supplier.supplier_id === matchedId) || null;
+        }
         this.render();
       },
       error: (error) => this.fail(error),
@@ -1178,6 +1403,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   submitManualImport(): void {
     if (!this.reportManualItem || !this.reportManualSupplier) {
       this.error = 'Select a supplier from the Jambix database.';
+      return;
+    }
+    const start = String(this.reportManualItem.payload['validity_start'] || '');
+    const end = String(this.reportManualItem.payload['validity_end'] || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end) || end < start) {
+      this.error = 'Complete valid start and end dates, or add this row as a one-time supplier.';
       return;
     }
     const item = this.reportManualItem;
@@ -1206,6 +1437,9 @@ export class ContractMonitoring implements OnInit, OnDestroy {
             if (response.created) {
               this.reportImportResult.summary.inserted += 1;
               this.reportImportResult.newRows.unshift(resolvedItem);
+            } else if (response.updated) {
+              this.reportImportResult.summary.updated += 1;
+              this.reportImportResult.updatedRows.unshift(resolvedItem);
             } else {
               this.reportImportResult.summary.unchanged += 1;
               this.reportImportResult.unchangedRows.unshift(resolvedItem);
@@ -1245,6 +1479,69 @@ export class ContractMonitoring implements OnInit, OnDestroy {
           this.reportImportResult = response;
           this.reportReviewSection = null;
           this.message = `Import completed: ${response.summary.inserted} new, ${response.summary.updated} updated, ${response.summary.unchanged} unchanged, ${response.summary.skipped} skipped.`;
+          this.loadReports();
+        },
+        error: (error) => this.fail(error),
+      });
+  }
+
+  openOneTimeSupplier(item: ContractImportItem): void {
+    this.oneTimeItem = item;
+    this.oneTimeSupplierQuery = item.supplier_name || '';
+    this.oneTimeSupplier = null;
+    this.oneTimeSupplierResults = [];
+    this.searchOneTimeSuppliers();
+  }
+
+  closeOneTimeSupplier(): void {
+    this.oneTimeItem = null;
+    this.oneTimeSupplier = null;
+    this.oneTimeSupplierResults = [];
+  }
+
+  searchOneTimeSuppliers(): void {
+    if (this.oneTimeSupplierQuery.trim().length < 2) return;
+    this.catalog.searchSuppliers(this.oneTimeSupplierQuery, '', 'active', 1, 20).subscribe({
+      next: (response) => {
+        this.oneTimeSupplierResults = response.results;
+        const matchedId = Number(this.oneTimeItem?.payload['matched_supplier_id'] || 0);
+        if (!this.oneTimeSupplier && matchedId)
+          this.oneTimeSupplier =
+            response.results.find((row) => row.supplier_id === matchedId) || null;
+        this.render();
+      },
+      error: (error) => this.fail(error),
+    });
+  }
+
+  saveOneTimeSupplier(): void {
+    if (!this.oneTimeItem || !this.oneTimeSupplier) {
+      this.error = 'Select a supplier from the Jambix database.';
+      return;
+    }
+    const item = this.oneTimeItem;
+    this.busy = true;
+    this.api
+      .addOneTimeSupplier(item, this.oneTimeSupplier.supplier_id)
+      .pipe(
+        finalize(() => {
+          this.busy = false;
+          this.render();
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          if (this.reportImportResult) {
+            this.reportImportResult.skippedRows = this.reportImportResult.skippedRows.filter(
+              (row) => row !== item,
+            );
+            this.reportImportResult.summary.skipped = this.reportImportResult.skippedRows.length;
+          }
+          this.message = response.message;
+          this.closeOneTimeSupplier();
+          if (this.reportReviewPage > this.reportReviewTotalPages)
+            this.reportReviewPage = this.reportReviewTotalPages;
+          if (!this.activeReportReviewItems.length) this.closeReportReview();
           this.loadReports();
         },
         error: (error) => this.fail(error),
@@ -1305,6 +1602,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
 
   statusLabel(value: string): string {
+    if (value === 'NO_CONTRACT' || value === 'ONE_TIME_SUPPLIER') return 'One-time supplier';
     return value.replaceAll('_', ' ');
   }
 

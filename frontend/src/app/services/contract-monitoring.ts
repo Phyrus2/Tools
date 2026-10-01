@@ -37,6 +37,8 @@ export interface ScanRun {
   error_summary: unknown;
   started_at: string | null;
   finished_at: string | null;
+  requested_by: number | null;
+  requested_by_name: string | null;
   sources: ScanRunSource[];
 }
 
@@ -82,12 +84,12 @@ export interface ExistingContract {
   file_source: string;
   location_jambix: string | null;
   supplier_type: string;
-  validity_start: string;
-  validity_end: string;
-  status: 'ACTIVE' | 'EXPIRED';
+  report_type: 'ONE_TIME_SUPPLIER' | 'CONTRACT';
+  validity_start: string | null;
+  validity_end: string | null;
+  status: 'NO_CONTRACT' | 'ACTIVE' | 'EXPIRED';
   source_status: string | null;
   contract_reference: string | null;
-  signed_status: SignedStatus;
   note: string | null;
 }
 
@@ -108,7 +110,7 @@ export interface PendingSupplier {
   validity_start: string | null;
   validity_end: string | null;
   contract_reference: string | null;
-  signed_status: SignedStatus;
+  signed_status: SignedStatus | null;
   note: string | null;
   active_contracts: ExistingContract[];
 }
@@ -133,9 +135,11 @@ export interface PendingItem {
 
 export interface PendingFileItem {
   id: number;
+  pending_supplier_id: number;
   scan_result_id: number;
   file_name: string;
   full_path: string;
+  module_key: 'CONTRACT' | 'INFO_STOP_SALES' | 'QUOTE_TICKET';
   status: PendingItem['status'];
   workflow_state:
     'UNHANDLED' | 'IN_PROGRESS' | 'OP_NO_RESPONSE' | 'OP_WAITING' | 'DB_PENDING_VARIANT';
@@ -188,16 +192,21 @@ export interface ContractReport {
   supplier_id: number;
   company_name: string;
   supplier_type: string;
-  validity_start: string;
-  validity_end: string;
-  status: 'ACTIVE' | 'EXPIRED';
+  report_type: 'ONE_TIME_SUPPLIER' | 'CONTRACT';
+  validity_start: string | null;
+  validity_end: string | null;
+  status: 'NO_CONTRACT' | 'ACTIVE' | 'EXPIRED';
   source_status: string | null;
   contract_reference: string | null;
-  signed_status: SignedStatus;
   period_statuses: { period: string; status: 'SIGNED' | 'DONE' | 'PENDING' }[];
   has_hotel_option: boolean;
   note: string | null;
   category_supplier: string[];
+  supplier_status: 'Active' | 'Inactive';
+  inactive_name: string | null;
+  inactive_at: string | null;
+  inactive_reason: string | null;
+  replacement_supplier_name: string | null;
 }
 
 export interface ContractImportItem {
@@ -206,6 +215,7 @@ export interface ContractImportItem {
   row_number: number;
   supplier_name: string | null;
   reason?: string;
+  one_time_candidate?: boolean;
   can_link_supplier?: boolean;
   payload: Record<string, unknown>;
   changes?: { field: string; old: unknown; new: unknown }[];
@@ -351,8 +361,11 @@ export class ContractMonitoringService {
     }>(`${this.base}/pending/import`, form);
   }
 
-  getPending(id: number): Observable<{ success: true; pending: PendingItem }> {
-    return this.http.get<{ success: true; pending: PendingItem }>(`${this.base}/pending/${id}`);
+  getPending(id: number, pendingSupplierId?: number | null): Observable<{ success: true; pending: PendingItem }> {
+    const options = pendingSupplierId
+      ? { params: new HttpParams().set('supplier_pending_id', String(pendingSupplierId)) }
+      : {};
+    return this.http.get<{ success: true; pending: PendingItem }>(`${this.base}/pending/${id}`, options);
   }
 
   updatePending(
@@ -368,8 +381,9 @@ export class ContractMonitoringService {
     return this.http.patch(`${this.base}/pending/${id}`, body);
   }
 
-  savePendingSuppliers(id: number, suppliers: PendingSupplier[]): Observable<unknown> {
+  savePendingSuppliers(id: number, suppliers: PendingSupplier[], pendingSupplierId?: number | null): Observable<unknown> {
     return this.http.put(`${this.base}/pending/${id}/suppliers`, {
+      ...(pendingSupplierId ? { supplier_pending_id: pendingSupplierId } : {}),
       suppliers: suppliers.map(
         ({
           company_name: _companyName,
@@ -385,10 +399,11 @@ export class ContractMonitoringService {
   completePending(
     id: number,
     version: number,
+    pendingSupplierId?: number | null,
   ): Observable<{ success: true; report_ids: number[] }> {
     return this.http.post<{ success: true; report_ids: number[] }>(
       `${this.base}/pending/${id}/complete`,
-      { version },
+      { version, ...(pendingSupplierId ? { supplier_pending_id: pendingSupplierId } : {}) },
     );
   }
 
@@ -398,6 +413,12 @@ export class ContractMonitoringService {
 
   releasePending(id: number): Observable<unknown> {
     return this.http.post(`${this.base}/pending/${id}/release`, {});
+  }
+
+  removePendingSupplier(id: number, pendingSupplierId: number): Observable<{ success: true; message: string }> {
+    return this.http.delete<{ success: true; message: string }>(
+      `${this.base}/pending/${id}/suppliers/${pendingSupplierId}`,
+    );
   }
 
   updateQueueMeta(
@@ -510,6 +531,16 @@ export class ContractMonitoringService {
     );
   }
 
+  updateReport(
+    id: number,
+    report: Pick<ContractReport, 'supplier_id' | 'supplier_type' | 'file_source' | 'location_jambix' | 'validity_start' | 'validity_end' | 'contract_reference' | 'note'>,
+  ): Observable<{ success: true; message: string; report: ContractReport }> {
+    return this.http.patch<{ success: true; message: string; report: ContractReport }>(
+      `${this.base}/reports/${id}`,
+      report,
+    );
+  }
+
   importReports(file: File): Observable<ContractImportResult> {
     const form = new FormData();
     form.append('file', file);
@@ -518,13 +549,48 @@ export class ContractMonitoringService {
   addSkippedReport(
     item: ContractImportItem,
     supplierId: number,
-  ): Observable<{ success: true; id: number; created: boolean; message: string }> {
-    return this.http.post<{ success: true; id: number; created: boolean; message: string }>(
+  ): Observable<{
+    success: true;
+    id: number;
+    created: boolean;
+    updated?: boolean;
+    message: string;
+  }> {
+    return this.http.post<{
+      success: true;
+      id: number;
+      created: boolean;
+      updated?: boolean;
+      message: string;
+    }>(
       `${this.base}/reports/import-skipped`,
       {
         supplier_id: supplierId,
         payload: item.payload,
       },
+    );
+  }
+
+  addOneTimeSupplier(
+    item: ContractImportItem,
+    supplierId: number,
+  ): Observable<{ success: true; id: number; created: boolean; message: string }> {
+    return this.http.post<{ success: true; id: number; created: boolean; message: string }>(
+      `${this.base}/reports/one-time`,
+      { supplier_id: supplierId, payload: item.payload },
+    );
+  }
+
+  createManualProduct(body: {
+    supplier_id: number;
+    name: string;
+    type?: string;
+    info?: string;
+    description?: string;
+  }): Observable<{ success: true; message: string; product_id: number }> {
+    return this.http.post<{ success: true; message: string; product_id: number }>(
+      `${this.base}/products/manual`,
+      body,
     );
   }
 }

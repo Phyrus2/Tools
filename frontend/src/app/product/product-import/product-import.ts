@@ -56,6 +56,17 @@ export class ProductImport {
     loading = false;
     result: ProductImportResult | null = null;
     errorMessage = '';
+    manualOpen = false;
+    manualSaving = false;
+    manualMessage = '';
+    manualForm: {
+      supplier_id: number | null;
+      name: string;
+      type: string;
+      status: 'Regular Product' | 'One Time Product';
+      info: string;
+      description: string;
+    } = { supplier_id: null, name: '', type: '', status: 'Regular Product', info: '', description: '' };
 
     // Which summary card's detail is currently open in the modal.
     activeSection: SectionKey = null;
@@ -126,6 +137,39 @@ export class ProductImport {
         error: (error) => {
           this.loading = false;
           this.errorMessage = 'Product import failed. Please check the file and try again.';
+          this.cdr.markForCheck();
+        },
+      });
+    }
+
+    openManual(): void {
+      this.manualOpen = true;
+      this.manualMessage = '';
+      this.manualForm = { supplier_id: null, name: '', type: '', status: 'Regular Product', info: '', description: '' };
+    }
+
+    closeManual(): void {
+      if (!this.manualSaving) this.manualOpen = false;
+    }
+
+    saveManual(): void {
+      if (!this.manualForm.supplier_id || !this.manualForm.name.trim()) {
+        this.manualMessage = 'Supplier ID and product name are required.';
+        return;
+      }
+      this.manualSaving = true;
+      this.manualMessage = '';
+      this.service.createManualProduct({ ...this.manualForm, supplier_id: this.manualForm.supplier_id }).subscribe({
+        next: (response) => {
+          this.manualSaving = false;
+          this.manualOpen = false;
+          this.errorMessage = '';
+          this.manualMessage = response.message;
+          this.cdr.markForCheck();
+        },
+        error: (error) => {
+          this.manualSaving = false;
+          this.manualMessage = String(error.error?.message || 'Unable to add product.');
           this.cdr.markForCheck();
         },
       });

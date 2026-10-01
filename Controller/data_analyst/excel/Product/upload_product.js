@@ -135,13 +135,15 @@ function mapRowToColumns(row) {
 }
 
 // =====================================================
-// CEK BARIS "UNUSED"
+// CEK KATA "UNUSED" (hanya kolom supplier & product)
 // =====================================================
 
-function rowContainsUnused(row) {
-  return Object.values(row).some(
+function rowContainsUnused(mapped) {
+  return [mapped.supplier, mapped.product].some(
     (value) =>
-      value !== null && String(value).toLowerCase().includes("unused"),
+      value !== null &&
+      value !== undefined &&
+      String(value).toLowerCase().includes("unused"),
   );
 }
 
@@ -209,13 +211,15 @@ async function importProduct(req, res) {
     rows.forEach((row, index) => {
       const excelRow = index + 2; // +2 karena baris 1 = header
 
+      const mapped = mapRowToColumns(row);
+
       // Skip baris yang mengandung kata "unused"
       if (rowContainsUnused(row)) {
         skippedRows.push({ row: excelRow, reason: "mengandung kata unused" });
         return;
       }
 
-      const mapped = mapRowToColumns(row);
+      
 
       if (!mapped.id) {
         skippedRows.push({ row: excelRow, reason: "id kosong" });

@@ -2,6 +2,7 @@ const pool = require("../../Database/connection");
 const {
   contractStatus,
   parseCategories,
+  parseContractReferenceStatuses,
   todayWita,
 } = require("../../Utils/contract_monitoring");
 const {
@@ -82,14 +83,19 @@ async function validatedReportPayload(
     max: 100,
   });
   await validateSupplierType(connection, supplierId, supplierType);
-  const validityStart = dateValue(body.validity_start, "Validity start", {
-    required: true,
-  });
-  const validityEnd = dateValue(body.validity_end, "Validity end", {
-    required: true,
-  });
-  if (validityEnd < validityStart)
+  const hasValidityStart = Boolean(body.validity_start);
+  const hasValidityEnd = Boolean(body.validity_end);
+  if (hasValidityStart !== hasValidityEnd)
+    throw new Error("Validity start dan validity end harus diisi bersamaan.");
+  const validityStart = hasValidityStart
+    ? dateValue(body.validity_start, "Validity start", { required: true })
+    : null;
+  const validityEnd = hasValidityEnd
+    ? dateValue(body.validity_end, "Validity end", { required: true })
+    : null;
+  if (validityStart && validityEnd && validityEnd < validityStart)
     throw new Error("Validity end tidak boleh lebih awal dari validity start.");
+  const reportType = validityStart ? "CONTRACT" : "ONE_TIME_SUPPLIER";
   const sourceScanResultId =
     body.source_scan_result_id === undefined ||
     body.source_scan_result_id === null
@@ -114,17 +120,12 @@ async function validatedReportPayload(
     }),
     validityStart,
     validityEnd,
-    status: contractStatus(validityEnd),
+    reportType,
+    status: validityEnd ? contractStatus(validityEnd) : "NO_CONTRACT",
     contractReference: textValue(
       body.contract_reference,
       "Contract reference",
       { max: 255 },
-    ),
-    signedStatus: enumValue(
-      body.signed_status,
-      SIGNED_STATUSES,
-      "Signed status",
-      { required: true },
     ),
     note: textValue(body.note, "Note", { max: 10000 }),
     sourceScanResultId,
@@ -140,12 +141,12 @@ function reportSnapshot(row) {
     region: row.region,
     supplier_id: row.supplier_id,
     supplier_type: row.supplier_type,
+    report_type: row.report_type,
     validity_start: row.validity_start,
     validity_end: row.validity_end,
     status: row.status,
     source_status: row.source_status,
     contract_reference: row.contract_reference,
-    signed_status: row.signed_status,
     period_statuses: row.period_statuses,
     note: row.note,
   };
@@ -153,8 +154,31 @@ function reportSnapshot(row) {
 
 async function syncExpired(connection = pool) {
   await connection.execute(
-    "UPDATE contract_reports SET status = IF(validity_end < ?, 'EXPIRED', 'ACTIVE') WHERE status <> IF(validity_end < ?, 'EXPIRED', 'ACTIVE')",
+    `UPDATE contract_reports
+        SET status = IF(validity_end < ?, 'EXPIRED', 'ACTIVE')
+      WHERE report_type = 'CONTRACT'
+        AND validity_end IS NOT NULL
+        AND status <> IF(validity_end < ?, 'EXPIRED', 'ACTIVE')`,
     [todayWita(), todayWita()],
+  );
+}
+
+async function syncSupplierContractStatus(connection, supplierId) {
+  await connection.execute(
+    `UPDATE suppliers supplier
+        SET contract_status = CASE
+          WHEN EXISTS (
+            SELECT 1 FROM contract_reports report
+             WHERE report.supplier_id=supplier.supplier_id AND report.report_type='CONTRACT'
+          ) THEN 'CONTRACTED'
+          WHEN EXISTS (
+            SELECT 1 FROM contract_reports report
+             WHERE report.supplier_id=supplier.supplier_id AND report.report_type='ONE_TIME_SUPPLIER'
+          ) THEN 'ONE_TIME_SUPPLIER'
+          ELSE 'NO_CONTRACT_RECORD'
+        END
+      WHERE supplier.supplier_id=?`,
+    [supplierId],
   );
 }
 
@@ -181,20 +205,12 @@ async function listReports(req, res) {
     const statuses = multiValues(req.query.status);
     if (statuses.length) {
       const valid = statuses.map((status) =>
-        enumValue(status, ["ACTIVE", "EXPIRED"], "Status", { required: true }),
+        enumValue(status, ["NO_CONTRACT", "ACTIVE", "EXPIRED"], "Status", {
+          required: true,
+        }),
       );
       conditions.push(`r.status IN (${valid.map(() => "?").join(",")})`);
       params.push(...valid);
-    }
-    if (req.query.signed_status) {
-      const signed = enumValue(
-        req.query.signed_status,
-        SIGNED_STATUSES,
-        "Signed status",
-        { required: true },
-      );
-      conditions.push("r.signed_status = ?");
-      params.push(signed);
     }
     if (req.query.location_jambix) {
       conditions.push("r.location_jambix LIKE ?");
@@ -248,17 +264,20 @@ async function listReports(req, res) {
     const [rows] = await pool.query(
       `SELECT r.id, r.source_scan_result_id, r.file_source, r.location_jambix,
               ${REGION_SQL} AS region,
-              r.supplier_id, r.supplier_type,
+              r.supplier_id, r.supplier_type, r.report_type,
               CAST(r.validity_start AS CHAR) AS validity_start,
               CAST(r.validity_end AS CHAR) AS validity_end,
-              r.status, r.source_status, r.contract_reference, r.signed_status, r.period_statuses, r.note,
+              r.status, r.source_status, r.contract_reference, r.period_statuses, r.note,
               r.created_by, r.updated_by, r.created_at, r.updated_at,
-              s.company_name, s.category_supplier,
+              s.company_name, s.category_supplier, s.status AS supplier_status,
+              s.inactive_name, CAST(s.inactive_at AS CHAR) AS inactive_at,
+              s.inactive_reason, s.replacement_supplier_name,
               EXISTS (SELECT 1 FROM hotel_options ho WHERE ho.supplier_id = r.supplier_id) AS has_hotel_option
          FROM contract_reports r JOIN suppliers s ON s.supplier_id = r.supplier_id
          ${where}
          ORDER BY ${REGION_SQL} ASC, ${LOCATION_SQL} ASC,
-                  s.company_name ASC, r.validity_end DESC, r.id DESC
+                  s.company_name ASC, r.report_type DESC,
+                  r.validity_end DESC, r.id DESC
          LIMIT ? OFFSET ?`,
       [...params, limit, offset],
     );
@@ -347,21 +366,24 @@ async function createReport(req, res) {
     const data = await validatedReportPayload(connection, req.body || {});
     const [result] = await connection.execute(
       `INSERT INTO contract_reports
-         (source_scan_result_id, file_source, location_jambix, supplier_id, supplier_type,
-          validity_start, validity_end, status, contract_reference, signed_status, note,
+         (source_scan_result_id, file_source, location_jambix, supplier_id, supplier_type, report_type,
+          validity_start, validity_end, status, contract_reference, period_statuses, note,
           created_by, updated_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.sourceScanResultId,
         data.fileSource,
         data.locationJambix,
         data.supplierId,
         data.supplierType,
+        data.reportType,
         data.validityStart,
         data.validityEnd,
         data.status,
         data.contractReference,
-        data.signedStatus,
+        JSON.stringify(
+          parseContractReferenceStatuses(data.contractReference, data.validityStart),
+        ),
         data.note,
         req.admin.id,
         req.admin.id,
@@ -377,6 +399,7 @@ async function createReport(req, res) {
        VALUES (?, 'INSERT', NULL, ?, ?)`,
       [result.insertId, JSON.stringify(reportSnapshot(rows[0])), req.admin.id],
     );
+    await syncSupplierContractStatus(connection, data.supplierId);
     await connection.commit();
     return res.status(201).json({
       success: true,
@@ -428,8 +451,8 @@ async function updateReport(req, res) {
     await connection.execute(
       `UPDATE contract_reports SET
          source_scan_result_id = ?, file_source = ?, location_jambix = ?, supplier_id = ?,
-         supplier_type = ?, validity_start = ?, validity_end = ?, status = ?,
-         contract_reference = ?, signed_status = ?, note = ?, updated_by = ?
+         supplier_type = ?, report_type = ?, validity_start = ?, validity_end = ?, status = ?,
+         contract_reference = ?, period_statuses = ?, note = ?, updated_by = ?
        WHERE id = ?`,
       [
         data.sourceScanResultId,
@@ -437,11 +460,14 @@ async function updateReport(req, res) {
         data.locationJambix,
         data.supplierId,
         data.supplierType,
+        data.reportType,
         data.validityStart,
         data.validityEnd,
         data.status,
         data.contractReference,
-        data.signedStatus,
+        JSON.stringify(
+          parseContractReferenceStatuses(data.contractReference, data.validityStart),
+        ),
         data.note,
         req.admin.id,
         id,
@@ -462,6 +488,9 @@ async function updateReport(req, res) {
         req.admin.id,
       ],
     );
+    await syncSupplierContractStatus(connection, existingRows[0].supplier_id);
+    if (data.supplierId !== existingRows[0].supplier_id)
+      await syncSupplierContractStatus(connection, data.supplierId);
     await connection.commit();
     return res.json({
       success: true,
@@ -498,7 +527,8 @@ async function supplierContracts(req, res) {
               CAST(r.validity_start AS CHAR) AS validity_start,
               CAST(r.validity_end AS CHAR) AS validity_end
          FROM contract_reports r
-        WHERE supplier_id = ? ORDER BY validity_end DESC, id DESC`,
+        WHERE supplier_id = ? AND report_type = 'CONTRACT'
+        ORDER BY validity_end DESC, id DESC`,
       [supplierId],
     );
     return res.json({ success: true, contracts: rows });
@@ -518,6 +548,7 @@ module.exports = {
   reportSnapshot,
   supplierContracts,
   syncExpired,
+  syncSupplierContractStatus,
   updateReport,
   validateSupplierType,
   validatedReportPayload,

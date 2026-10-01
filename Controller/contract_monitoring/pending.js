@@ -22,6 +22,7 @@ const {
 const {
   SIGNED_STATUSES,
   reportSnapshot,
+  syncSupplierContractStatus,
   validateSupplierType,
 } = require("./reports");
 const { parsePeriodStatuses } = require("./report_import");
@@ -39,6 +40,14 @@ const pendingUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },
 });
+
+function isHotelOptionFileName(fileName) {
+  return String(fileName || "")
+    .toUpperCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .includes("OPSI HOTELS");
+}
 
 function importCell(value) {
   return value === undefined || value === null ? "" : String(value).trim();
@@ -255,23 +264,50 @@ async function importPendingQueue(req, res) {
   }
 }
 
-async function classifySupplier(connection, supplierId, recommendationSource) {
+async function classifySupplier(
+  connection,
+  supplierId,
+  recommendationSource,
+  scope = {},
+) {
   const [reports] = await connection.execute(
-    `SELECT id, file_source, location_jambix, supplier_type,
+    `SELECT id, file_source, location_jambix, supplier_type, report_type,
             CAST(validity_start AS CHAR) AS validity_start,
             CAST(validity_end AS CHAR) AS validity_end,
-            status, contract_reference, signed_status, note
+            status, contract_reference, note
        FROM contract_reports
       WHERE supplier_id = ?
-      ORDER BY validity_end DESC, id DESC
+      ORDER BY (report_type = 'CONTRACT') DESC, validity_end DESC, id DESC
       LIMIT 25`,
     [supplierId],
   );
-  if (reports.length) return { detection: "ACTIVE_CONTRACT", reports };
+  const contracts = reports.filter((report) => report.report_type === "CONTRACT");
+  if (contracts.length)
+    return {
+      detection: "ACTIVE_CONTRACT",
+      reports,
+      autoTarget: contracts[0],
+    };
+  const normalized = (value) => String(value || "").trim().toLowerCase();
+  const scopedOneTime = reports.filter(
+    (report) =>
+      report.report_type === "ONE_TIME_SUPPLIER" &&
+      (!scope.location_jambix ||
+        normalized(report.location_jambix) === normalized(scope.location_jambix)) &&
+      (!scope.supplier_type ||
+        normalized(report.supplier_type) === normalized(scope.supplier_type)),
+  );
+  if (scopedOneTime.length === 1)
+    return {
+      detection: "ACTIVE_CONTRACT",
+      reports,
+      autoTarget: scopedOneTime[0],
+    };
   return {
     detection:
       recommendationSource === "MANUAL" ? "NO_MATCH" : "SUPPLIER_MATCH",
-    reports: [],
+    reports,
+    autoTarget: null,
   };
 }
 
@@ -285,7 +321,10 @@ async function createPending(req, res) {
   try {
     await connection.beginTransaction();
     const [results] = await connection.execute(
-      "SELECT id, processed FROM contract_scan_results WHERE id = ? FOR UPDATE",
+      `SELECT r.id, r.processed, r.file_name, src.module_key
+         FROM contract_scan_results r
+         JOIN contract_scan_sources src ON src.id=r.source_id
+        WHERE r.id = ? FOR UPDATE`,
       [scanResultId],
     );
     if (!results.length) {
@@ -327,6 +366,18 @@ async function createPending(req, res) {
         [req.admin.id, pending.id],
       );
     }
+    if (isHotelOptionFileName(results[0].file_name)) {
+      await connection.execute(
+        `INSERT INTO contract_pending_suppliers
+           (pending_id, supplier_id, detected_supplier_name, recommendation_source,
+            detection, signed_status)
+         SELECT ?, NULL, ?, 'MANUAL', 'NO_MATCH', 'BELUM_SIGNED'
+          FROM DUAL WHERE NOT EXISTS (
+            SELECT 1 FROM contract_pending_suppliers WHERE pending_id=?
+          )`,
+        [pending.id, results[0].file_name, pending.id],
+      );
+    }
     await connection.commit();
     return res.status(existing.length ? 200 : 201).json({
       success: true,
@@ -353,7 +404,7 @@ async function listPending(req, res) {
   const { page, limit, offset } = pagination(req.query);
   try {
     const params = [];
-    const conditions = ["p.status <> 'DONE'"];
+    const conditions = ["p.status NOT IN ('DONE', 'IGNORED')", "ps.processing_status = 'PENDING'"];
     const multiValues = (value) => [
       ...new Set(
         (Array.isArray(value) ? value : String(value || "").split(","))
@@ -421,14 +472,14 @@ async function listPending(req, res) {
       );
     const where = `WHERE ${conditions.join(" AND ")}`;
     const [rows] = await pool.query(
-      `SELECT ps.supplier_id, ps.detected_supplier_name, s.company_name, s.location AS supplier_location,
+      `SELECT ps.id AS pending_supplier_id, ps.supplier_id, ps.detected_supplier_name, s.company_name, s.location AS supplier_location,
               s.category_supplier, ps.detection,
               EXISTS (SELECT 1 FROM booked_products bp WHERE bp.supplier_id = ps.supplier_id) AS has_booked_product,
               EXISTS (SELECT 1 FROM hotel_options ho WHERE ho.supplier_id = ps.supplier_id) AS has_hotel_option,
               p.id, p.scan_result_id, p.is_management_contract, p.management_group_id, p.contract_period, p.queue_supplier_status,
               ps.supplier_type, p.status, p.workflow_state, p.claimed_by, p.claimed_at, p.handled_by,
               p.completed_at, p.version, p.note,
-              r.file_name, r.full_path, r.detected_signed_status, src.year,
+              r.file_name, r.full_path, r.detected_signed_status, src.year, src.module_key,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc,
               COALESCE(p.management_name, g.name) AS management_group_name,
               u.fullname AS claimed_by_name, handler.fullname AS handled_by_name
@@ -499,6 +550,7 @@ async function listPending(req, res) {
       }
       supplier.files.push({
         id: row.id,
+        pending_supplier_id: row.pending_supplier_id,
         scan_result_id: row.scan_result_id,
         is_management_contract: row.is_management_contract,
         management_group_id: row.management_group_id,
@@ -507,6 +559,7 @@ async function listPending(req, res) {
         workflow_state: row.workflow_state,
         contract_period: row.contract_period || String(row.year),
         year: Number(row.year),
+        module_key: row.module_key,
         claimed_by: row.claimed_by,
         claimed_by_name: row.claimed_by_name,
         handled_by: row.handled_by,
@@ -577,6 +630,11 @@ async function getPending(req, res) {
       return res
         .status(404)
         .json({ success: false, message: "Pending item tidak ditemukan." });
+    const pendingSupplierId = req.query.supplier_pending_id
+      ? parseId(req.query.supplier_pending_id)
+      : null;
+    if (req.query.supplier_pending_id && !pendingSupplierId)
+      return res.status(400).json({ success: false, message: "Pending supplier ID tidak valid." });
     const [suppliers] = await pool.execute(
       `SELECT ps.*,
               CAST(ps.validity_start AS CHAR) AS validity_start,
@@ -585,8 +643,9 @@ async function getPending(req, res) {
               s.category_supplier, s.location AS supplier_location
          FROM contract_pending_suppliers ps
          LEFT JOIN suppliers s ON s.supplier_id = ps.supplier_id
-        WHERE ps.pending_id = ? ORDER BY COALESCE(s.company_name, ps.detected_supplier_name)`,
-      [id],
+        WHERE ps.pending_id = ? ${pendingSupplierId ? "AND ps.id = ?" : ""}
+        ORDER BY COALESCE(s.company_name, ps.detected_supplier_name)`,
+      pendingSupplierId ? [id, pendingSupplierId] : [id],
     );
     for (const supplier of suppliers) {
       supplier.category_supplier = parseCategories(supplier.category_supplier);
@@ -594,10 +653,14 @@ async function getPending(req, res) {
         pool,
         supplier.supplier_id,
         supplier.recommendation_source,
+        {
+          location_jambix: supplier.location_jambix,
+          supplier_type: supplier.supplier_type,
+        },
       );
       supplier.active_contracts = classified.reports;
-      if (!supplier.action && classified.reports.length) {
-        const report = classified.reports[0];
+      if (!supplier.action && classified.autoTarget) {
+        const report = classified.autoTarget;
         supplier.action = "UPDATE";
         supplier.target_contract_report_id = report.id;
         supplier.supplier_type = report.supplier_type;
@@ -605,7 +668,6 @@ async function getPending(req, res) {
         supplier.validity_start = report.validity_start;
         supplier.validity_end = report.validity_end;
         supplier.contract_reference = report.contract_reference;
-        supplier.signed_status = report.signed_status;
         supplier.note = report.note;
       }
     }
@@ -803,6 +865,13 @@ async function saveSuppliers(req, res) {
   }
   const connection = await pool.getConnection();
   try {
+    const scopedSupplierId = req.body?.supplier_pending_id
+      ? parseId(req.body.supplier_pending_id)
+      : null;
+    if (req.body?.supplier_pending_id && !scopedSupplierId)
+      throw new Error("Pending supplier ID tidak valid.");
+    if (scopedSupplierId && req.body.suppliers.length !== 1)
+      throw new Error("Only one supplier can be saved for this queue item.");
     await connection.beginTransaction();
     const [pendingRows] = await connection.execute(
       `SELECT p.*, r.full_path, r.detected_signed_status, s.base_path, s.year, s.target_folder
@@ -848,10 +917,22 @@ async function saveSuppliers(req, res) {
     const supplierMap = new Map(
       supplierRows.map((row) => [row.supplier_id, row]),
     );
-    await connection.execute(
-      "DELETE FROM contract_pending_suppliers WHERE pending_id = ?",
-      [id],
-    );
+    if (scopedSupplierId) {
+      const [owned] = await connection.execute(
+        "SELECT id FROM contract_pending_suppliers WHERE id=? AND pending_id=? AND processing_status='PENDING' FOR UPDATE",
+        [scopedSupplierId, id],
+      );
+      if (!owned.length) throw new Error("Pending supplier was not found or is already completed.");
+      await connection.execute(
+        "DELETE FROM contract_pending_suppliers WHERE id=? AND pending_id=?",
+        [scopedSupplierId, id],
+      );
+    } else {
+      await connection.execute(
+        "DELETE FROM contract_pending_suppliers WHERE pending_id = ?",
+        [id],
+      );
+    }
     for (const input of req.body.suppliers) {
       const supplierId = parseId(input.supplier_id);
       if (!supplierId) {
@@ -862,11 +943,12 @@ async function saveSuppliers(req, res) {
         );
         await connection.execute(
           `INSERT INTO contract_pending_suppliers
-             (pending_id, supplier_id, detected_supplier_name, recommendation_source, detection,
+             (id, pending_id, supplier_id, detected_supplier_name, recommendation_source, detection,
               action, supplier_type, location_jambix, validity_start, validity_end,
               contract_reference, signed_status, note)
-           VALUES (?, NULL, ?, 'MANUAL', 'NO_MATCH', ?, ?, ?, ?, ?, ?, ?, ?)`,
+           VALUES (?, ?, NULL, ?, 'MANUAL', 'NO_MATCH', ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
+            scopedSupplierId,
             id,
             detectedName,
             input.action
@@ -919,11 +1001,12 @@ async function saveSuppliers(req, res) {
         supplier.location;
       await connection.execute(
         `INSERT INTO contract_pending_suppliers
-           (pending_id, supplier_id, recommendation_source, match_score, detection, action,
+           (id, pending_id, supplier_id, recommendation_source, match_score, detection, action,
             target_contract_report_id, supplier_type, location_jambix, validity_start,
             validity_end, contract_reference, signed_status, note)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
+          scopedSupplierId,
           id,
           supplierId,
           source,
@@ -1157,6 +1240,9 @@ async function completePending(req, res) {
       .status(400)
       .json({ success: false, message: "Pending ID tidak valid." });
   const expectedVersion = Number.parseInt(req.body?.version, 10);
+  const pendingSupplierId = req.body?.supplier_pending_id
+    ? parseId(req.body.supplier_pending_id)
+    : null;
   if (!Number.isInteger(expectedVersion) || expectedVersion < 1) {
     return res.status(400).json({
       success: false,
@@ -1209,8 +1295,9 @@ async function completePending(req, res) {
       `SELECT ps.*, s.region AS supplier_region
          FROM contract_pending_suppliers ps
          LEFT JOIN suppliers s ON s.supplier_id = ps.supplier_id
-        WHERE ps.pending_id = ? ORDER BY ps.id FOR UPDATE`,
-      [id],
+        WHERE ps.pending_id = ? ${pendingSupplierId ? "AND ps.id = ? AND ps.processing_status = 'PENDING'" : "AND ps.processing_status = 'PENDING'"}
+        ORDER BY ps.id FOR UPDATE`,
+      pendingSupplierId ? [id, pendingSupplierId] : [id],
     );
     if (!items.length) throw new Error("Minimal satu supplier wajib dipilih.");
     if (items.some((item) => !item.supplier_id)) {
@@ -1260,8 +1347,8 @@ async function completePending(req, res) {
         const before = reportSnapshot(reports[0]);
         await connection.execute(
           `UPDATE contract_reports SET source_scan_result_id = ?, file_source = ?,
-             location_jambix = ?, region = ?, supplier_type = ?, validity_start = ?, validity_end = ?,
-             status = ?, source_status = 'Complete', contract_reference = ?, signed_status = ?, period_statuses = ?, note = ?, updated_by = ?
+             location_jambix = ?, region = ?, supplier_type = ?, report_type = 'CONTRACT', validity_start = ?, validity_end = ?,
+             status = ?, source_status = 'Complete', contract_reference = ?, period_statuses = ?, note = ?, updated_by = ?
            WHERE id = ?`,
           [
             pending.scan_result_id,
@@ -1273,13 +1360,13 @@ async function completePending(req, res) {
             validityEnd,
             status,
             item.contract_reference,
-            item.signed_status,
             JSON.stringify(periodStatuses),
             item.note,
             req.admin.id,
             item.target_contract_report_id,
           ],
         );
+        await syncSupplierContractStatus(connection, item.supplier_id);
         const [updatedRows] = await connection.execute(
           "SELECT * FROM contract_reports WHERE id = ?",
           [item.target_contract_report_id],
@@ -1300,9 +1387,9 @@ async function completePending(req, res) {
         const [inserted] = await connection.execute(
           `INSERT INTO contract_reports
              (source_scan_result_id, file_source, location_jambix, region, supplier_id, supplier_type,
-              validity_start, validity_end, status, source_status, contract_reference, signed_status, period_statuses, note,
+              report_type, validity_start, validity_end, status, source_status, contract_reference, period_statuses, note,
               created_by, updated_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Complete', ?, ?, ?, ?, ?, ?)`,
+            VALUES (?, ?, ?, ?, ?, ?, 'CONTRACT', ?, ?, ?, 'Complete', ?, ?, ?, ?, ?)`,
           [
             pending.scan_result_id,
             pending.full_path,
@@ -1314,13 +1401,13 @@ async function completePending(req, res) {
             validityEnd,
             status,
             item.contract_reference,
-            item.signed_status,
             JSON.stringify(periodStatuses),
             item.note,
             req.admin.id,
             req.admin.id,
           ],
         );
+        await syncSupplierContractStatus(connection, item.supplier_id);
         const [createdRows] = await connection.execute(
           "SELECT * FROM contract_reports WHERE id = ?",
           [inserted.insertId],
@@ -1339,11 +1426,23 @@ async function completePending(req, res) {
       }
     }
     await connection.execute(
-      `UPDATE contract_pending SET status = 'DONE', workflow_state = 'DONE', completed_by = ?,
-              completed_at = CURRENT_TIMESTAMP(3), version = version + 1 WHERE id = ?`,
-      [req.admin.id, id],
+      `UPDATE contract_pending_suppliers SET processing_status='DONE', completed_by=?,
+              completed_at=CURRENT_TIMESTAMP(3) WHERE id IN (${items.map(() => "?").join(",")})`,
+      [req.admin.id, ...items.map((item) => item.id)],
     );
+    const [[remaining]] = await connection.execute(
+      "SELECT COUNT(*) AS total FROM contract_pending_suppliers WHERE pending_id=? AND processing_status='PENDING'",
+      [id],
+    );
+    const allDone = Number(remaining.total) === 0;
     await connection.execute(
+      `UPDATE contract_pending SET status = IF(?, 'DONE', 'IN_PROGRESS'),
+              workflow_state = IF(?, 'DONE', workflow_state), completed_by = IF(?, ?, completed_by),
+              completed_at = IF(?, CURRENT_TIMESTAMP(3), completed_at),
+              claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=?`,
+      [allDone, allDone, allDone, req.admin.id, allDone, id],
+    );
+    if (allDone) await connection.execute(
       "UPDATE contract_scan_results SET processed = 1, processed_at = CURRENT_TIMESTAMP(3) WHERE id = ?",
       [pending.scan_result_id],
     );
@@ -1511,14 +1610,133 @@ async function releasePending(req, res) {
   }
 }
 
+async function removePendingSupplier(req, res) {
+  const id = parseId(req.params.id);
+  const pendingSupplierId = parseId(req.params.pendingSupplierId);
+  if (!id || !pendingSupplierId)
+    return res.status(400).json({ success: false, message: "Pending supplier ID is invalid." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      `SELECT p.id, p.scan_result_id, p.status, p.claimed_by, ps.processing_status
+         FROM contract_pending p
+         JOIN contract_pending_suppliers ps ON ps.pending_id=p.id
+        WHERE p.id=? AND ps.id=? FOR UPDATE`,
+      [id, pendingSupplierId],
+    );
+    if (!rows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "Queue item was not found." });
+    }
+    const item = rows[0];
+    if (item.processing_status !== 'PENDING' || ['DONE', 'IGNORED'].includes(item.status))
+      throw new Error("Only a pending supplier file can be removed.");
+    if (item.claimed_by && item.claimed_by !== req.admin.id)
+      {
+        await connection.rollback();
+        return res.status(409).json({ success: false, message: "Queue item is being processed by another user." });
+      }
+    const [[count]] = await connection.execute(
+      "SELECT COUNT(*) AS total FROM contract_pending_suppliers WHERE pending_id=?",
+      [id],
+    );
+    if (Number(count.total) > 1) {
+      await connection.execute("DELETE FROM contract_pending_suppliers WHERE id=? AND pending_id=?", [pendingSupplierId, id]);
+      await connection.execute("UPDATE contract_pending SET version=version+1 WHERE id=?", [id]);
+    } else {
+      await connection.execute(
+        `UPDATE contract_pending SET status='IGNORED', workflow_state='IGNORED',
+                note='Removed from pending queue', completed_by=?, completed_at=CURRENT_TIMESTAMP(3),
+                claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=?`,
+        [req.admin.id, id],
+      );
+      await connection.execute(
+        "UPDATE contract_scan_results SET processed=1, processed_at=CURRENT_TIMESTAMP(3) WHERE id=?",
+        [item.scan_result_id],
+      );
+    }
+    await connection.commit();
+    return res.json({ success: true, message: "File removed from this supplier queue." });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({ success: false, message: error.message || "Failed to remove queue item." });
+  } finally {
+    connection.release();
+  }
+}
+
+async function completeHotelOptionPending(req, res) {
+  const id = parseId(req.params.id);
+  const pendingSupplierId = parseId(req.body?.pending_supplier_id);
+  if (!id || !pendingSupplierId)
+    return res.status(400).json({ success: false, message: "Pending queue reference is invalid." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      `SELECT p.scan_result_id, p.status, ps.processing_status, scan_result.file_name
+         FROM contract_pending p
+         JOIN contract_pending_suppliers ps ON ps.pending_id=p.id
+         JOIN contract_scan_results scan_result ON scan_result.id=p.scan_result_id
+        WHERE p.id=? AND ps.id=? FOR UPDATE`,
+      [id, pendingSupplierId],
+    );
+    if (!rows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "Hotel option queue item was not found." });
+    }
+    const item = rows[0];
+    if (!isHotelOptionFileName(item.file_name))
+      throw new Error("This queue item is not a Hotel Option file.");
+    if (item.processing_status === 'DONE') {
+      await connection.rollback();
+      return res.json({ success: true, message: "Hotel Option queue was already completed." });
+    }
+    if (item.processing_status !== 'PENDING' || item.status === 'IGNORED')
+      throw new Error("Hotel Option queue item cannot be completed.");
+    await connection.execute(
+      `UPDATE contract_pending_suppliers SET processing_status='DONE', completed_by=?,
+              completed_at=CURRENT_TIMESTAMP(3) WHERE id=?`,
+      [req.admin.id, pendingSupplierId],
+    );
+    const [[remaining]] = await connection.execute(
+      "SELECT COUNT(*) AS total FROM contract_pending_suppliers WHERE pending_id=? AND processing_status='PENDING'",
+      [id],
+    );
+    const allDone = Number(remaining.total) === 0;
+    await connection.execute(
+      `UPDATE contract_pending SET status=IF(?, 'DONE', 'IN_PROGRESS'),
+              workflow_state=IF(?, 'DONE', workflow_state),
+              completed_by=IF(?, ?, completed_by),
+              completed_at=IF(?, CURRENT_TIMESTAMP(3), completed_at),
+              claimed_by=NULL, claimed_at=NULL, version=version+1 WHERE id=?`,
+      [allDone, allDone, allDone, req.admin.id, allDone, id],
+    );
+    if (allDone) await connection.execute(
+      "UPDATE contract_scan_results SET processed=1, processed_at=CURRENT_TIMESTAMP(3) WHERE id=?",
+      [item.scan_result_id],
+    );
+    await connection.commit();
+    return res.json({ success: true, message: "Hotel Option import completed and removed from Pending Queue." });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({ success: false, message: error.message || "Failed to complete Hotel Option queue." });
+  } finally {
+    connection.release();
+  }
+}
+
 module.exports = {
   completePending,
+  completeHotelOptionPending,
   createPending,
   getPending,
   ignorePending,
   listPending,
   queueUnmatched,
   releasePending,
+  removePendingSupplier,
   saveSuppliers,
   startPending,
   updatePending,

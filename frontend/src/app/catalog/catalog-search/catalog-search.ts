@@ -39,6 +39,15 @@ export class CatalogSearch implements OnInit, OnDestroy {
   errorMessage = '';
   supplierResults: SupplierSearchResult[] = [];
   productResults: ProductSearchResult[] = [];
+  statusSupplier: SupplierSearchResult | null = null;
+  statusSaving = false;
+  statusMessage = '';
+  inactiveForm = {
+    inactive_name: '',
+    inactive_at: new Date().toISOString().slice(0, 10),
+    replacement_supplier_name: '',
+    inactive_reason: '',
+  };
   pagination: CatalogPagination = { page: 1, limit: this.pageSize, total: 0, totalPages: 1 };
 
   private request?: Subscription;
@@ -145,6 +154,61 @@ export class CatalogSearch implements OnInit, OnDestroy {
 
   nextPage(): void {
     if (this.pagination.page < this.pagination.totalPages) this.search(this.pagination.page + 1);
+  }
+
+  openInactiveSupplier(row: SupplierSearchResult): void {
+    this.statusSupplier = row;
+    this.statusMessage = '';
+    this.inactiveForm = {
+      inactive_name: row.inactive_name || row.company_name,
+      inactive_at: row.inactive_at || new Date().toISOString().slice(0, 10),
+      replacement_supplier_name: row.replacement_supplier_name || '',
+      inactive_reason: row.inactive_reason || '',
+    };
+    this.cdr.markForCheck();
+  }
+
+  closeInactiveSupplier(): void {
+    if (this.statusSaving) return;
+    this.statusSupplier = null;
+    this.statusMessage = '';
+  }
+
+  saveInactiveSupplier(): void {
+    if (!this.statusSupplier || !this.inactiveForm.inactive_name.trim()) {
+      this.statusMessage = 'Inactive supplier name is required.';
+      return;
+    }
+    this.statusSaving = true;
+    this.statusMessage = '';
+    this.catalogSearch
+      .updateSupplierStatus(this.statusSupplier.supplier_id, {
+        status: 'Inactive',
+        ...this.inactiveForm,
+      })
+      .subscribe({
+        next: () => {
+          this.statusSaving = false;
+          this.statusSupplier = null;
+          this.search(this.pagination.page);
+        },
+        error: (error: HttpErrorResponse) => {
+          this.statusSaving = false;
+          this.statusMessage = String(error.error?.message || 'Unable to inactivate supplier.');
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  reactivateSupplier(row: SupplierSearchResult): void {
+    if (!window.confirm(`Reactivate ${row.company_name}?`)) return;
+    this.catalogSearch.updateSupplierStatus(row.supplier_id, { status: 'Active' }).subscribe({
+      next: () => this.search(this.pagination.page),
+      error: () => {
+        this.errorMessage = 'Unable to reactivate supplier.';
+        this.cdr.markForCheck();
+      },
+    });
   }
 
   get placeholder(): string {

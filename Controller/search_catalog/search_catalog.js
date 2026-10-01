@@ -239,7 +239,9 @@ async function searchCatalog(req, res) {
       selectSql = `
         SELECT
           s.supplier_id, s.company_name, s.address, s.town, s.region,
-          s.location, s.category_supplier, s.status,
+          s.location, s.category_supplier, s.status, s.contract_status, s.inactive_name,
+          CAST(s.inactive_at AS CHAR) AS inactive_at, s.inactive_reason,
+          s.replacement_supplier_name,
           (SELECT COUNT(*) FROM products p WHERE p.supplier_id = s.supplier_id) AS product_count,
           ${matched.sql} AS matched_field
         ${fromSql}
@@ -313,6 +315,73 @@ async function searchCatalog(req, res) {
   }
 }
 
+function optionalText(value, max) {
+  const text = value === undefined || value === null ? "" : String(value).trim();
+  if (text.length > max) throw new Error(`Nilai maksimal ${max} karakter.`);
+  return text || null;
+}
+
+async function updateSupplierStatus(req, res) {
+  const supplierId = Number.parseInt(req.params.supplierId, 10);
+  const status = String(req.body?.status || "").trim();
+  if (!Number.isInteger(supplierId) || supplierId < 1)
+    return res.status(400).json({ success: false, message: "Supplier ID tidak valid." });
+  if (!['Active', 'Inactive'].includes(status))
+    return res.status(400).json({ success: false, message: "Status supplier tidak valid." });
+
+  const connection = await pool.getConnection();
+  try {
+    const inactiveName = optionalText(req.body?.inactive_name, 255);
+    const inactiveAt = optionalText(req.body?.inactive_at, 10);
+    const inactiveReason = optionalText(req.body?.inactive_reason, 10000);
+    const replacementName = optionalText(req.body?.replacement_supplier_name, 255);
+    if (status === 'Inactive' && !inactiveName)
+      return res.status(400).json({ success: false, message: "Inactive supplier name wajib diisi." });
+    if (status === 'Inactive' && inactiveAt && !/^\d{4}-\d{2}-\d{2}$/.test(inactiveAt))
+      return res.status(400).json({ success: false, message: "Inactive date tidak valid." });
+
+    await connection.beginTransaction();
+    const [rows] = await connection.execute(
+      "SELECT * FROM suppliers WHERE supplier_id = ? FOR UPDATE",
+      [supplierId],
+    );
+    if (!rows.length) {
+      await connection.rollback();
+      return res.status(404).json({ success: false, message: "Supplier tidak ditemukan." });
+    }
+    const previous = rows[0];
+    const values = status === 'Inactive'
+      ? [status, inactiveName, inactiveAt || new Date().toISOString().slice(0, 10), inactiveReason, replacementName, req.admin.id]
+      : [status, null, null, null, null, null];
+    await connection.execute(
+      `UPDATE suppliers SET status=?, inactive_name=?, inactive_at=?, inactive_reason=?,
+              replacement_supplier_name=?, inactive_by=? WHERE supplier_id=?`,
+      [...values, supplierId],
+    );
+    await connection.execute(
+      `INSERT INTO supplier_status_history
+         (supplier_id, previous_status, new_status, inactive_name, inactive_at,
+          inactive_reason, replacement_supplier_name, changed_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [supplierId, previous.status, status, values[1], values[2], values[3], values[4], req.admin.id],
+    );
+    const [[supplier]] = await connection.execute(
+      `SELECT supplier_id, company_name, status, inactive_name,
+              CAST(inactive_at AS CHAR) AS inactive_at, inactive_reason,
+              replacement_supplier_name
+         FROM suppliers WHERE supplier_id=?`,
+      [supplierId],
+    );
+    await connection.commit();
+    return res.json({ success: true, message: `Supplier status changed to ${status}.`, supplier });
+  } catch (error) {
+    await connection.rollback();
+    return res.status(400).json({ success: false, message: error.message || "Gagal mengubah status supplier." });
+  } finally {
+    connection.release();
+  }
+}
+
 async function getCatalogCategories(req, res) {
   try {
     const type = String(req.query.type || "").toLowerCase();
@@ -353,4 +422,4 @@ async function getCatalogCategories(req, res) {
   }
 }
 
-module.exports = { searchCatalog, getCatalogCategories };
+module.exports = { searchCatalog, getCatalogCategories, updateSupplierStatus };

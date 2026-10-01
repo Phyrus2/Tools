@@ -889,6 +889,25 @@ input:focus {
   color: var(--ink);
   font-weight: 600;
 }
+.option-room-list { display: grid; gap: 0.3rem; }
+.option-room-list > span {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.25rem 0.55rem;
+  border-radius: var(--r-sm);
+  background: var(--surface-sunk);
+  font-size: 0.76rem;
+}
+.option-room-list small { display: none; }
+.option-room-list button {
+  display: none;
+  margin-left: auto;
+  border: 0;
+  color: var(--blue);
+  background: transparent;
+  font-weight: 700;
+}
 
 .option-status {
   display: grid;
@@ -945,6 +964,31 @@ input:focus {
 .option-link-detail .link-line:first-child {
   color: var(--ink);
   font-weight: 600;
+}
+
+.jambix-product-names {
+  display: grid;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+.jambix-product-names > span {
+  display: block;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.option-link-detail .link-line:last-child {
+  align-items: flex-start;
+}
+
+.option-link-detail .link-line:last-child svg {
+  margin-top: 0.1rem;
+}
+
+.jambix-product-names .is-missing {
+  color: var(--rust);
+  font-style: italic;
 }
 
 .option-actions {
@@ -1018,6 +1062,19 @@ input:focus {
 .option-form-grid .wide {
   grid-column: 1 / -1;
 }
+.option-room-editor { display: grid; gap: 0.55rem; }
+.option-room-editor-head { display: flex; align-items: center; justify-content: space-between; }
+.option-room-editor-head > span { color: var(--muted); font-size: 0.75rem; font-weight: 700; }
+.option-room-editor-head button,
+.option-room-editor label button {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: #fff;
+  color: var(--pine);
+  font-weight: 700;
+}
+.option-room-editor label { display: flex; grid-template-columns: none; }
+.option-room-editor label input { flex: 1; }
 .option-form-actions {
   display: flex;
   align-items: center;
@@ -1072,6 +1129,28 @@ input:focus {
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.74);
   box-shadow: 0 5px 16px rgba(27, 43, 36, 0.06);
+}
+
+.room-product-editor {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid rgba(40, 64, 52, 0.12);
+}
+
+.selected-room-products {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.selected-room-products button {
+  border: 1px solid rgba(34, 116, 78, 0.25);
+  border-radius: 999px;
+  background: #edf8f2;
+  color: #1d6846;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
 }
 .search-results.compact {
   max-height: 180px;
@@ -1711,3 +1790,6 @@ input:focus {
     flex-direction: column;
   }
 }
+.pending-import-notice { flex: 1 1 100%; display: grid; gap: .2rem; padding: .75rem .9rem; border: 1px solid #b8ccef; border-radius: 10px; color: #1849a9; background: #eef4ff; }
+.pending-import-notice strong { font-size: .85rem; }
+.pending-import-notice span { font-size: .78rem; }

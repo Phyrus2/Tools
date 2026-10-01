@@ -127,6 +127,12 @@
         </article>
       </div>
 
+      <div class="cm-scan-audit">
+        <span><small>SCANNED BY</small><strong>{{ currentScan.requested_by_name || 'Unknown user' }}</strong></span>
+        <span><small>START DATE &amp; TIME</small><strong>{{ utcLabel(currentScan.started_at) }}</strong></span>
+        <span><small>END DATE &amp; TIME</small><strong>{{ currentScan.finished_at ? utcLabel(currentScan.finished_at) : 'In progress' }}</strong></span>
+      </div>
+
       <div
         class="cm-scan-loading"
         *ngIf="currentScan.status === 'QUEUED' || currentScan.status === 'RUNNING'"
@@ -290,11 +296,11 @@
 
           <section>
             <h3>Add supplier</h3>
-            <div class="cm-suggestions" *ngIf="analysis?.supplier_recommendations?.length">
+            <div class="cm-suggestions" *ngIf="availableSupplierRecommendations.length">
               <small>Recommendations from the supplier folder name</small>
               <button
                 type="button"
-                *ngFor="let supplier of analysis!.supplier_recommendations"
+                *ngFor="let supplier of availableSupplierRecommendations"
                 (click)="addRecommendation(supplier)"
               >
                 {{ supplier.name }} <b>{{ scoreLabel(supplier.score) }}</b>
@@ -308,10 +314,10 @@
               />
               <button type="button" (click)="searchSupplier()">Search</button>
             </div>
-            <div class="cm-search-results" *ngIf="manualResults.length">
+            <div class="cm-search-results" *ngIf="availableManualSupplierResults.length">
               <button
                 type="button"
-                *ngFor="let supplier of manualResults"
+                *ngFor="let supplier of availableManualSupplierResults"
                 (click)="addManualSupplier(supplier)"
               >
                 <strong>{{ supplier.company_name }}</strong>
@@ -739,6 +745,7 @@
           <article
             class="cm-queue-supplier"
             *ngFor="let supplier of group.suppliers; trackBy: trackById"
+            [attr.data-workflow]="queueSupplierWorkflowState(supplier)"
           >
             <header>
               <span class="cm-queue-sequence">{{ supplier.queue_number }}</span>
@@ -769,6 +776,10 @@
               </div>
               <div class="cm-queue-badges">
                 <span
+                  class="cm-workflow-badge"
+                  [attr.data-workflow]="queueSupplierWorkflowState(supplier)"
+                >{{ queueSupplierWorkflowLabel(supplier) }}</span>
+                <span
                   class="cm-status"
                   [attr.data-status]="supplier.jambix_status"
                   >{{ statusLabel(supplier.jambix_status) }}</span
@@ -784,11 +795,13 @@
             </header>
             <div
               class="cm-queue-file"
-              *ngFor="let item of supplier.files; trackBy: trackById"
+              *ngFor="let item of visibleQueueFiles(supplier); trackBy: trackById"
+              [attr.data-workflow]="item.workflow_state"
             >
               <div class="cm-queue-contract">
                 <small>CONTRACT</small>
                 <strong>{{ queueContractLabel(item) }}</strong>
+                <span class="cm-queue-file-name" [attr.title]="item.file_name">{{ item.file_name }}</span>
               </div>
               <div class="cm-queue-item-badges">
                 <span class="cm-shared-source-badge" *ngIf="isSharedQueueSource(item)">
@@ -824,14 +837,17 @@
                 />
               </label>
               <div class="cm-queue-actions">
+                <button class="cm-secondary" type="button" [disabled]="item.status === 'DONE'" (click)="removeQueueFile(item)">Remove</button>
                 <button
                   class="cm-primary cm-primary--small"
                   type="button"
                   [disabled]="item.status === 'IGNORED'"
-                  (click)="openPending(item.id)"
+                  (click)="continueQueueItem(item)"
                 >
                   {{
-                    !supplier.supplier_id
+                    isHotelOptionFile(item.file_name)
+                      ? 'Continue to Hotel Options'
+                      : !supplier.supplier_id
                       ? 'Assign'
                       : item.status === 'NEW'
                         ? 'Process'
@@ -840,6 +856,14 @@
                 </button>
               </div>
             </div>
+            <button
+              type="button"
+              class="cm-view-more"
+              *ngIf="supplier.files.length > 1"
+              (click)="toggleQueueSupplierFiles(supplier)"
+            >
+              {{ isQueueSupplierExpanded(supplier) ? 'Show less' : 'View ' + (supplier.files.length - 1) + ' more' }}
+            </button>
           </article>
         </div>
         </section>
@@ -1068,6 +1092,20 @@
       </div>
     </div>
 
+    <div class="cm-manual-modal-backdrop" *ngIf="oneTimeItem as candidate" (click)="closeOneTimeSupplier()">
+      <section class="cm-manual-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <header><div><p>ADD SKIPPED ROW</p><h2>Add as one-time supplier</h2><span>{{ candidate.supplier_name }} · {{ candidate.sheet_name }} row {{ candidate.row_number }}</span></div><button type="button" (click)="closeOneTimeSupplier()">&times;</button></header>
+        <p class="cm-one-time-reason">{{ candidate.reason }}</p>
+        <div class="cm-manual-search"><label><span>Search supplier database</span><div><input [(ngModel)]="oneTimeSupplierQuery" (keyup.enter)="searchOneTimeSuppliers()" /><button type="button" (click)="searchOneTimeSuppliers()">Search</button></div></label></div>
+        <div class="cm-one-time-suppliers"><button type="button" *ngFor="let supplier of oneTimeSupplierResults" [class.selected]="oneTimeSupplier?.supplier_id === supplier.supplier_id" (click)="oneTimeSupplier = supplier"><strong>{{ supplier.company_name }}</strong><small>{{ supplier.location || supplier.region || 'No location' }}</small></button></div>
+        <div class="cm-manual-selection" *ngIf="oneTimeSupplier as selected">
+          <span>SELECTED SUPPLIER</span><strong>{{ selected.company_name }}</strong>
+          <small>ID {{ selected.supplier_id }} · {{ selected.location || selected.region || 'Location unavailable' }}</small>
+        </div>
+        <footer><button type="button" class="cm-secondary" (click)="closeOneTimeSupplier()">Cancel</button><button type="button" class="cm-primary" [disabled]="busy || !oneTimeSupplier" (click)="saveOneTimeSupplier()">{{ busy ? 'Saving…' : 'Add one-time supplier' }}</button></footer>
+      </section>
+    </div>
+
     <div class="cm-review-modal-backdrop" *ngIf="reportReviewSection" (click)="closeReportReview()">
       <section
         class="cm-review-modal"
@@ -1104,15 +1142,19 @@
               class="cm-secondary"
               type="button"
               [disabled]="busy"
-              *ngIf="reportReviewSection === 'SKIPPED' && review.can_link_supplier"
+              *ngIf="reportReviewSection === 'SKIPPED'"
               (click)="resolveImportItem(review)"
             >
-              Add manually</button
-            ><span
-              class="cm-review-no-action"
-              *ngIf="reportReviewSection === 'SKIPPED' && !review.can_link_supplier"
-              >Fix the Excel data first</span
+              Add contract manually
+            </button>
+            <button
+              class="cm-secondary"
+              type="button"
+              *ngIf="reportReviewSection === 'SKIPPED' && review.one_time_candidate"
+              (click)="openOneTimeSupplier(review)"
             >
+              Add as one-time supplier
+            </button>
           </article>
         </div>
         <footer class="cm-review-pager" *ngIf="reportReviewTotalPages > 1">
@@ -1234,11 +1276,22 @@
         <div class="cm-manual-excel-data">
           <span>EXCEL CONTRACT DATA</span>
           <div>
-            <b>Validity</b
-            ><strong
-              >{{ dateLabel($any(manualItem.payload['validity_start'])) }} —
-              {{ dateLabel($any(manualItem.payload['validity_end'])) }}</strong
-            >
+            <b>Validity</b>
+            <div class="cm-manual-validity">
+              <app-date-picker
+                [value]="$any(manualItem.payload['validity_start']) || ''"
+                displayFormat="dd/mm/yyyy"
+                ariaLabel="Validity start"
+                (valueChange)="manualItem.payload['validity_start'] = $event"
+              ></app-date-picker>
+              <span>to</span>
+              <app-date-picker
+                [value]="$any(manualItem.payload['validity_end']) || ''"
+                displayFormat="dd/mm/yyyy"
+                ariaLabel="Validity end"
+                (valueChange)="manualItem.payload['validity_end'] = $event"
+              ></app-date-picker>
+            </div>
           </div>
           <div>
             <b>Reference</b><strong>{{ manualItem.payload['reference'] || '—' }}</strong>
@@ -1302,6 +1355,7 @@
                 let option of [
                   ['ACTIVE', 'Active'],
                   ['EXPIRED', 'Expired'],
+                  ['NO_CONTRACT', 'One-time supplier'],
                 ]
               "
               class="rp-option"
@@ -1463,7 +1517,7 @@
 
     <!-- Results -->
     <div class="rp-results-head">
-      <strong>{{ reportTotal }} contract{{ reportTotal === 1 ? '' : 's' }} found</strong>
+      <strong>{{ reportTotal }} supplier record{{ reportTotal === 1 ? '' : 's' }} found</strong>
       <small *ngIf="reportTotal">Page {{ reportPage }} of {{ reportTotalPages }}</small>
     </div>
 
@@ -1477,6 +1531,7 @@
             <th>Status</th>
             <th>Period status</th>
             <th>Note</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -1487,12 +1542,17 @@
             <ng-container *ngFor="let location of region.locations">
               <tr class="rp-location">
                 <td colspan="7">
-                  {{ location.name }} <span>{{ location.reports.length }} contract(s)</span>
+                  {{ location.name }} <span>{{ location.reports.length }} supplier record(s)</span>
                 </td>
               </tr>
               <tr *ngFor="let report of location.reports; trackBy: trackById">
                 <td>
                   <strong>{{ report.company_name }}</strong>
+                  <span class="cm-status" data-status="INACTIVE" *ngIf="report.supplier_status === 'Inactive'">Supplier inactive</span>
+                  <small class="rp-inactive" *ngIf="report.supplier_status === 'Inactive'">
+                    Inactive as {{ report.inactive_name || report.company_name }}
+                    <ng-container *ngIf="report.replacement_supplier_name"> · Replaced by {{ report.replacement_supplier_name }}</ng-container>
+                  </small>
                   <small
                     >ID {{ report.supplier_id }} ·
                     {{ report.category_supplier.join(', ') || 'No category' }}</small
@@ -1503,8 +1563,14 @@
                   <small>{{ report.location_jambix || '—' }}</small>
                 </td>
                 <td class="rp-nowrap">
-                  <strong class="rp-plain">{{ dateLabel(report.validity_start) }}</strong>
-                  <small>until {{ dateLabel(report.validity_end) }}</small>
+                  <ng-container *ngIf="report.report_type === 'CONTRACT'; else noContractValidity">
+                    <strong class="rp-plain">{{ dateLabel(report.validity_start) }}</strong>
+                    <small>until {{ dateLabel(report.validity_end) }}</small>
+                  </ng-container>
+                  <ng-template #noContractValidity>
+                    <strong class="rp-plain">No contract yet</strong>
+                    <small>One-time supplier</small>
+                  </ng-template>
                 </td>
                 <td>
                   <div class="rp-badges">
@@ -1523,7 +1589,7 @@
                 <td>
                   <div
                     class="cm-period-list"
-                    *ngIf="report.period_statuses.length; else defaultSigned"
+                    *ngIf="report.period_statuses.length; else defaultReference"
                   >
                     <span
                       *ngFor="let period of report.period_statuses"
@@ -1532,9 +1598,10 @@
                       {{ period.period }} · {{ statusLabel(period.status) }}
                     </span>
                   </div>
-                  <ng-template #defaultSigned>{{ statusLabel(report.signed_status) }}</ng-template>
+                  <ng-template #defaultReference>{{ report.contract_reference || 'No contract reference' }}</ng-template>
                 </td>
                 <td class="rp-note" [attr.title]="report.note || null">{{ report.note || '—' }}</td>
+                <td><button type="button" class="cm-secondary" (click)="openReportEdit(report)">{{ report.report_type === 'ONE_TIME_SUPPLIER' ? 'Add contract' : 'Edit' }}</button></td>
               </tr>
             </ng-container>
           </ng-container>
@@ -1575,11 +1642,29 @@
         <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
         <path d="M14 3v5h5M9 14h6M9 17h4" />
       </svg>
-      <strong>No contracts match these filters</strong>
+      <strong>No supplier records match these filters</strong>
       <p>Try a different supplier name, or remove some filters to see more results.</p>
       <button type="button" class="cm-secondary" (click)="clearReportFilters()">
         Clear all filters
       </button>
+    </div>
+
+    <div class="cm-report-edit-backdrop" *ngIf="reportEdit as edit" (click)="closeReportEdit()">
+      <section class="cm-report-edit" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <header><div><small>CONTRACT REPORT</small><h2>{{ edit.report_type === 'ONE_TIME_SUPPLIER' ? 'Add contract' : 'Edit contract' }}</h2></div><button type="button" (click)="closeReportEdit()">&times;</button></header>
+        <div class="cm-report-edit-grid">
+          <label class="cm-wide"><span>Supplier</span><div class="cm-report-supplier-search"><input [(ngModel)]="reportEditSupplierQuery" (keyup.enter)="searchReportEditSupplier()" /><button type="button" (click)="searchReportEditSupplier()">Search</button></div></label>
+          <div class="cm-report-supplier-results cm-wide" *ngIf="reportEditSupplierResults.length"><button type="button" *ngFor="let supplier of reportEditSupplierResults" (click)="chooseReportEditSupplier(supplier)"><strong>{{ supplier.company_name }}</strong><small>{{ supplier.location || supplier.region || 'No location' }}</small></button></div>
+          <label><span>Supplier type</span><select [(ngModel)]="edit.supplier_type"><option *ngFor="let category of edit.category_supplier" [value]="category">{{ category }}</option></select></label>
+          <label><span>Location Jambix</span><input [(ngModel)]="edit.location_jambix" /></label>
+          <label><span>Validity start</span><input type="date" [(ngModel)]="edit.validity_start" /></label>
+          <label><span>Validity end</span><input type="date" [(ngModel)]="edit.validity_end" /></label>
+          <label><span>Contract reference</span><input [(ngModel)]="edit.contract_reference" /></label>
+          <label class="cm-wide"><span>File source</span><input [(ngModel)]="edit.file_source" /></label>
+          <label class="cm-wide"><span>Note</span><textarea rows="3" [(ngModel)]="edit.note"></textarea></label>
+        </div>
+        <footer><button type="button" class="cm-secondary" (click)="closeReportEdit()">Cancel</button><button type="button" class="cm-primary" [disabled]="busy" (click)="saveReportEdit()">{{ busy ? 'Saving…' : 'Save changes' }}</button></footer>
+      </section>
     </div>
   </section>
 

@@ -325,10 +325,13 @@ async function getScan(req, res) {
       .json({ success: false, message: "Scan ID tidak valid." });
   try {
     const [runs] = await pool.execute(
-      `SELECT id, server_id, mode, requested_start_wita, requested_end_wita,
-              CAST(captured_now_utc AS CHAR) AS captured_now_utc, status, total_files,
-              new_files, warning_count, error_summary, started_at, finished_at, created_at
-         FROM contract_scan_runs WHERE id = ?`,
+      `SELECT r.id, r.server_id, r.mode, r.requested_start_wita, r.requested_end_wita,
+              CAST(r.captured_now_utc AS CHAR) AS captured_now_utc, r.status, r.total_files,
+              r.new_files, r.warning_count, r.error_summary, r.started_at, r.finished_at, r.created_at,
+              r.requested_by, u.fullname AS requested_by_name
+         FROM contract_scan_runs r
+         LEFT JOIN users u ON u.id = r.requested_by
+         WHERE r.id = ?`,
       [id],
     );
     if (!runs.length)

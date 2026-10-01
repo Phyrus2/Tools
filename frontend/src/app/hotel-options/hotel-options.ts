@@ -11,6 +11,7 @@ import {
   HotelImportRow,
   HotelOption,
   HotelOptionInput,
+  HotelOptionRoom,
   HotelOptionRevision,
   HotelOptionsService,
 } from '../services/hotel-options';
@@ -42,6 +43,7 @@ export class HotelOptions implements OnInit {
   message = '';
   error = '';
   linkItem: HotelOption | null = null;
+  linkRoom: HotelOptionRoom | null = null;
   supplierQuery = '';
   productQuery = '';
   supplierResults: HotelLinkSupplier[] = [];
@@ -50,6 +52,10 @@ export class HotelOptions implements OnInit {
   productSearchLoading = false;
   selectedSupplier: HotelLinkSupplier | null = null;
   selectedProduct: HotelLinkProduct | null = null;
+  roomProductQueries: string[] = [];
+  roomProductResults: HotelLinkProduct[][] = [];
+  roomSelectedProducts: HotelLinkProduct[][] = [];
+  roomProductLoading: boolean[] = [];
   historyItem: HotelOption | null = null;
   revisions: HotelOptionRevision[] = [];
   importResult: HotelImportResult | null = null;
@@ -59,6 +65,9 @@ export class HotelOptions implements OnInit {
   editItem: HotelOption | null = null;
   optionForm: HotelOptionInput | null = null;
   optionSaving = false;
+  pendingQueueId: number | null = null;
+  pendingSupplierId: number | null = null;
+  pendingFileName = '';
   private supplierSearchRequestId = 0;
   private productSearchRequestId = 0;
   constructor(
@@ -68,6 +77,16 @@ export class HotelOptions implements OnInit {
     private router: Router,
   ) {}
   ngOnInit(): void {
+    this.route.queryParamMap.subscribe((params) => {
+      const pendingId = Number.parseInt(params.get('pendingId') || '', 10);
+      const pendingSupplierId = Number.parseInt(params.get('pendingSupplierId') || '', 10);
+      this.pendingQueueId = Number.isInteger(pendingId) && pendingId > 0 ? pendingId : null;
+      this.pendingSupplierId = Number.isInteger(pendingSupplierId) && pendingSupplierId > 0
+        ? pendingSupplierId
+        : null;
+      this.pendingFileName = params.get('pendingFileName') || '';
+      this.cdr.markForCheck();
+    });
     this.route.paramMap.subscribe((params) => {
       const routeYear = Number.parseInt(params.get('year') || '2026', 10);
       if (!Number.isInteger(routeYear) || routeYear < 2000 || routeYear > 2100) {
@@ -172,6 +191,22 @@ export class HotelOptions implements OnInit {
           this.importSection = null;
           this.message = `Import completed: ${r.summary.inserted} new, ${r.summary.updated} updated, ${r.summary.unchanged} unchanged, ${r.summary.skipped} skipped.`;
           this.load();
+          if (this.pendingQueueId && this.pendingSupplierId) {
+            this.api.completePending(this.pendingQueueId, this.pendingSupplierId).subscribe({
+              next: (completed) => {
+                this.message = `${this.message} ${completed.message}`;
+                this.pendingQueueId = null;
+                this.pendingSupplierId = null;
+                this.pendingFileName = '';
+                this.router.navigate([], { relativeTo: this.route, queryParams: {}, replaceUrl: true });
+                this.cdr.markForCheck();
+              },
+              error: (error) => {
+                this.error = error.error?.message || 'Import succeeded, but the Pending Queue could not be completed.';
+                this.cdr.markForCheck();
+              },
+            });
+          }
         },
         error: (e) => {
           this.error = e.error?.message || 'Import failed.';
@@ -202,10 +237,11 @@ export class HotelOptions implements OnInit {
     this.importSection = section;
     this.importPage = 1;
   }
-  assign(item: HotelOption): void {
+  assign(item: HotelOption, room: HotelOptionRoom | null = null): void {
     this.linkItem = item;
+    this.linkRoom = room || item.rooms?.[0] || null;
     this.supplierQuery = item.company_name || item.hotel_name;
-    this.productQuery = item.product_name || item.room_type || '';
+    this.productQuery = this.linkRoom?.product_name || this.linkRoom?.room_type || item.room_type || '';
     this.selectedSupplier = item.supplier_id
       ? {
           supplier_id: item.supplier_id,
@@ -214,11 +250,12 @@ export class HotelOptions implements OnInit {
           region: null,
         }
       : null;
-    this.selectedProduct = item.product_id
+    const linkedProductId = this.linkRoom?.product_id || item.product_id;
+    this.selectedProduct = linkedProductId
       ? {
-          product_id: item.product_id,
+          product_id: linkedProductId,
           supplier_id: item.supplier_id!,
-          name: item.product_name || item.room_type || '',
+          name: this.linkRoom?.product_name || item.product_name || this.linkRoom?.room_type || item.room_type || '',
           type: null,
         }
       : null;
@@ -229,6 +266,7 @@ export class HotelOptions implements OnInit {
   closeLink(): void {
     if (this.linkSaving) return;
     this.linkItem = null;
+    this.linkRoom = null;
     this.supplierResults = [];
     this.productResults = [];
     this.cdr.markForCheck();
@@ -262,16 +300,28 @@ export class HotelOptions implements OnInit {
       });
   }
   chooseSupplier(supplier: HotelLinkSupplier): void {
+    if (this.optionForm && this.selectedSupplier?.supplier_id !== supplier.supplier_id) {
+      for (const room of this.optionForm.rooms) room.product_ids = [];
+      this.roomSelectedProducts = this.optionForm.rooms.map(() => []);
+    }
     this.selectedSupplier = supplier;
     this.selectedProduct = null;
-    this.productQuery = this.optionForm?.room_type || this.linkItem?.room_type || '';
+    this.productQuery = this.linkRoom?.room_type || this.optionForm?.room_type || this.linkItem?.room_type || '';
     this.searchProducts();
+    if (this.optionForm) {
+      this.optionForm.rooms.forEach((_room, index) => this.searchRoomProducts(index));
+    }
   }
   clearSelectedLink(): void {
     this.productSearchRequestId += 1;
     this.selectedSupplier = null;
     this.selectedProduct = null;
     this.productResults = [];
+    if (this.optionForm) {
+      for (const room of this.optionForm.rooms) room.product_ids = [];
+      this.roomSelectedProducts = this.optionForm.rooms.map(() => []);
+      this.roomProductResults = this.optionForm.rooms.map(() => []);
+    }
     this.productQuery = this.optionForm?.room_type || '';
     this.cdr.markForCheck();
   }
@@ -310,7 +360,12 @@ export class HotelOptions implements OnInit {
     this.linkSaving = true;
     this.error = '';
     this.api
-      .assign(item.id, this.selectedSupplier.supplier_id, this.selectedProduct.product_id)
+      .assign(
+        item.id,
+        this.selectedSupplier.supplier_id,
+        this.selectedProduct.product_id,
+        this.linkRoom?.id,
+      )
       .pipe(
         timeout(20000),
         finalize(() => {
@@ -350,9 +405,11 @@ export class HotelOptions implements OnInit {
       room_type: '',
       supplier_id: null,
       product_id: null,
+      rooms: [{ room_type: '', product_ids: [] }],
     };
     this.selectedSupplier = null;
     this.selectedProduct = null;
+    this.roomSelectedProducts = [[]];
     this.prepareFormLinkSearch();
     this.cdr.markForCheck();
   }
@@ -368,6 +425,12 @@ export class HotelOptions implements OnInit {
       room_type: item.room_type || '',
       supplier_id: item.supplier_id,
       product_id: item.product_id,
+      rooms: item.rooms?.length
+        ? item.rooms.map((room) => ({
+            room_type: room.room_type,
+            product_ids: room.products.map((product) => product.product_id),
+          }))
+        : [{ room_type: item.room_type || '', product_ids: item.product_id ? [item.product_id] : [] }],
     };
     this.selectedSupplier = item.supplier_id
       ? {
@@ -385,6 +448,9 @@ export class HotelOptions implements OnInit {
           type: null,
         }
       : null;
+    this.roomSelectedProducts = item.rooms?.length
+      ? item.rooms.map((room) => [...room.products])
+      : [this.selectedProduct ? [this.selectedProduct] : []];
     this.prepareFormLinkSearch();
     this.cdr.markForCheck();
   }
@@ -393,8 +459,14 @@ export class HotelOptions implements OnInit {
     this.productQuery = this.selectedProduct?.name || this.optionForm?.room_type || '';
     this.supplierResults = [];
     this.productResults = [];
+    this.roomProductQueries = (this.optionForm?.rooms || []).map((room) => room.room_type);
+    this.roomProductResults = (this.optionForm?.rooms || []).map(() => []);
+    this.roomProductLoading = (this.optionForm?.rooms || []).map(() => false);
     if (this.supplierQuery) this.searchSuppliers();
-    if (this.selectedSupplier) this.searchProducts();
+    if (this.selectedSupplier) {
+      this.searchProducts();
+      this.roomProductQueries.forEach((_query, index) => this.searchRoomProducts(index));
+    }
   }
   closeOptionForm(): void {
     if (this.optionSaving) return;
@@ -406,6 +478,10 @@ export class HotelOptions implements OnInit {
     this.optionForm = null;
     this.selectedSupplier = null;
     this.selectedProduct = null;
+    this.roomProductQueries = [];
+    this.roomProductResults = [];
+    this.roomSelectedProducts = [];
+    this.roomProductLoading = [];
     this.supplierResults = [];
     this.productResults = [];
     this.cdr.markForCheck();
@@ -413,7 +489,13 @@ export class HotelOptions implements OnInit {
   saveOption(): void {
     if (!this.optionForm || this.optionSaving) return;
     this.optionForm.supplier_id = this.selectedSupplier?.supplier_id || null;
-    this.optionForm.product_id = this.selectedProduct?.product_id || null;
+    this.optionForm.product_id = this.optionForm.rooms[0]?.product_ids[0] || null;
+    this.optionForm.rooms = this.optionForm.rooms
+      .map((room) => ({ ...room, room_type: room.room_type.trim() }))
+      .filter((room) => room.room_type);
+    if (this.optionForm.rooms.length) {
+      this.optionForm.room_type = this.optionForm.rooms[0].room_type;
+    }
     this.optionSaving = true;
     this.error = '';
     const request = this.editItem
@@ -478,6 +560,75 @@ export class HotelOptions implements OnInit {
   }
   trackByOptionId(_index: number, item: HotelOption): number {
     return item.id;
+  }
+  trackByRoomId(index: number, room: HotelOptionRoom): number {
+    return room.id || index;
+  }
+  optionNeedsLink(item: HotelOption): boolean {
+    return !item.supplier_id || !item.rooms?.length || item.rooms.some((room) => !room.products.length);
+  }
+  linkedProductCount(item: HotelOption): number {
+    return item.rooms.reduce((total, room) => total + room.products.length, 0);
+  }
+  addRoom(): void {
+    if (!this.optionForm) return;
+    this.optionForm.rooms.push({ room_type: '', product_ids: [] });
+    this.roomProductQueries.push('');
+    this.roomProductResults.push([]);
+    this.roomSelectedProducts.push([]);
+    this.roomProductLoading.push(false);
+    this.cdr.markForCheck();
+  }
+  removeRoom(index: number): void {
+    if (!this.optionForm || this.optionForm.rooms.length <= 1) return;
+    this.optionForm.rooms.splice(index, 1);
+    this.roomProductQueries.splice(index, 1);
+    this.roomProductResults.splice(index, 1);
+    this.roomSelectedProducts.splice(index, 1);
+    this.roomProductLoading.splice(index, 1);
+    this.optionForm.room_type = this.optionForm.rooms[0]?.room_type || '';
+    this.cdr.markForCheck();
+  }
+  updateRoomName(index: number, value: string): void {
+    if (this.optionForm && index === 0) this.optionForm.room_type = value;
+    if (!this.roomProductQueries[index]) this.roomProductQueries[index] = value;
+  }
+  searchRoomProducts(index: number): void {
+    if (!this.selectedSupplier || !this.optionForm?.rooms[index]) {
+      this.roomProductResults[index] = [];
+      return;
+    }
+    this.roomProductLoading[index] = true;
+    this.api.searchLinks(
+      this.roomProductQueries[index] || this.optionForm.rooms[index].room_type,
+      this.selectedSupplier.supplier_id,
+    ).pipe(finalize(() => {
+      this.roomProductLoading[index] = false;
+      this.cdr.markForCheck();
+    })).subscribe({
+      next: (response) => {
+        this.roomProductResults[index] = response.products;
+        this.cdr.markForCheck();
+      },
+      error: () => undefined,
+    });
+  }
+  toggleRoomProduct(index: number, product: HotelLinkProduct): void {
+    if (!this.optionForm?.rooms[index]) return;
+    const room = this.optionForm.rooms[index];
+    const selectedIndex = room.product_ids.indexOf(product.product_id);
+    if (selectedIndex >= 0) {
+      room.product_ids.splice(selectedIndex, 1);
+      this.roomSelectedProducts[index] = (this.roomSelectedProducts[index] || [])
+        .filter((item) => item.product_id !== product.product_id);
+    } else {
+      room.product_ids.push(product.product_id);
+      this.roomSelectedProducts[index] = [...(this.roomSelectedProducts[index] || []), product];
+    }
+    this.cdr.markForCheck();
+  }
+  isRoomProductSelected(index: number, productId: number): boolean {
+    return this.optionForm?.rooms[index]?.product_ids.includes(productId) || false;
   }
   trackByImportRow(_index: number, row: HotelImportRow): string {
     return `${row.sheet_name || row.region}:${row.row_number || row.source_row}:${row.hotel_name}`;

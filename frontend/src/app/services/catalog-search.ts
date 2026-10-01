@@ -21,6 +21,11 @@ export interface SupplierSearchResult {
   location: string | null;
   category_supplier: string[];
   status: 'Active' | 'Inactive';
+  contract_status: 'NO_CONTRACT_RECORD' | 'ONE_TIME_SUPPLIER' | 'CONTRACTED';
+  inactive_name: string | null;
+  inactive_at: string | null;
+  inactive_reason: string | null;
+  replacement_supplier_name: string | null;
   product_count: number;
   matched_field: string;
 }
@@ -80,6 +85,22 @@ export class CatalogSearchService {
     return this.http.get<{ success: true; type: CatalogSearchType; categories: string[] }>(
       `${API_URL}/catalog/categories`,
       { params: new HttpParams().set('type', type) },
+    );
+  }
+
+  updateSupplierStatus(
+    supplierId: number,
+    body: {
+      status: 'Active' | 'Inactive';
+      inactive_name?: string;
+      inactive_at?: string;
+      inactive_reason?: string;
+      replacement_supplier_name?: string;
+    },
+  ): Observable<{ success: true; message: string; supplier: Partial<SupplierSearchResult> }> {
+    return this.http.patch<{ success: true; message: string; supplier: Partial<SupplierSearchResult> }>(
+      `${API_URL}/catalog/suppliers/${supplierId}/status`,
+      body,
     );
   }
 

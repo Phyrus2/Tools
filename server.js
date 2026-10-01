@@ -92,6 +92,7 @@ app.post("/supplier/import/:importId/undo", auth.requirePermission("supplier_imp
 
 //PRODUCT
 app.post("/product/import", auth.requirePermission("product_import"), product.importProduct);
+app.post("/product/manual", auth.requirePermission("product_import"), contractReportImport.createManualProduct);
 
 //BOOKED PRODUCT
 app.post("/booked-product/import", auth.requirePermission("booked_product_import"), booked_product.importBookedProduct);
@@ -108,6 +109,7 @@ app.get("/booked-product/search", auth.requirePermission("booking_search"), sear
 // SEARCH MASTER SUPPLIER / PRODUCT
 app.get("/catalog/search", auth.requirePermission("catalog_search"), catalogSearch.searchCatalog);
 app.get("/catalog/categories", auth.requirePermission("catalog_search"), catalogSearch.getCatalogCategories);
+app.patch("/catalog/suppliers/:supplierId/status", auth.requirePermission("catalog_search"), catalogSearch.updateSupplierStatus);
 
 // SUPPLIER & PRODUCT PERFORMANCE ANALYTICS
 app.get("/analytics/overview", auth.requirePermission("analytics"), performanceAnalytics.overview);
@@ -176,6 +178,10 @@ app.post(
   "/contract-monitoring/pending/:id/release",
   contractPending.releasePending,
 );
+app.delete(
+  "/contract-monitoring/pending/:id/suppliers/:pendingSupplierId",
+  contractPending.removePendingSupplier,
+);
 
 app.get("/contract-monitoring/management-groups", contractGroups.listGroups);
 app.post("/contract-monitoring/management-groups", contractGroups.createGroup);
@@ -206,6 +212,11 @@ app.post(
   "/contract-monitoring/reports/import-skipped",
   contractReportImport.addSkippedReport,
 );
+app.post(
+  "/contract-monitoring/reports/one-time",
+  contractReportImport.addOneTimeSupplier,
+);
+app.post("/contract-monitoring/products/manual", contractReportImport.createManualProduct);
 app.post("/contract-monitoring/reports", contractReports.createReport);
 app.get("/contract-monitoring/reports/:id", contractReports.getReport);
 app.patch("/contract-monitoring/reports/:id", contractReports.updateReport);
@@ -215,6 +226,7 @@ app.get(
 );
 app.get("/hotel-options", auth.requirePermission("hotel_options"), hotelOptions.listHotelOptions);
 app.post("/hotel-options/import", auth.requirePermission("hotel_options"), hotelOptions.importHotelOptions);
+app.post("/hotel-options/pending/:id/complete", auth.requirePermission("hotel_options"), contractPending.completeHotelOptionPending);
 app.post("/hotel-options", auth.requirePermission("hotel_options"), hotelOptions.saveManualOption);
 app.get("/hotel-options/link-search", auth.requirePermission("hotel_options"), hotelOptions.searchLinks);
 app.get("/hotel-options/:id/history", auth.requirePermission("hotel_options"), hotelOptions.optionHistory);

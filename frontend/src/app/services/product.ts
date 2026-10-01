@@ -65,4 +65,18 @@ export class Product {
       formData,
     );
   }
+
+  createManualProduct(body: {
+    supplier_id: number;
+    name: string;
+    type?: string;
+    status: 'Regular Product' | 'One Time Product';
+    info?: string;
+    description?: string;
+  }): Observable<{ success: true; message: string; product_id: number }> {
+    return this.http.post<{ success: true; message: string; product_id: number }>(
+      `${this.apiUrl}/product/manual`,
+      body,
+    );
+  }
 }

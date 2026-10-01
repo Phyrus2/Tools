@@ -12,6 +12,7 @@
     <h1 class="bp-masthead__title">Product Import</h1>
     <p class="bp-masthead__subtitle">Upload an Excel file containing product data.</p>
   </header>
+  <p class="bp-alert bp-alert--success" *ngIf="manualMessage && !manualOpen">{{ manualMessage }}</p>
 
   <!-- IMPORT FORM -->
   <div class="bp-panel">
@@ -307,6 +308,22 @@
           </div>
         </ng-container>
 
+      </div>
+    </div>
+  </div>
+
+  <div class="bp-modal-overlay" *ngIf="manualOpen" (click)="closeManual()">
+    <div class="bp-modal bp-manual-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <header class="bp-modal__header"><h2>Add product manually</h2><button type="button" class="bp-modal__close" (click)="closeManual()">&times;</button></header>
+      <div class="bp-modal__body bp-manual-form">
+        <label><span>Supplier ID *</span><input type="number" min="1" [(ngModel)]="manualForm.supplier_id" /></label>
+        <label><span>Product name *</span><input [(ngModel)]="manualForm.name" maxlength="255" /></label>
+        <label><span>Product type</span><input [(ngModel)]="manualForm.type" /></label>
+        <label><span>Product status *</span><select [(ngModel)]="manualForm.status"><option value="Regular Product">Regular Product</option><option value="One Time Product">One Time Product</option></select></label>
+        <label><span>Info</span><textarea rows="2" [(ngModel)]="manualForm.info"></textarea></label>
+        <label><span>Description</span><textarea rows="3" [(ngModel)]="manualForm.description"></textarea></label>
+        <p class="bp-alert bp-alert--danger" *ngIf="manualMessage">{{ manualMessage }}</p>
+        <button type="button" class="bp-btn-primary" [disabled]="manualSaving" (click)="saveManual()">{{ manualSaving ? 'Saving…' : 'Save product' }}</button>
       </div>
     </div>
   </div>

@@ -245,3 +245,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) { .mode-button { transition: none; } }
+.inactive-record { margin: .35rem 0; color: #a33; font-size: .86rem; }
+.supplier-status-action { margin-top: .65rem; border: 1px solid #c8cbd1; background: #fff; border-radius: 8px; padding: .45rem .7rem; cursor: pointer; }
+.supplier-status-modal-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 1rem; background: rgba(15,23,42,.55); }
+.supplier-status-modal { width: min(520px, 100%); max-height: 90vh; overflow: auto; background: #fff; border-radius: 16px; padding: 1.25rem; box-shadow: 0 24px 70px rgba(0,0,0,.25); }
+.supplier-status-modal header, .supplier-status-modal footer { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.supplier-status-modal header button { border: 0; background: transparent; font-size: 1.8rem; cursor: pointer; }
+.supplier-status-modal label { display: grid; gap: .35rem; margin-top: .85rem; font-size: .85rem; font-weight: 700; }
+.supplier-status-modal input, .supplier-status-modal textarea { border: 1px solid #d4d8df; border-radius: 8px; padding: .7rem; font: inherit; }
+.supplier-status-warning { padding: .75rem; border-radius: 8px; background: #fff6dc; color: #73510a; }
+.supplier-status-error { color: #b42318; }
+.supplier-status-modal footer { margin-top: 1rem; justify-content: flex-end; }
+.supplier-status-modal footer button { border: 1px solid #ccd1d9; border-radius: 8px; padding: .6rem .9rem; background: #fff; cursor: pointer; }
+.supplier-status-modal footer .danger { background: #b42318; border-color: #b42318; color: #fff; }

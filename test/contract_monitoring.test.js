@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const {
   contractStatus,
+  parseContractReferenceStatuses,
   detectSignedStatus,
   normalizeName,
   parseContractPeriods,
@@ -69,4 +70,15 @@ test("contract becomes expired only after validity end in WITA", () => {
   assert.equal(contractStatus("2026-09-21", now), "EXPIRED");
   assert.equal(contractStatus("2026-09-22", now), "ACTIVE");
   assert.equal(contractStatus("2027-01-01", now), "ACTIVE");
+});
+
+test("period statuses are derived from contract reference only", () => {
+  assert.deepEqual(
+    parseContractReferenceStatuses("2026 Signed / 2027 Pending", "2026-01-01"),
+    [
+      { period: "2026", status: "SIGNED" },
+      { period: "2027", status: "PENDING" },
+    ],
+  );
+  assert.deepEqual(parseContractReferenceStatuses("REF-123", "2026-01-01"), []);
 });

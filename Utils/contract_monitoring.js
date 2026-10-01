@@ -195,6 +195,38 @@ function parseContractPeriods(value) {
   return unique.map(String);
 }
 
+function parseContractReferenceStatuses(reference, validityStart) {
+  const value = String(reference || "").trim();
+  const statuses = [];
+  const regex =
+    /\b((?:20)?\d{2}(?:\s*\/\s*\d{2})?)\s*(signed|done|complete|pending)\b/gi;
+  let match;
+  while ((match = regex.exec(value)))
+    statuses.push({
+      period: match[1].replace(/\s/g, ""),
+      status: /signed/i.test(match[2])
+        ? "SIGNED"
+        : /pending/i.test(match[2])
+          ? "PENDING"
+          : "DONE",
+    });
+  if (!statuses.length && value) {
+    const status = /signed/i.test(value)
+      ? "SIGNED"
+      : /done|complete/i.test(value)
+        ? "DONE"
+        : /pending/i.test(value)
+          ? "PENDING"
+          : null;
+    if (status)
+      statuses.push({
+        period: validityStart ? String(validityStart).slice(0, 4) : "GENERAL",
+        status,
+      });
+  }
+  return statuses;
+}
+
 module.exports = {
   candidateScore,
   contractStatus,
@@ -204,6 +236,7 @@ module.exports = {
   normalizeWindowsPath,
   parseCategories,
   parseContractPeriods,
+  parseContractReferenceStatuses,
   parseSqlUtc,
   parseWitaDateTime,
   similarity,

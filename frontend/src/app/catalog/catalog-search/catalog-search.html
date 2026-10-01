@@ -171,8 +171,14 @@
             <div class="result-type result-type--supplier">Supplier</div>
             <span class="status-badge status-badge--active" *ngIf="row.status === 'Active'">Active</span>
             <span class="status-badge status-badge--inactive" *ngIf="row.status === 'Inactive'">Inactive</span>
+            <span class="status-badge status-badge--offer" *ngIf="row.contract_status === 'ONE_TIME_SUPPLIER'">One-time supplier</span>
+            <span class="status-badge status-badge--active" *ngIf="row.contract_status === 'CONTRACTED'">Contracted</span>
           </div>
           <h3>{{ row.company_name }}</h3>
+          <p class="inactive-record" *ngIf="row.status === 'Inactive'">
+            Inactive as <strong>{{ row.inactive_name || row.company_name }}</strong>
+            <ng-container *ngIf="row.replacement_supplier_name"> · Replaced by {{ row.replacement_supplier_name }}</ng-container>
+          </p>
           <p class="result-location">
             <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M10 17s5-4.5 5-9a5 5 0 1 0-10 0c0 4.5 5 9 5 9Z" /><circle cx="10" cy="8" r="1.7" /></svg>
             {{ locationOf(row) }}
@@ -193,8 +199,24 @@
             [state]="{ backLabel: 'Back to Supplier Search', returnTo: '/catalog-search' }"
             >View analytics &rarr;</a
           >
+          <button type="button" class="supplier-status-action" *ngIf="row.status === 'Active'" (click)="openInactiveSupplier(row)">Set inactive</button>
+          <button type="button" class="supplier-status-action" *ngIf="row.status === 'Inactive'" (click)="reactivateSupplier(row)">Reactivate</button>
         </aside>
       </article>
+    </div>
+
+    <div class="supplier-status-modal-backdrop" *ngIf="statusSupplier as supplier" (click)="closeInactiveSupplier()">
+      <section class="supplier-status-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+        <header><div><small>SUPPLIER STATUS</small><h2>Set supplier inactive</h2></div><button type="button" (click)="closeInactiveSupplier()">&times;</button></header>
+        <p class="supplier-status-warning">Contracts linked to <strong>{{ supplier.company_name }}</strong> will immediately show this supplier as inactive.</p>
+        <label><span>Original supplier name</span><input [value]="supplier.company_name" disabled /></label>
+        <label><span>Inactive supplier name *</span><input [(ngModel)]="inactiveForm.inactive_name" maxlength="255" /></label>
+        <label><span>Inactive date *</span><input type="date" [(ngModel)]="inactiveForm.inactive_at" /></label>
+        <label><span>Replacement supplier name</span><input [(ngModel)]="inactiveForm.replacement_supplier_name" maxlength="255" placeholder="Optional" /></label>
+        <label><span>Reason</span><textarea rows="3" [(ngModel)]="inactiveForm.inactive_reason" placeholder="Optional"></textarea></label>
+        <p class="supplier-status-error" *ngIf="statusMessage">{{ statusMessage }}</p>
+        <footer><button type="button" (click)="closeInactiveSupplier()">Cancel</button><button type="button" class="danger" [disabled]="statusSaving" (click)="saveInactiveSupplier()">{{ statusSaving ? 'Saving…' : 'Set inactive' }}</button></footer>
+      </section>
     </div>
 
     <div class="result-list" *ngIf="mode === 'product' && productResults.length">
