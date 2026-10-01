@@ -261,41 +261,22 @@
               />
             </label>
             <label *ngIf="item.is_management_contract">
-              <span>Management name</span>
+              <span>Management name / group name</span>
               <input
                 [(ngModel)]="item.management_name"
                 (blur)="changeManagementMode()"
                 placeholder="Defaults to the supplier folder name"
               />
+              <small>The group is created automatically when suppliers are confirmed.</small>
             </label>
-            <label *ngIf="item.is_management_contract">
-              <span>Management group</span>
-              <select [(ngModel)]="item.management_group_id" (change)="changeManagementMode()">
-                <option [ngValue]="null">Select group</option>
-                <option *ngFor="let group of groups" [ngValue]="group.id">
-                  {{ group.name }} ({{ group.active_member_count }})
-                </option>
-              </select>
-            </label>
-            <div
-              class="cm-suggestions"
-              *ngIf="
-                item.is_management_contract && analysis?.management_group_recommendations?.length
-              "
-            >
-              <small>Recommended groups</small>
-              <button
-                type="button"
-                *ngFor="let group of analysis!.management_group_recommendations"
-                (click)="chooseSuggestedGroup(group)"
-              >
-                {{ group.name }} <b>{{ scoreLabel(group.score) }}</b>
-              </button>
-            </div>
           </section>
 
           <section>
-            <h3>Add supplier</h3>
+            <div class="cm-assign-title">
+              <span>SUPPLIER ASSIGNMENT</span>
+              <h3>Find and assign suppliers</h3>
+              <p>Search Jambix, review suggested matches, or add a new supplier manually.</p>
+            </div>
             <div class="cm-suggestions" *ngIf="availableSupplierRecommendations.length">
               <small>Recommendations from the supplier folder name</small>
               <button
@@ -306,31 +287,53 @@
                 {{ supplier.name }} <b>{{ scoreLabel(supplier.score) }}</b>
               </button>
             </div>
-            <div class="cm-search-row">
+            <label class="cm-search-label" for="supplier-assignment-search">
+              Search active supplier in Jambix
+            </label>
+            <div class="cm-auto-search">
               <input
+                id="supplier-assignment-search"
                 [(ngModel)]="manualKeyword"
+                (ngModelChange)="supplierSearchChanged($event)"
                 placeholder="Search supplier manually…"
                 (keyup.enter)="searchSupplier()"
               />
-              <button type="button" (click)="searchSupplier()">Search</button>
+              <span *ngIf="supplierSearchLoading">Searching...</span>
+              <span *ngIf="!supplierSearchLoading && manualKeyword.trim().length >= 2">
+                {{ manualResults.length }} result(s)
+              </span>
             </div>
             <div class="cm-search-results" *ngIf="availableManualSupplierResults.length">
               <button
                 type="button"
                 *ngFor="let supplier of availableManualSupplierResults"
+                [class.is-selected]="isPendingSupplierSelected(supplier.supplier_id)"
+                [disabled]="isPendingSupplierSelected(supplier.supplier_id)"
                 (click)="addManualSupplier(supplier)"
               >
                 <strong>{{ supplier.company_name }}</strong>
                 <small>{{ supplier.location || supplier.town || 'Location unavailable' }}</small>
+                <em>{{ isPendingSupplierSelected(supplier.supplier_id) ? 'Added' : 'Add supplier' }}</em>
               </button>
             </div>
-          </section>
-
-          <section *ngIf="item.is_management_contract && item.suppliers.length">
-            <h3>Save a new group</h3>
-            <div class="cm-search-row">
-              <input [(ngModel)]="newGroupName" placeholder="Management group name" />
-              <button type="button" (click)="createGroupFromSelection()">Save</button>
+            <div class="cm-manual-supplier" *ngIf="item.is_management_contract">
+              <label for="manual-supplier-name">Supplier not found in Jambix?</label>
+              <div class="cm-search-row">
+                <input
+                  id="manual-supplier-name"
+                  [(ngModel)]="manualUnmatchedName"
+                  placeholder="Enter the new supplier name"
+                  (keyup.enter)="addUnmatchedSupplier()"
+                />
+                <button
+                  type="button"
+                  [disabled]="!manualUnmatchedName.trim()"
+                  (click)="addUnmatchedSupplier()"
+                >
+                  Add manual
+                </button>
+              </div>
+              <small>Add it to this queue now, then connect it to Jambix later.</small>
             </div>
           </section>
 
@@ -492,6 +495,7 @@
             <div class="cm-search-row">
               <input
                 [(ngModel)]="manualKeyword"
+                (ngModelChange)="supplierSearchChanged($event)"
                 placeholder="Search the newly imported supplier…"
                 (keyup.enter)="searchSupplier()"
               />
@@ -880,7 +884,7 @@
       >
         &lsaquo; Previous
       </button>
-      <span>Page {{ queuePage }} of {{ queueTotalPages }} &middot; {{ queueTotal }} groups</span>
+      <span>Page {{ queuePage }} of {{ queueTotalPages }} &middot; {{ queueGroupTotal }} groups</span>
       <button
         type="button"
         [disabled]="queuePage === queueTotalPages || queueLoading"
@@ -1759,6 +1763,14 @@
           <strong>{{ group.name }}</strong
           ><small>{{ group.active_member_count }} active members</small
           ><span>{{ group.status }}</span>
+          <button
+            class="cm-group-delete"
+            type="button"
+            [disabled]="busy"
+            (click)="deleteManagementGroup(group)"
+          >
+            Delete group
+          </button>
         </article>
       </div>
       <div class="cm-empty" *ngIf="!groups.length">No management groups available.</div>

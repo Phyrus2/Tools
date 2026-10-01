@@ -409,7 +409,11 @@ async function listPending(req, res) {
   const { page, limit, offset } = pagination(req.query);
   try {
     const params = [];
-    const conditions = ["p.status NOT IN ('DONE', 'IGNORED')", "ps.processing_status = 'PENDING'"];
+    const conditions = [
+      "p.status NOT IN ('DONE', 'IGNORED')",
+      "ps.processing_status = 'PENDING'",
+      "(p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL)",
+    ];
     const multiValues = (value) => [
       ...new Set(
         (Array.isArray(value) ? value : String(value || "").split(","))
@@ -481,6 +485,35 @@ async function listPending(req, res) {
         `(${supplierStatuses.map((status) => supplierStatusSql[status]).join(" OR ")})`,
       );
     const where = `WHERE ${conditions.join(" AND ")}`;
+    const [allQueueRows] = await pool.query(
+      `SELECT p.id, p.is_management_contract, p.management_group_id,
+              p.contract_period, src.year, ps.id AS pending_supplier_id,
+              ps.supplier_id, ps.detected_supplier_name
+         FROM contract_pending p
+         JOIN contract_pending_suppliers ps ON ps.pending_id = p.id
+         JOIN contract_scan_results r ON r.id = p.scan_result_id
+         JOIN contract_scan_sources src ON src.id = r.source_id
+        WHERE p.status NOT IN ('DONE', 'IGNORED')
+          AND ps.processing_status = 'PENDING'
+          AND (p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL)`,
+    );
+    const allSupplierTotal = new Set(
+      allQueueRows.map((row) => {
+        const period = row.contract_period || String(row.year);
+        const groupKey = row.is_management_contract
+          ? `management-${row.management_group_id || row.id}`
+          : row.supplier_id
+            ? `supplier-${row.supplier_id}`
+            : `unmatched-${row.id}`;
+        const detectedName = String(row.detected_supplier_name || "").trim();
+        const supplierKey = row.supplier_id
+          ? `jambix-${row.supplier_id}`
+          : detectedName
+            ? `detected-${normalizeName(detectedName, { keepGeneric: true })}`
+            : `pending-${row.pending_supplier_id}`;
+        return `${period}\u0000${groupKey}\u0000${supplierKey}`;
+      }),
+    ).size;
     const [rows] = await pool.query(
       `SELECT ps.id AS pending_supplier_id, ps.supplier_id, ps.detected_supplier_name, s.company_name, s.location AS supplier_location,
               s.category_supplier, ps.detection,
@@ -491,7 +524,7 @@ async function listPending(req, res) {
               p.completed_at, p.version, p.note,
               r.file_name, r.full_path, r.detected_signed_status, src.year, src.module_key,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc,
-              COALESCE(p.management_name, g.name) AS management_group_name,
+              COALESCE(g.name, p.management_name) AS management_group_name,
               u.fullname AS claimed_by_name, handler.fullname AS handled_by_name
          FROM contract_pending p
          JOIN contract_pending_suppliers ps ON ps.pending_id = p.id
@@ -668,6 +701,7 @@ async function listPending(req, res) {
       page,
       limit,
       total: orderedQueueGroups.length,
+      supplier_total: allSupplierTotal,
       categories,
       periods,
       pending: orderedQueueGroups.slice(offset, offset + limit),
@@ -691,7 +725,7 @@ async function getPending(req, res) {
     const [rows] = await pool.execute(
       `SELECT p.*, r.full_path, r.parent_path, r.file_name, r.detected_signed_status,
               r.date_modified_utc, s.base_path, s.year, s.target_folder,
-              COALESCE(p.management_name, g.name) AS management_group_name
+              COALESCE(g.name, p.management_name) AS management_group_name
          FROM contract_pending p
          JOIN contract_scan_results r ON r.id = p.scan_result_id
          JOIN contract_scan_sources s ON s.id = r.source_id
@@ -924,6 +958,65 @@ function nullableScore(value) {
   return number;
 }
 
+async function ensurePendingManagementGroup(
+  connection,
+  pending,
+  userId,
+  managementNameOverride,
+) {
+  if (!pending.is_management_contract) {
+    return { id: null, name: null };
+  }
+  if (pending.management_group_id) {
+    return {
+      id: pending.management_group_id,
+      name: pending.management_name,
+    };
+  }
+
+  let name = textValue(
+    managementNameOverride ?? pending.management_name,
+    "Management name",
+    { required: true, max: 255 },
+  );
+  const normalizedName = normalizeName(name, {
+    keepGeneric: true,
+    keepCompanySuffixes: true,
+  });
+  if (!normalizedName) throw new Error("Management name tidak valid.");
+
+  const [existingGroups] = await connection.execute(
+    `SELECT id, name, status
+       FROM contract_management_groups
+      WHERE normalized_name = ?
+      FOR UPDATE`,
+    [normalizedName],
+  );
+  let groupId;
+  if (existingGroups.length) {
+    if (existingGroups[0].status !== "ACTIVE")
+      throw new Error("Management group dengan nama tersebut tidak aktif.");
+    groupId = existingGroups[0].id;
+    name = existingGroups[0].name;
+  } else {
+    const [createdGroup] = await connection.execute(
+      `INSERT INTO contract_management_groups
+         (name, normalized_name, created_by)
+       VALUES (?, ?, ?)`,
+      [name, normalizedName, userId],
+    );
+    groupId = createdGroup.insertId;
+  }
+
+  await connection.execute(
+    `UPDATE contract_pending
+        SET management_group_id = ?, management_name = ?
+      WHERE id = ?`,
+    [groupId, name, pending.id],
+  );
+  return { id: groupId, name };
+}
+
 async function saveSuppliers(req, res) {
   const id = parseId(req.params.id);
   if (!id)
@@ -990,6 +1083,16 @@ async function saveSuppliers(req, res) {
     const supplierMap = new Map(
       supplierRows.map((row) => [row.supplier_id, row]),
     );
+
+    const managementGroup = await ensurePendingManagementGroup(
+      connection,
+      pending,
+      req.admin.id,
+      req.body?.management_name,
+    );
+    const managementGroupId = managementGroup.id;
+    const managementGroupName = managementGroup.name;
+
     if (scopedSupplierId) {
       const [owned] = await connection.execute(
         "SELECT id FROM contract_pending_suppliers WHERE id=? AND pending_id=? AND processing_status='PENDING' FOR UPDATE",
@@ -1108,7 +1211,7 @@ async function saveSuppliers(req, res) {
         ],
       );
     }
-    if (pending.management_group_id && ids.length) {
+    if (managementGroupId && ids.length) {
       const membershipStart = todayWita();
       for (const supplierId of ids) {
         await connection.execute(
@@ -1122,11 +1225,11 @@ async function saveSuppliers(req, res) {
            ON DUPLICATE KEY UPDATE end_date = NULL, created_by = VALUES(created_by)`,
           [
             supplierId,
-            pending.management_group_id,
+            managementGroupId,
             membershipStart,
             req.admin.id,
             supplierId,
-            pending.management_group_id,
+            managementGroupId,
           ],
         );
       }
@@ -1136,18 +1239,22 @@ async function saveSuppliers(req, res) {
           SET status = IF(? > 0, 'IN_PROGRESS', status),
               version = version + 1
         WHERE id = ?`,
-      [ids.length, id],
+      [req.body.suppliers.length, id],
     );
     await connection.commit();
     return res.json({
       success: true,
       message: "Daftar supplier berhasil disimpan.",
+      management_group_id: managementGroupId,
+      management_group_name: managementGroupName,
     });
   } catch (error) {
     await connection.rollback();
     if (
       isValidationError(error) ||
-      /supplier|target|action|score|selesai/i.test(error.message || "")
+      /supplier|management|target|action|score|selesai/i.test(
+        error.message || "",
+      )
     )
       return badRequest(res, error);
     console.error("Save contract pending suppliers error:", error);
@@ -1277,9 +1384,16 @@ async function queueUnmatched(req, res) {
        VALUES (?, NULL, ?, 'MANUAL', 'NO_MATCH', ?)`,
       [id, detectedName, pending.detected_signed_status],
     );
+    const managementGroup = await ensurePendingManagementGroup(
+      connection,
+      pending,
+      req.admin.id,
+      req.body?.management_name,
+    );
     await connection.execute(
       `UPDATE contract_pending
           SET status = 'NEW', workflow_state = 'UNHANDLED',
+              queue_supplier_status = 'NOT_IN_JAMBIX',
               version = version + 1
         WHERE id = ?`,
       [id],
@@ -1288,12 +1402,14 @@ async function queueUnmatched(req, res) {
     return res.json({
       success: true,
       message: "Item added to the queue as Not in Jambix.",
+      management_group_id: managementGroup.id,
+      management_group_name: managementGroup.name,
     });
   } catch (error) {
     await connection.rollback();
     if (
       isValidationError(error) ||
-      /only a new item/i.test(error.message || "")
+      /only a new item|management/i.test(error.message || "")
     )
       return badRequest(res, error);
     console.error("Queue unmatched contract pending error:", error);

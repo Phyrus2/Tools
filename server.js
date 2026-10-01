@@ -194,6 +194,10 @@ app.patch(
   "/contract-monitoring/management-groups/:id",
   contractGroups.updateGroup,
 );
+app.delete(
+  "/contract-monitoring/management-groups/:id",
+  contractGroups.deleteGroup,
+);
 app.put(
   "/contract-monitoring/management-groups/:id/members",
   contractGroups.updateMembers,
@@ -260,6 +264,20 @@ app.use((err, req, res, next) => {
 (async () => {
   try {
     await runMigrations();
+    const managementBackfill = await contractGroups.backfillPendingManagementGroups();
+    if (
+      managementBackfill.pending ||
+      managementBackfill.unlinked ||
+      managementBackfill.skipped
+    ) {
+      console.log(
+        `Management group backfill: ${managementBackfill.pending} pending linked, ` +
+          `${managementBackfill.groupsCreated} groups created, ` +
+          `${managementBackfill.membersAdded} members added, ` +
+          `${managementBackfill.unlinked} unconfirmed pending unlinked, ` +
+          `${managementBackfill.skipped} skipped.`,
+      );
+    }
     await recoverInterruptedScans();
     console.log("✅ Migrasi selesai");
 

@@ -316,6 +316,7 @@ export class ContractMonitoringService {
     page: number;
     limit: number;
     total: number;
+    supplier_total: number;
     categories: string[];
     periods?: string[];
     pending: PendingQueueGroup[];
@@ -331,6 +332,7 @@ export class ContractMonitoringService {
       page: number;
       limit: number;
       total: number;
+      supplier_total: number;
       categories: string[];
       periods?: string[];
       pending: PendingQueueGroup[];
@@ -381,9 +383,15 @@ export class ContractMonitoringService {
     return this.http.patch(`${this.base}/pending/${id}`, body);
   }
 
-  savePendingSuppliers(id: number, suppliers: PendingSupplier[], pendingSupplierId?: number | null): Observable<unknown> {
+  savePendingSuppliers(
+    id: number,
+    suppliers: PendingSupplier[],
+    pendingSupplierId?: number | null,
+    managementName?: string | null,
+  ): Observable<unknown> {
     return this.http.put(`${this.base}/pending/${id}/suppliers`, {
       ...(pendingSupplierId ? { supplier_pending_id: pendingSupplierId } : {}),
+      ...(managementName !== undefined ? { management_name: managementName } : {}),
       suppliers: suppliers.map(
         ({
           company_name: _companyName,
@@ -450,8 +458,10 @@ export class ContractMonitoringService {
     return this.http.post(`${this.base}/pending/${id}/start`, {});
   }
 
-  queueUnmatched(id: number): Observable<unknown> {
-    return this.http.post(`${this.base}/pending/${id}/queue-unmatched`, {});
+  queueUnmatched(id: number, managementName?: string | null): Observable<unknown> {
+    return this.http.post(`${this.base}/pending/${id}/queue-unmatched`, {
+      ...(managementName !== undefined ? { management_name: managementName } : {}),
+    });
   }
 
   listGroups(): Observable<{ success: true; groups: ManagementGroup[] }> {
@@ -465,6 +475,12 @@ export class ContractMonitoringService {
       name,
       supplier_ids: supplierIds,
     });
+  }
+
+  deleteGroup(id: number): Observable<{ success: true; message: string }> {
+    return this.http.delete<{ success: true; message: string }>(
+      `${this.base}/management-groups/${id}`,
+    );
   }
 
   assignPendingToManagement(body: {

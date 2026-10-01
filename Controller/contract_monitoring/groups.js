@@ -62,6 +62,173 @@ async function applyMembers(connection, groupId, desiredIds, userId) {
   return { added, removed: removed.map((row) => row.supplier_id) };
 }
 
+async function backfillPendingManagementGroups() {
+  const connection = await pool.getConnection();
+  const summary = {
+    pending: 0,
+    groupsCreated: 0,
+    membersAdded: 0,
+    unlinked: 0,
+    skipped: 0,
+  };
+  try {
+    await connection.beginTransaction();
+    await connection.execute(
+      `UPDATE contract_pending p
+          SET p.queue_supplier_status = 'NOT_IN_JAMBIX'
+        WHERE p.is_management_contract = 1
+          AND p.status = 'NEW'
+          AND p.queue_supplier_status IS NULL
+          AND EXISTS (
+            SELECT 1
+              FROM contract_pending_suppliers ps
+             WHERE ps.pending_id = p.id
+               AND ps.supplier_id IS NULL
+          )
+          AND NOT EXISTS (
+            SELECT 1
+              FROM contract_pending_suppliers ps
+             WHERE ps.pending_id = p.id
+               AND ps.supplier_id IS NOT NULL
+          )`,
+    );
+    const [unconfirmedRows] = await connection.execute(
+      `SELECT p.id
+         FROM contract_pending p
+        WHERE p.is_management_contract = 1
+          AND p.management_group_id IS NOT NULL
+          AND p.status = 'NEW'
+          AND COALESCE(p.queue_supplier_status, '') <> 'NOT_IN_JAMBIX'
+        FOR UPDATE`,
+    );
+    if (unconfirmedRows.length) {
+      const unconfirmedIds = unconfirmedRows.map((row) => row.id);
+      await connection.execute(
+        `UPDATE contract_pending
+            SET management_group_id = NULL
+          WHERE id IN (${unconfirmedIds.map(() => "?").join(",")})`,
+        unconfirmedIds,
+      );
+      summary.unlinked = unconfirmedIds.length;
+    }
+
+    const [pendingRows] = await connection.execute(
+      `SELECT id, management_name, claimed_by, handled_by, completed_by
+         FROM contract_pending
+        WHERE is_management_contract = 1
+          AND management_group_id IS NULL
+          AND management_name IS NOT NULL
+          AND LENGTH(TRIM(management_name)) > 0
+          AND (
+            status <> 'NEW'
+            OR queue_supplier_status = 'NOT_IN_JAMBIX'
+          )
+          AND EXISTS (
+            SELECT 1
+              FROM contract_pending_suppliers ps
+             WHERE ps.pending_id = contract_pending.id
+          )
+        ORDER BY id
+        FOR UPDATE`,
+    );
+
+    const pendingByName = new Map();
+    for (const pending of pendingRows) {
+      const normalizedName = normalizeName(pending.management_name, {
+        keepGeneric: true,
+        keepCompanySuffixes: true,
+      });
+      if (!normalizedName) {
+        summary.skipped += 1;
+        continue;
+      }
+      if (!pendingByName.has(normalizedName)) pendingByName.set(normalizedName, []);
+      pendingByName.get(normalizedName).push(pending);
+    }
+
+    const membershipStart = todayWita();
+    for (const [normalizedName, items] of pendingByName) {
+      const [existingGroups] = await connection.execute(
+        `SELECT id, name, status
+           FROM contract_management_groups
+          WHERE normalized_name = ?
+          FOR UPDATE`,
+        [normalizedName],
+      );
+      let group = existingGroups[0];
+      if (group && group.status !== "ACTIVE") {
+        summary.skipped += items.length;
+        continue;
+      }
+
+      const creatorId = items
+        .flatMap((item) => [item.handled_by, item.claimed_by, item.completed_by])
+        .find(Boolean) || null;
+      if (!group) {
+        const [created] = await connection.execute(
+          `INSERT INTO contract_management_groups
+             (name, normalized_name, created_by)
+           VALUES (?, ?, ?)`,
+          [items[0].management_name.trim(), normalizedName, creatorId],
+        );
+        group = {
+          id: created.insertId,
+          name: items[0].management_name.trim(),
+          status: "ACTIVE",
+        };
+        summary.groupsCreated += 1;
+      }
+
+      const pendingIds = items.map((item) => item.id);
+      const placeholders = pendingIds.map(() => "?").join(",");
+      await connection.execute(
+        `UPDATE contract_pending
+            SET management_group_id = ?, management_name = ?
+          WHERE id IN (${placeholders})`,
+        [group.id, group.name, ...pendingIds],
+      );
+      summary.pending += pendingIds.length;
+
+      const [supplierRows] = await connection.execute(
+        `SELECT DISTINCT supplier_id
+           FROM contract_pending_suppliers
+          WHERE pending_id IN (${placeholders})
+            AND supplier_id IS NOT NULL`,
+        pendingIds,
+      );
+      for (const supplier of supplierRows) {
+        const [membership] = await connection.execute(
+          `INSERT INTO supplier_management_group_history
+             (supplier_id, group_id, start_date, created_by)
+           SELECT ?, ?, ?, ? FROM DUAL
+            WHERE NOT EXISTS (
+              SELECT 1 FROM supplier_management_group_history
+               WHERE supplier_id = ? AND group_id = ? AND end_date IS NULL
+            )
+           ON DUPLICATE KEY UPDATE end_date = NULL, created_by = VALUES(created_by)`,
+          [
+            supplier.supplier_id,
+            group.id,
+            membershipStart,
+            creatorId,
+            supplier.supplier_id,
+            group.id,
+          ],
+        );
+        summary.membersAdded += membership.affectedRows ? 1 : 0;
+      }
+    }
+
+    await connection.commit();
+    return summary;
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
 async function listGroups(req, res) {
   try {
     const keyword = String(req.query.q || "").trim();
@@ -273,6 +440,66 @@ async function updateGroup(req, res) {
   }
 }
 
+async function deleteGroup(req, res) {
+  const id = parseId(req.params.id);
+  if (!id)
+    return res
+      .status(400)
+      .json({ success: false, message: "Management group ID tidak valid." });
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+    const [groups] = await connection.execute(
+      "SELECT id, name FROM contract_management_groups WHERE id = ? FOR UPDATE",
+      [id],
+    );
+    if (!groups.length) {
+      await connection.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Management group tidak ditemukan.",
+      });
+    }
+    const [[usage]] = await connection.execute(
+      `SELECT COUNT(1) AS active_pending_count
+         FROM contract_pending
+        WHERE management_group_id = ?
+          AND status NOT IN ('DONE', 'IGNORED')
+          AND (
+            status <> 'NEW'
+            OR queue_supplier_status = 'NOT_IN_JAMBIX'
+          )`,
+      [id],
+    );
+    if (Number(usage.active_pending_count) > 0) {
+      await connection.rollback();
+      return res.status(409).json({
+        success: false,
+        message:
+          "Management group masih digunakan oleh Pending Queue aktif dan tidak dapat dihapus.",
+      });
+    }
+    await connection.execute(
+      "DELETE FROM contract_management_groups WHERE id = ?",
+      [id],
+    );
+    await connection.commit();
+    return res.json({
+      success: true,
+      message: `Management group ${groups[0].name} berhasil dihapus.`,
+    });
+  } catch (error) {
+    await connection.rollback();
+    console.error("Delete contract management group error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Gagal menghapus management group.",
+    });
+  } finally {
+    connection.release();
+  }
+}
+
 async function updateMembers(req, res) {
   const id = parseId(req.params.id);
   if (!id) return res.status(400).json({ success: false, message: "Management group ID tidak valid." });
@@ -317,4 +544,14 @@ async function getHistory(req, res) {
   }
 }
 
-module.exports = { assignPending, createGroup, getGroup, getHistory, listGroups, updateGroup, updateMembers };
+module.exports = {
+  assignPending,
+  backfillPendingManagementGroups,
+  createGroup,
+  deleteGroup,
+  getGroup,
+  getHistory,
+  listGroups,
+  updateGroup,
+  updateMembers,
+};

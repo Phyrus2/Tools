@@ -18,7 +18,6 @@ import {
   ContractImportItem,
   ContractImportResult,
   ContractReport,
-  GroupRecommendation,
   ManagementGroup,
   PendingItem,
   PendingFileItem,
@@ -76,6 +75,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   queuePage = 1;
   readonly queuePageSize = 8;
   queueTotal = 0;
+  queueGroupTotal = 0;
   queueLoading = false;
   pendingImportFile: File | null = null;
   queueStatus: string[] = [];
@@ -129,7 +129,8 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   pending: PendingItem | null = null;
   manualKeyword = '';
   manualResults: SupplierSearchResult[] = [];
-  newGroupName = '';
+  manualUnmatchedName = '';
+  supplierSearchLoading = false;
 
   private pollHandle: ReturnType<typeof setTimeout> | null = null;
   private queueRequestId = 0;
@@ -142,6 +143,8 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   readonly queueMetaSaving = new Set<number>();
   private readonly queueMetaResave = new Set<number>();
   private readonly queueNoteSaveTimers = new Map<number, ReturnType<typeof setTimeout>>();
+  private supplierSearchTimer: ReturnType<typeof setTimeout> | null = null;
+  private supplierSearchRequestId = 0;
 
   constructor(
     private readonly api: ContractMonitoringService,
@@ -161,6 +164,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.stopPolling();
+    if (this.supplierSearchTimer) clearTimeout(this.supplierSearchTimer);
     for (const timer of this.queueNoteSaveTimers.values()) clearTimeout(timer);
     this.queueNoteSaveTimers.clear();
   }
@@ -432,8 +436,12 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     }
     this.pending = null;
     this.analysis = null;
+    if (this.supplierSearchTimer) clearTimeout(this.supplierSearchTimer);
+    this.supplierSearchTimer = null;
+    this.supplierSearchRequestId += 1;
+    this.supplierSearchLoading = false;
     this.manualResults = [];
-    this.newGroupName = '';
+    this.manualUnmatchedName = '';
     this.activePendingSupplierId = null;
     this.tab = this.editorOriginTab;
     this.loadResults();
@@ -462,33 +470,60 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
 
   get availableManualSupplierResults(): SupplierSearchResult[] {
-    const selected = new Set(
-      (this.pending?.suppliers || [])
-        .map((supplier) => supplier.supplier_id)
-        .filter((id): id is number => id !== null),
+    return this.manualResults;
+  }
+
+  isPendingSupplierSelected(supplierId: number): boolean {
+    return Boolean(
+      this.pending?.suppliers.some((supplier) => supplier.supplier_id === supplierId),
     );
-    return this.manualResults.filter((supplier) => !selected.has(supplier.supplier_id));
   }
 
   searchSupplier(): void {
-    if (this.manualKeyword.trim().length < 2) {
+    if (this.supplierSearchTimer) {
+      clearTimeout(this.supplierSearchTimer);
+      this.supplierSearchTimer = null;
+    }
+    const keyword = this.manualKeyword.trim();
+    if (keyword.length < 2) {
       this.error = 'Enter at least 2 characters to search for a supplier.';
       return;
     }
-    this.catalog.searchSuppliers(this.manualKeyword, '', 'active', 1, 10).subscribe({
+    const requestId = ++this.supplierSearchRequestId;
+    this.supplierSearchLoading = true;
+    this.catalog.searchSuppliers(keyword, '', 'active', 1, 10).subscribe({
       next: (response) => {
-        const selected = new Set(
-          (this.pending?.suppliers || [])
-            .map((supplier) => supplier.supplier_id)
-            .filter((id): id is number => id !== null),
-        );
-        this.manualResults = response.results.filter(
-          (supplier) => !selected.has(supplier.supplier_id),
-        );
+        if (requestId !== this.supplierSearchRequestId) return;
+        this.manualResults = response.results;
+        this.supplierSearchLoading = false;
         this.render();
       },
-      error: (error) => this.fail(error),
+      error: (error) => {
+        if (requestId !== this.supplierSearchRequestId) return;
+        this.supplierSearchLoading = false;
+        this.fail(error);
+      },
     });
+  }
+
+  supplierSearchChanged(value: string): void {
+    if (this.supplierSearchTimer) {
+      clearTimeout(this.supplierSearchTimer);
+      this.supplierSearchTimer = null;
+    }
+    const keyword = value.trim();
+    if (keyword.length < 2) {
+      this.supplierSearchRequestId += 1;
+      this.supplierSearchLoading = false;
+      this.manualResults = [];
+      this.render();
+      return;
+    }
+    this.error = '';
+    this.supplierSearchTimer = setTimeout(() => {
+      this.supplierSearchTimer = null;
+      this.searchSupplier();
+    }, 350);
   }
 
   addManualSupplier(supplier: SupplierSearchResult): void {
@@ -500,8 +535,41 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       score: null,
       location: supplier.location,
     });
-    this.manualResults = [];
-    this.manualKeyword = '';
+    this.clearFeedback();
+  }
+
+  addUnmatchedSupplier(): void {
+    if (!this.pending?.is_management_contract) return;
+    const name = this.manualUnmatchedName.trim();
+    if (!name) return;
+    const duplicate = this.pending.suppliers.some(
+      (supplier) => supplier.company_name.trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    if (duplicate) {
+      this.error = 'That supplier has already been added.';
+      return;
+    }
+    this.pending.suppliers.push({
+      supplier_id: null,
+      detected_supplier_name: name,
+      company_name: name,
+      category_supplier: [],
+      recommendation_source: 'MANUAL',
+      match_score: null,
+      detection: 'NO_MATCH',
+      action: null,
+      target_contract_report_id: null,
+      supplier_type: null,
+      location_jambix: null,
+      validity_start: null,
+      validity_end: null,
+      contract_reference: null,
+      signed_status: this.pending.detected_signed_status,
+      note: null,
+      active_contracts: [],
+    });
+    this.manualUnmatchedName = '';
+    this.clearFeedback();
   }
 
   removeSupplier(index: number): void {
@@ -514,11 +582,16 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       this.error = 'Select a supplier first.';
       return;
     }
+    const isManagement = Boolean(this.pending.is_management_contract);
+    if (isManagement && !this.pending.management_name?.trim()) {
+      this.pending.management_name = this.folderName(this.pending.parent_path);
+    }
+    const managementName = isManagement ? this.pending.management_name?.trim() || null : undefined;
     this.clearFeedback();
     this.busy = true;
     const pendingId = this.pending.id;
     this.api
-      .savePendingSuppliers(pendingId, this.pending.suppliers)
+      .savePendingSuppliers(pendingId, this.pending.suppliers, null, managementName)
       .pipe(
         switchMap(() => this.api.releasePending(pendingId)),
         finalize(() => {
@@ -530,10 +603,13 @@ export class ContractMonitoring implements OnInit, OnDestroy {
         next: () => {
           this.pending = null;
           this.analysis = null;
-          this.message = 'Supplier confirmed. The file is now in the Pending Queue.';
+          this.message = isManagement
+            ? `Management group ${managementName} was saved and added to the Pending Queue.`
+            : 'Supplier confirmed. The file is now in the Pending Queue.';
           this.tab = 'queue';
           this.loadQueue();
           this.loadResults();
+          if (isManagement) this.loadGroups();
         },
         error: (error) => this.fail(error),
       });
@@ -541,11 +617,16 @@ export class ContractMonitoring implements OnInit, OnDestroy {
 
   queueWithoutSupplier(): void {
     if (!this.pending || this.pending.suppliers.length) return;
+    const isManagement = Boolean(this.pending.is_management_contract);
+    if (isManagement && !this.pending.management_name?.trim()) {
+      this.pending.management_name = this.folderName(this.pending.parent_path);
+    }
+    const managementName = isManagement ? this.pending.management_name?.trim() || null : undefined;
     this.clearFeedback();
     this.busy = true;
     const pendingId = this.pending.id;
     this.api
-      .queueUnmatched(pendingId)
+      .queueUnmatched(pendingId, managementName)
       .pipe(
         switchMap(() => this.api.releasePending(pendingId)),
         finalize(() => {
@@ -557,11 +638,13 @@ export class ContractMonitoring implements OnInit, OnDestroy {
         next: () => {
           this.pending = null;
           this.analysis = null;
-          this.message =
-            'Supplier was not found in Jambix. The item was added to the Pending Queue.';
+          this.message = isManagement
+            ? `Management group ${managementName} was saved to the Pending Queue as Not in Jambix.`
+            : 'Supplier was not found in Jambix. The item was added to the Pending Queue.';
           this.tab = 'queue';
           this.loadQueue();
           this.loadResults();
+          if (isManagement) this.loadGroups();
         },
         error: (error) => this.fail(error),
       });
@@ -621,55 +704,6 @@ export class ContractMonitoring implements OnInit, OnDestroy {
             this.message =
               'Standard contract mode is active; only the first supplier was retained.';
           }
-        },
-        error: (error) => this.fail(error),
-      });
-  }
-
-  chooseSuggestedGroup(group: GroupRecommendation): void {
-    if (!this.pending) return;
-    this.pending.is_management_contract = true;
-    this.pending.management_group_id = group.id;
-    this.changeManagementMode();
-  }
-
-  createGroupFromSelection(): void {
-    if (!this.pending || !this.newGroupName.trim() || !this.pending.suppliers.length) {
-      this.error = 'Enter a group name and select at least one supplier.';
-      return;
-    }
-    const supplierIds = this.pending.suppliers
-      .map((item) => item.supplier_id)
-      .filter((supplierId): supplierId is number => supplierId !== null);
-    if (supplierIds.length !== this.pending.suppliers.length) {
-      this.error = 'Assign every supplier in Jambix before creating a management group.';
-      return;
-    }
-    this.busy = true;
-    this.api
-      .createGroup(this.newGroupName.trim(), supplierIds)
-      .pipe(
-        switchMap((response) => {
-          this.pending!.is_management_contract = true;
-          this.pending!.management_group_id = response.id;
-          return this.api.updatePending(this.pending!.id, {
-            is_management_contract: true,
-            management_group_id: response.id,
-            prefill_group_members: true,
-          });
-        }),
-        switchMap(() => this.api.getPending(this.pending!.id)),
-        finalize(() => {
-          this.busy = false;
-          this.render();
-        }),
-      )
-      .subscribe({
-        next: (response) => {
-          this.pending = response.pending;
-          this.newGroupName = '';
-          this.message = 'Management group saved successfully.';
-          this.loadGroups();
         },
         error: (error) => this.fail(error),
       });
@@ -764,7 +798,8 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       .subscribe({
         next: (response) => {
           if (requestId !== this.queueRequestId) return;
-          this.queueTotal = response.total;
+          this.queueTotal = response.supplier_total ?? response.total;
+          this.queueGroupTotal = response.total;
           if (this.queuePage > this.queueTotalPages) {
             this.queuePage = this.queueTotalPages;
             this.loadQueue();
@@ -832,7 +867,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
 
   get queueTotalPages(): number {
-    return Math.max(1, Math.ceil(this.queueTotal / this.queuePageSize));
+    return Math.max(1, Math.ceil(this.queueGroupTotal / this.queuePageSize));
   }
 
   changeQueuePage(page: number): void {
@@ -1155,6 +1190,32 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       },
       error: (error) => this.fail(error),
     });
+  }
+
+  deleteManagementGroup(group: ManagementGroup): void {
+    if (
+      !window.confirm(
+        `Delete management group ${group.name}? Its membership history will also be removed.`,
+      )
+    )
+      return;
+    this.clearFeedback();
+    this.busy = true;
+    this.api
+      .deleteGroup(group.id)
+      .pipe(
+        finalize(() => {
+          this.busy = false;
+          this.render();
+        }),
+      )
+      .subscribe({
+        next: (response) => {
+          this.message = response.message;
+          this.loadGroups();
+        },
+        error: (error) => this.fail(error),
+      });
   }
 
   loadReports(resetPage = false): void {
@@ -1675,7 +1736,10 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     )
       return;
     const unresolvedIndex = this.pending.suppliers.findIndex((item) => !item.supplier_id);
-    const unresolved = unresolvedIndex >= 0 ? this.pending.suppliers[unresolvedIndex] : null;
+    const replaceUnresolved =
+      unresolvedIndex >= 0 &&
+      (!this.pending.is_management_contract || this.activePendingSupplierId !== null);
+    const unresolved = replaceUnresolved ? this.pending.suppliers[unresolvedIndex] : null;
     if (
       !this.pending.is_management_contract &&
       this.pending.suppliers.length >= 1 &&
@@ -1705,7 +1769,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       note: unresolved?.note || null,
       active_contracts: [],
     };
-    if (unresolvedIndex >= 0) this.pending.suppliers.splice(unresolvedIndex, 1, selected);
+    if (replaceUnresolved) this.pending.suppliers.splice(unresolvedIndex, 1, selected);
     else this.pending.suppliers.push(selected);
 
     this.api.getSupplierContracts(input.supplier_id).subscribe({
