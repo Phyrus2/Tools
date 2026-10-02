@@ -26,6 +26,7 @@ const contractGroups = require("./Controller/contract_monitoring/groups");
 const contractReports = require("./Controller/contract_monitoring/reports");
 const contractReportImport = require("./Controller/contract_monitoring/report_import");
 const hotelOptions = require("./Controller/contract_monitoring/hotel_options");
+const stopSales = require("./Controller/stop_sales");
 const {
   recoverInterruptedScans,
 } = require("./Services/contract_monitoring/scanner");
@@ -127,6 +128,27 @@ app.patch(
   auth.requirePermission("analytics", "booked_product_import"),
   recordDetails.updateBookedProduct,
 );
+
+// STOP SALE MONITORING
+app.use("/stop-sales", auth.requirePermission("stop_sales"));
+app.get("/stop-sales/scan-sources", contractScan.listStopSaleSources);
+app.post("/stop-sales/scan-sources", contractScan.createStopSaleSource);
+app.patch("/stop-sales/scan-sources/:id", contractScan.updateStopSaleSource);
+app.delete("/stop-sales/scan-sources/:id", contractScan.deleteStopSaleSource);
+app.post("/stop-sales/scans", contractScan.startStopSaleScan);
+app.get("/stop-sales/scans/:scanId", contractScan.getStopSaleScan);
+app.get("/stop-sales/scans/:scanId/results", contractScan.listStopSaleResults);
+app.post("/stop-sales/scan-results/:scanResultId/jobs", stopSales.createJob);
+app.get("/stop-sales/jobs", stopSales.listJobs);
+app.get("/stop-sales/jobs/:id", stopSales.getJob);
+app.patch("/stop-sales/jobs/:id", stopSales.updateJob);
+app.post("/stop-sales/jobs/:id/upload", stopSales.uploadJobFile);
+app.post("/stop-sales/jobs/:id/process", stopSales.processJob);
+app.put("/stop-sales/jobs/:id/items", stopSales.saveItems);
+app.post("/stop-sales/jobs/:id/complete", stopSales.completeJob);
+app.get("/stop-sales/suppliers", stopSales.searchSuppliers);
+app.get("/stop-sales/products", stopSales.listProducts);
+app.get("/stop-sales/reports", stopSales.listReports);
 
 // CONTRACT MONITORING
 app.use("/contract-monitoring", auth.requirePermission("contract_monitoring"));

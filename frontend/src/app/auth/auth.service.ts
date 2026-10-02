@@ -12,6 +12,7 @@ export type PermissionKey =
   | 'analytics'
   | 'contract_monitoring'
   | 'hotel_options'
+  | 'stop_sales'
   | 'user_management';
 
 export interface AdminUser {

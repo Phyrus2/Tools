@@ -188,10 +188,26 @@ async function executeScan(run) {
   }
 }
 
-async function createScan({ mode, start, end, sourceIds, requestedBy }) {
+async function createScan({
+  mode,
+  start,
+  end,
+  sourceIds,
+  requestedBy,
+  moduleKeys = ["CONTRACT", "QUOTE_TICKET"],
+}) {
   const serverId = configuredServerId();
   const params = [serverId];
-  const filters = ["server_id = ?", "enabled = 1", "deleted_at IS NULL", "module_key IN ('CONTRACT', 'QUOTE_TICKET')"];
+  const allowedModuleKeys = new Set(["CONTRACT", "INFO_STOP_SALES", "QUOTE_TICKET"]);
+  const normalizedModuleKeys = [...new Set(moduleKeys)].filter((key) => allowedModuleKeys.has(key));
+  if (!normalizedModuleKeys.length) throw new Error("Module scan tidak valid.");
+  const filters = [
+    "server_id = ?",
+    "enabled = 1",
+    "deleted_at IS NULL",
+    `module_key IN (${normalizedModuleKeys.map(() => "?").join(",")})`,
+  ];
+  params.push(...normalizedModuleKeys);
   if (sourceIds?.length) {
     filters.push(`id IN (${sourceIds.map(() => "?").join(",")})`);
     params.push(...sourceIds);

@@ -56,9 +56,8 @@
       <span class="card-action">Open collections <b>&rarr;</b></span>
     </a>
 
-    <article class="contract-card contract-card--soon" aria-disabled="true">
+    <a *ngIf="auth.hasPermission('stop_sales')" class="contract-card contract-card--stop-sale" routerLink="/stop-sales">
       <span class="card-number">03</span>
-      <span class="coming-badge">Coming soon</span>
       <span class="card-icon" aria-hidden="true">
         <svg viewBox="0 0 48 48" fill="none">
           <path d="M10 14h28v24H10zM16 9v10M32 9v10M10 22h28" />
@@ -68,9 +67,9 @@
       <span class="card-copy">
         <small>SALES RESTRICTION</small>
         <strong>Stop Sale</strong>
-        <span>Track hotel stop-sale periods, affected products, and operational availability.</span>
+        <span>Compare supplier files, review calendar changes, and track Jambix updates.</span>
       </span>
-      <span class="card-action">In development</span>
-    </article>
+      <span class="card-action">Open workspace <b>&rarr;</b></span>
+    </a>
   </section>
 </main>

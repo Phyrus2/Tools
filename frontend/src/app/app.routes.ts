@@ -18,6 +18,7 @@ import { ModuleDirectory } from './module-directory/module-directory';
 import { Forbidden } from './auth/forbidden/forbidden';
 import { UserManagement } from './user-management/user-management';
 import { Profile } from './profile/profile';
+import { StopSales } from './stop-sales/stop-sales';
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -65,7 +66,8 @@ export const routes: Routes = [
   { path: 'analytics/products/:id', component: ProductDetail, canActivate: [adminGuard], data: { permission: 'analytics' } },
   { path: 'booked-product/:id', component: BookedProductDetail, canActivate: [adminGuard], data: { anyPermissions: ['analytics', 'booking_search', 'booked_product_import'] } },
   { path: 'contract-monitoring', component: ContractMonitoring, canActivate: [adminGuard], data: { permission: 'contract_monitoring' } },
-  { path: 'contract', component: ContractHub, canActivate: [adminGuard], data: { anyPermissions: ['contract_monitoring', 'hotel_options'] } },
+  { path: 'stop-sales', component: StopSales, canActivate: [adminGuard], data: { permission: 'stop_sales' } },
+  { path: 'contract', component: ContractHub, canActivate: [adminGuard], data: { anyPermissions: ['contract_monitoring', 'hotel_options', 'stop_sales'] } },
   { path: 'hotel-options', redirectTo: 'hotel-options/2026', pathMatch: 'full' },
   { path: 'hotel-options/:year', component: HotelOptions, canActivate: [adminGuard], data: { permission: 'hotel_options' } },
   { path: 'users', component: UserManagement, canActivate: [adminGuard], data: { permission: 'user_management' } },

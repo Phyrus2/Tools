@@ -12,5 +12,7 @@ import { AuthService } from '../auth/auth.service';
 })
 export class ContractHub {
   readonly auth = inject(AuthService);
-  readonly toolCount = Number(this.auth.hasPermission('contract_monitoring')) + Number(this.auth.hasPermission('hotel_options'));
+  readonly toolCount = Number(this.auth.hasPermission('contract_monitoring'))
+    + Number(this.auth.hasPermission('hotel_options'))
+    + Number(this.auth.hasPermission('stop_sales'));
 }

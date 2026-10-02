@@ -1,6 +1,6 @@
 <main class="cm-shell">
   <header class="cm-topbar">
-    <a class="cm-back" routerLink="/" aria-label="Back to Module">← Contract Module</a>
+    <a class="cm-back" routerLink="/contract" aria-label="Back to Module">← Contract Module</a>
     <div>
       <p class="cm-eyebrow">Contract Operations</p>
       <h1>Contract Update Monitoring</h1>
@@ -849,7 +849,7 @@
                   (click)="continueQueueItem(item)"
                 >
                   {{
-                    isHotelOptionFile(item.file_name)
+                    isHotelOptionFile(item)
                       ? 'Continue to Hotel Options'
                       : !supplier.supplier_id
                       ? 'Assign'

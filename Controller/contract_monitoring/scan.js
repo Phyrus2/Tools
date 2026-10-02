@@ -5,6 +5,7 @@ const {
   topRecommendations,
   parseCategories,
   normalizeName,
+  isHotelOptionScanFile,
 } = require("../../Utils/contract_monitoring");
 const {
   configuredServerId,
@@ -31,8 +32,9 @@ async function cleanupTransientScans() {
   await pool.execute(
     `DELETE r FROM contract_scan_results r
       LEFT JOIN contract_pending p ON p.scan_result_id = r.id
+      LEFT JOIN stop_sale_jobs ssj ON ssj.scan_result_id = r.id
       LEFT JOIN contract_scan_run_results rr ON rr.scan_result_id = r.id
-     WHERE p.id IS NULL AND rr.scan_result_id IS NULL`,
+     WHERE p.id IS NULL AND ssj.id IS NULL AND rr.scan_result_id IS NULL`,
   );
 }
 
@@ -107,7 +109,9 @@ async function listSources(req, res) {
               CAST(last_successful_checkpoint_utc AS CHAR) AS last_successful_checkpoint_utc,
               created_at, updated_at
          FROM contract_scan_sources
-        WHERE deleted_at IS NULL ${includeAllServers ? "" : "AND server_id = ?"}
+        WHERE deleted_at IS NULL
+          AND module_key IN ('CONTRACT', 'QUOTE_TICKET')
+          ${includeAllServers ? "" : "AND server_id = ?"}
         ORDER BY server_id, year, target_folder`,
       includeAllServers ? [] : [configuredServerId()],
     );
@@ -124,9 +128,60 @@ async function listSources(req, res) {
   }
 }
 
+async function listStopSaleSources(req, res) {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT id, server_id, year, base_path, target_folder, module_key, enabled,
+              CAST(last_successful_checkpoint_utc AS CHAR) AS last_successful_checkpoint_utc,
+              created_at, updated_at
+         FROM contract_scan_sources
+        WHERE deleted_at IS NULL AND server_id = ? AND module_key = 'INFO_STOP_SALES'
+        ORDER BY year, target_folder`,
+      [configuredServerId()],
+    );
+    return res.json({ success: true, server_id: configuredServerId(), sources: rows });
+  } catch (error) {
+    console.error("List stop-sale scan sources error:", error);
+    return res.status(500).json({ success: false, message: "Gagal mengambil folder Stop Sale." });
+  }
+}
+
+function createStopSaleSource(req, res) {
+  req.stopSaleSource = true;
+  req.body = { ...(req.body || {}), module_key: "INFO_STOP_SALES" };
+  return createSource(req, res);
+}
+
+async function updateStopSaleSource(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return badRequest(res, new Error("Scan source ID tidak valid."));
+  const [rows] = await pool.execute(
+    "SELECT id FROM contract_scan_sources WHERE id = ? AND module_key = 'INFO_STOP_SALES' AND deleted_at IS NULL",
+    [id],
+  );
+  if (!rows.length) return res.status(404).json({ success: false, message: "Folder Stop Sale tidak ditemukan." });
+  req.stopSaleSource = true;
+  req.body = { ...(req.body || {}), module_key: "INFO_STOP_SALES" };
+  return updateSource(req, res);
+}
+
+async function deleteStopSaleSource(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return badRequest(res, new Error("Scan source ID tidak valid."));
+  const [rows] = await pool.execute(
+    "SELECT id FROM contract_scan_sources WHERE id = ? AND module_key = 'INFO_STOP_SALES' AND deleted_at IS NULL",
+    [id],
+  );
+  if (!rows.length) return res.status(404).json({ success: false, message: "Folder Stop Sale tidak ditemukan." });
+  req.stopSaleSource = true;
+  return deleteSource(req, res);
+}
+
 async function createSource(req, res) {
   try {
     const data = sourcePayload(req.body || {});
+    if (data.moduleKey === "INFO_STOP_SALES" && !req.stopSaleSource)
+      return res.status(403).json({ success: false, message: "Gunakan modul Stop Sale untuk mengelola folder ini." });
     await validateConfiguredFolder(data);
     const [archivedRows] = await pool.execute(
       `SELECT id FROM contract_scan_sources
@@ -192,6 +247,15 @@ async function updateSource(req, res) {
       .json({ success: false, message: "Scan source ID tidak valid." });
   try {
     const data = sourcePayload(req.body || {});
+    const [existingRows] = await pool.execute(
+      "SELECT module_key FROM contract_scan_sources WHERE id = ? AND deleted_at IS NULL",
+      [id],
+    );
+    if (!existingRows.length)
+      return res.status(404).json({ success: false, message: "Scan source tidak ditemukan." });
+    const existingIsStopSale = existingRows[0].module_key === "INFO_STOP_SALES";
+    if (existingIsStopSale !== Boolean(req.stopSaleSource))
+      return res.status(403).json({ success: false, message: "Scan source tidak dapat diubah dari modul ini." });
     await validateConfiguredFolder(data);
     const [result] = await pool.execute(
       `UPDATE contract_scan_sources
@@ -241,6 +305,15 @@ async function deleteSource(req, res) {
       .status(400)
       .json({ success: false, message: "Scan source ID tidak valid." });
   try {
+    const [existingRows] = await pool.execute(
+      "SELECT module_key FROM contract_scan_sources WHERE id = ? AND deleted_at IS NULL",
+      [id],
+    );
+    if (!existingRows.length)
+      return res.status(404).json({ success: false, message: "Scan source tidak ditemukan." });
+    const existingIsStopSale = existingRows[0].module_key === "INFO_STOP_SALES";
+    if (existingIsStopSale !== Boolean(req.stopSaleSource))
+      return res.status(403).json({ success: false, message: "Scan source tidak dapat dihapus dari modul ini." });
     const [result] = await pool.execute(
       `UPDATE contract_scan_sources
           SET enabled = 0, deleted_at = CURRENT_TIMESTAMP(3), updated_by = ?
@@ -317,6 +390,64 @@ async function startScan(req, res) {
   }
 }
 
+async function startStopSaleScan(req, res) {
+  try {
+    const mode = enumValue(req.body?.mode, ["AUTO", "CUSTOM"], "Mode", { required: true });
+    await cleanupTransientScans();
+    const run = await createScan({
+      mode,
+      start: req.body?.start,
+      end: req.body?.end,
+      sourceIds: null,
+      requestedBy: req.admin.id,
+      moduleKeys: ["INFO_STOP_SALES"],
+    });
+    return res.status(202).json({
+      success: true,
+      message: "Scan Stop Sale mulai dijalankan.",
+      scan_id: run.id,
+      status: "QUEUED",
+      server_id: run.serverId,
+      source_count: run.sourceCount,
+    });
+  } catch (error) {
+    if (/Masih ada scan/.test(error.message || ""))
+      return res.status(409).json({ success: false, message: error.message });
+    if (isValidationError(error) || /checkpoint|source|waktu|module/i.test(error.message || ""))
+      return badRequest(res, error);
+    console.error("Start stop-sale scan error:", error);
+    return res.status(500).json({ success: false, message: "Gagal memulai scan Stop Sale." });
+  }
+}
+
+async function stopSaleScanExists(scanId) {
+  const [rows] = await pool.execute(
+    `SELECT r.scan_run_id
+       FROM contract_scan_run_sources r
+       JOIN contract_scan_sources s ON s.id = r.source_id
+      WHERE r.scan_run_id = ?
+      GROUP BY r.scan_run_id
+     HAVING SUM(s.module_key = 'INFO_STOP_SALES') > 0
+        AND SUM(s.module_key <> 'INFO_STOP_SALES') = 0`,
+    [scanId],
+  );
+  return Boolean(rows.length);
+}
+
+async function getStopSaleScan(req, res) {
+  const id = parseId(req.params.scanId);
+  if (!id || !(await stopSaleScanExists(id)))
+    return res.status(404).json({ success: false, message: "Scan Stop Sale tidak ditemukan." });
+  return getScan(req, res);
+}
+
+async function listStopSaleResults(req, res) {
+  const id = parseId(req.params.scanId);
+  if (!id || !(await stopSaleScanExists(id)))
+    return res.status(404).json({ success: false, message: "Scan Stop Sale tidak ditemukan." });
+  return listResults(req, res);
+}
+
 async function getScan(req, res) {
   const id = parseId(req.params.scanId);
   if (!id)
@@ -380,7 +511,8 @@ async function listResults(req, res) {
     const [rows] = await pool.query(
       `SELECT r.id, r.full_path, r.parent_path, r.file_name, r.extension,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc, r.file_size,
-              r.detected_signed_status, r.processed, s.year, s.module_key,
+              r.detected_signed_status, r.processed, s.year, s.base_path,
+              s.target_folder, s.module_key,
               p.id AS pending_id, p.status AS pending_status
          FROM contract_scan_run_results rr
          JOIN contract_scan_results r ON r.id = rr.scan_result_id
@@ -395,7 +527,10 @@ async function listResults(req, res) {
       page,
       limit,
       total: countRow.total,
-      results: rows,
+      results: rows.map((row) => ({
+        ...row,
+        is_hotel_option: isHotelOptionScanFile(row),
+      })),
     });
   } catch (error) {
     console.error("List contract scan results error:", error);
@@ -426,6 +561,7 @@ async function getResult(req, res) {
         .status(404)
         .json({ success: false, message: "Hasil scan tidak ditemukan." });
     const item = rows[0];
+    item.is_hotel_option = isHotelOptionScanFile(item);
     const [suppliers] = await pool.execute(
       `SELECT supplier_id AS id, company_name AS name, category_supplier, location
          FROM suppliers WHERE LOWER(status) = 'active'`,
@@ -465,12 +601,19 @@ async function getResult(req, res) {
 }
 
 module.exports = {
+  createStopSaleSource,
   createSource,
+  deleteStopSaleSource,
   deleteSource,
   getResult,
   getScan,
+  getStopSaleScan,
   listResults,
+  listStopSaleResults,
+  listStopSaleSources,
   listSources,
+  startStopSaleScan,
   startScan,
+  updateStopSaleSource,
   updateSource,
 };

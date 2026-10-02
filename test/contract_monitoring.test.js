@@ -5,11 +5,52 @@ const {
   parseContractReferenceStatuses,
   detectSignedStatus,
   normalizeName,
+  isHotelOptionScanFile,
   parseContractPeriods,
   parseWitaDateTime,
   similarity,
   topRecommendations,
 } = require("../Utils/contract_monitoring");
+
+test("hotel option detection requires a dated name directly in the contract rates root", () => {
+  const source = {
+    base_path: "C:\\Shared",
+    year: 2027,
+    target_folder: "CONTRACT RATES 2027",
+  };
+  assert.equal(
+    isHotelOptionScanFile({
+      ...source,
+      file_name: "OPSI HOTELS 2027.xlsx",
+      parent_path: "C:\\Shared\\2027\\CONTRACT RATES 2027",
+    }),
+    true,
+  );
+  assert.equal(
+    isHotelOptionScanFile({
+      ...source,
+      file_name: "2027 - OPSI HOTELS.xlsx",
+      parent_path: "C:\\Shared\\2027\\CONTRACT RATES 2027",
+    }),
+    true,
+  );
+  assert.equal(
+    isHotelOptionScanFile({
+      ...source,
+      file_name: "OPSI HOTELS 2027.xlsx",
+      parent_path: "C:\\Shared\\2027\\CONTRACT RATES 2027\\Supplier A",
+    }),
+    false,
+  );
+  assert.equal(
+    isHotelOptionScanFile({
+      ...source,
+      file_name: "OPSI HOTELS.xlsx",
+      parent_path: "C:\\Shared\\2027\\CONTRACT RATES 2027",
+    }),
+    false,
+  );
+});
 
 test("WITA input is converted to the same absolute UTC instant on every server timezone", () => {
   assert.equal(parseWitaDateTime("2026-09-22T08:30").toISOString(), "2026-09-22T00:30:00.000Z");

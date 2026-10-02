@@ -5,6 +5,7 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const {
   normalizeName,
+  isHotelOptionScanFile,
   parseCategories,
   parseContractPeriods,
   todayWita,
@@ -45,14 +46,13 @@ const pendingUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024, files: 1 },
 });
-
-function isHotelOptionFileName(fileName) {
-  return String(fileName || "")
-    .toUpperCase()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ")
-    .includes("OPSI HOTELS");
-}
+const HOTEL_OPTION_SQL = `(
+  UPPER(REPLACE(REPLACE(r.file_name, '_', ' '), '-', ' '))
+    REGEXP 'OPSI[[:space:]]+HOTELS'
+  AND r.file_name REGEXP '20[0-9]{2}'
+  AND LOWER(REPLACE(TRIM(TRAILING CHAR(92) FROM r.parent_path), '/', CHAR(92))) =
+      LOWER(REPLACE(TRIM(TRAILING CHAR(92) FROM CONCAT(src.base_path, CHAR(92), src.year, CHAR(92), src.target_folder)), '/', CHAR(92)))
+)`;
 
 function importCell(value) {
   return value === undefined || value === null ? "" : String(value).trim();
@@ -326,7 +326,8 @@ async function createPending(req, res) {
   try {
     await connection.beginTransaction();
     const [results] = await connection.execute(
-      `SELECT r.id, r.processed, r.file_name, src.module_key
+      `SELECT r.id, r.processed, r.file_name, r.parent_path,
+              src.year, src.base_path, src.target_folder
          FROM contract_scan_results r
          JOIN contract_scan_sources src ON src.id=r.source_id
         WHERE r.id = ? FOR UPDATE`,
@@ -343,15 +344,19 @@ async function createPending(req, res) {
       "SELECT * FROM contract_pending WHERE scan_result_id = ? FOR UPDATE",
       [scanResultId],
     );
+    const isHotelOption = isHotelOptionScanFile(results[0]);
     let pending;
     if (!existing.length) {
       const [inserted] = await connection.execute(
         `INSERT INTO contract_pending
            (scan_result_id, status, claimed_by, claimed_at)
-         VALUES (?, 'NEW', ?, CURRENT_TIMESTAMP(3))`,
-        [scanResultId, req.admin.id],
+         VALUES (?, ?, ?, CURRENT_TIMESTAMP(3))`,
+        [scanResultId, isHotelOption ? "IN_PROGRESS" : "NEW", req.admin.id],
       );
-      pending = { id: inserted.insertId, status: "NEW" };
+      pending = {
+        id: inserted.insertId,
+        status: isHotelOption ? "IN_PROGRESS" : "NEW",
+      };
     } else {
       pending = existing[0];
       if (["DONE", "IGNORED"].includes(pending.status))
@@ -366,12 +371,13 @@ async function createPending(req, res) {
       await connection.execute(
         `UPDATE contract_pending
             SET claimed_by = ?, claimed_at = COALESCE(claimed_at, CURRENT_TIMESTAMP(3)),
+                status = IF(? AND status = 'NEW', 'IN_PROGRESS', status),
                 version = version + 1
           WHERE id = ?`,
-        [req.admin.id, pending.id],
+        [req.admin.id, isHotelOption, pending.id],
       );
     }
-    if (isHotelOptionFileName(results[0].file_name)) {
+    if (isHotelOption) {
       await connection.execute(
         `INSERT INTO contract_pending_suppliers
            (pending_id, supplier_id, detected_supplier_name, recommendation_source,
@@ -412,7 +418,7 @@ async function listPending(req, res) {
     const conditions = [
       "p.status NOT IN ('DONE', 'IGNORED')",
       "ps.processing_status = 'PENDING'",
-      "(p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL)",
+      `(p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL OR ${HOTEL_OPTION_SQL})`,
     ];
     const multiValues = (value) => [
       ...new Set(
@@ -495,7 +501,7 @@ async function listPending(req, res) {
          JOIN contract_scan_sources src ON src.id = r.source_id
         WHERE p.status NOT IN ('DONE', 'IGNORED')
           AND ps.processing_status = 'PENDING'
-          AND (p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL)`,
+          AND (p.status <> 'NEW' OR p.queue_supplier_status IS NOT NULL OR ${HOTEL_OPTION_SQL})`,
     );
     const allSupplierTotal = new Set(
       allQueueRows.map((row) => {
@@ -522,7 +528,8 @@ async function listPending(req, res) {
               p.id, p.scan_result_id, p.is_management_contract, p.management_group_id, p.contract_period, p.queue_supplier_status,
               ps.supplier_type, p.status, p.workflow_state, p.claimed_by, p.claimed_at, p.handled_by,
               p.completed_at, p.version, p.note,
-              r.file_name, r.full_path, r.detected_signed_status, src.year, src.module_key,
+              r.file_name, r.full_path, r.parent_path, r.detected_signed_status,
+              src.year, src.base_path, src.target_folder, src.module_key,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc,
               COALESCE(g.name, p.management_name) AS management_group_name,
               u.fullname AS claimed_by_name, handler.fullname AS handled_by_name
@@ -615,6 +622,7 @@ async function listPending(req, res) {
         note: row.note,
         file_name: row.file_name,
         full_path: row.full_path,
+        is_hotel_option: isHotelOptionScanFile(row),
         date_modified_utc: row.date_modified_utc,
         detected_signed_status: row.detected_signed_status,
       });
@@ -1864,10 +1872,13 @@ async function completeHotelOptionPending(req, res) {
   try {
     await connection.beginTransaction();
     const [rows] = await connection.execute(
-      `SELECT p.scan_result_id, p.status, ps.processing_status, scan_result.file_name
+      `SELECT p.scan_result_id, p.status, ps.processing_status,
+              scan_result.file_name, scan_result.parent_path,
+              scan_source.year, scan_source.base_path, scan_source.target_folder
          FROM contract_pending p
          JOIN contract_pending_suppliers ps ON ps.pending_id=p.id
          JOIN contract_scan_results scan_result ON scan_result.id=p.scan_result_id
+         JOIN contract_scan_sources scan_source ON scan_source.id=scan_result.source_id
         WHERE p.id=? AND ps.id=? FOR UPDATE`,
       [id, pendingSupplierId],
     );
@@ -1876,7 +1887,7 @@ async function completeHotelOptionPending(req, res) {
       return res.status(404).json({ success: false, message: "Hotel option queue item was not found." });
     }
     const item = rows[0];
-    if (!isHotelOptionFileName(item.file_name))
+    if (!isHotelOptionScanFile(item))
       throw new Error("This queue item is not a Hotel Option file.");
     if (item.processing_status === 'DONE') {
       await connection.rollback();

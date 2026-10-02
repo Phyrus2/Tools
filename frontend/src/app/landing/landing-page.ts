@@ -12,7 +12,7 @@ import { AuthService, PermissionKey } from '../auth/auth.service';
 export class LandingPage {
   readonly importToolCount = computed(() => this.countPermissions(['supplier_import', 'product_import', 'booked_product_import']));
   readonly searchToolCount = computed(() => this.countPermissions(['catalog_search', 'booking_search']));
-  readonly contractToolCount = computed(() => this.countPermissions(['contract_monitoring', 'hotel_options']));
+  readonly contractToolCount = computed(() => this.countPermissions(['contract_monitoring', 'hotel_options', 'stop_sales']));
   readonly canOpenImport = computed(() => this.importToolCount() > 0);
   readonly canOpenSearch = computed(() => this.searchToolCount() > 0);
   readonly canOpenContract = computed(() => this.contractToolCount() > 0);

@@ -26,6 +26,28 @@ function normalizeName(value, options = {}) {
     .trim();
 }
 
+function isHotelOptionScanFile(item) {
+  const normalizedFileName = String(item?.file_name || "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const hasHotelOptionName =
+    /\bOPSI HOTELS\b/.test(normalizedFileName) &&
+    /\b20\d{2}\b/.test(normalizedFileName);
+  if (!hasHotelOptionName) return false;
+
+  const sourceRoot = path.resolve(
+    String(item?.base_path || ""),
+    String(item?.year || ""),
+    String(item?.target_folder || ""),
+  );
+  const parentPath = path.resolve(String(item?.parent_path || ""));
+  return parentPath.toLowerCase() === sourceRoot.toLowerCase();
+}
+
 function levenshtein(left, right) {
   if (left === right) return 0;
   if (!left.length) return right.length;
@@ -232,6 +254,7 @@ module.exports = {
   contractStatus,
   detectSignedStatus,
   inferLocation,
+  isHotelOptionScanFile,
   normalizeName,
   normalizeWindowsPath,
   parseCategories,

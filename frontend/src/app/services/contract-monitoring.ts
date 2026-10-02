@@ -56,6 +56,7 @@ export interface ScanResult {
   module_key: string;
   pending_id: number | null;
   pending_status: string | null;
+  is_hotel_option: boolean;
 }
 
 export interface SupplierRecommendation {
@@ -154,6 +155,7 @@ export interface PendingFileItem {
   version: number;
   date_modified_utc: string;
   detected_signed_status: SignedStatus;
+  is_hotel_option: boolean;
 }
 
 export interface PendingSupplierGroup {

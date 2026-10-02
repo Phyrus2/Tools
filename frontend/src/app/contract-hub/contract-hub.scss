@@ -109,6 +109,7 @@ a.contract-card:hover {
 a.contract-card:focus-visible { outline: 3px solid rgba(53, 86, 77, 0.2); outline-offset: 3px; }
 .contract-card--monitoring { --accent: var(--gold); --wash: var(--gold-wash); }
 .contract-card--hotel { --accent: var(--plum); --wash: var(--plum-wash); }
+.contract-card--stop-sale { --accent: var(--forest); --wash: var(--forest-wash); }
 .contract-card--soon { --accent: var(--faint); --wash: #efede6; opacity: 0.7; }
 .card-number { position: absolute; top: 1rem; right: 1.1rem; color: var(--line-strong); font: 600 1.1rem Fraunces, serif; }
 .card-icon {

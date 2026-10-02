@@ -7,6 +7,7 @@ const PERMISSIONS = Object.freeze([
   { key: 'analytics', group: 'Analytics', label: 'Performance Analytics' },
   { key: 'contract_monitoring', group: 'Contracts', label: 'Contract Monitoring' },
   { key: 'hotel_options', group: 'Contracts', label: 'Hotel Options' },
+  { key: 'stop_sales', group: 'Contracts', label: 'Stop Sale Monitoring' },
   { key: 'user_management', group: 'Administration', label: 'User Management' },
 ]);
 

@@ -326,7 +326,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.clearFeedback();
     this.editorOriginTab = this.tab;
     this.activePendingSupplierId = null;
-    if (this.isHotelOptionFile(result.file_name)) {
+    if (this.isHotelOptionFile(result)) {
       this.busy = true;
       this.api
         .claimResult(result.id)
@@ -407,7 +407,7 @@ export class ContractMonitoring implements OnInit, OnDestroy {
   }
 
   continueQueueItem(item: PendingFileItem): void {
-    if (this.isHotelOptionFile(item.file_name)) {
+    if (this.isHotelOptionFile(item)) {
       this.router.navigate(['/hotel-options', item.year], {
         queryParams: {
           pendingId: item.id,
@@ -420,12 +420,8 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.openPending(item);
   }
 
-  isHotelOptionFile(fileName: string | null | undefined): boolean {
-    return String(fileName || '')
-      .toUpperCase()
-      .replace(/[_-]+/g, ' ')
-      .replace(/\s+/g, ' ')
-      .includes('OPSI HOTELS');
+  isHotelOptionFile(item: ScanResult | PendingFileItem): boolean {
+    return Boolean(item.is_hotel_option);
   }
 
   closeEditor(release = false): void {

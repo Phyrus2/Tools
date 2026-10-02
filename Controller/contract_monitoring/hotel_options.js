@@ -57,6 +57,24 @@ function changesBetween(before, after) {
   return changes;
 }
 
+function excelImportSnapshot(item) {
+  return {
+    option_year: Number(item.option_year),
+    option_code: item.option_code || null,
+    hotel_name: item.hotel_name,
+    room_type: item.room_type || null,
+    region: item.region,
+    location: item.location,
+    segment: item.segment || null,
+    rooms: (item.rooms || [])
+      .map((room) => ({
+        room_type: room.room_type,
+        is_active: room.is_active === undefined ? true : Boolean(room.is_active),
+      }))
+      .sort((left, right) => left.room_type.localeCompare(right.room_type)),
+  };
+}
+
 async function importHotelOptionsLegacy(req, res) {
   if (!req.file)
     return res
@@ -681,9 +699,9 @@ async function importHotelOptions(req, res) {
         connection,
         storedRooms.map((room) => room.id),
       );
-      const supplierChanged = existing
-        ? Number(existing.supplier_id || 0) !== Number(item.supplier_id || 0)
-        : false;
+      // Supplier and product links are user-managed Jambix mappings. Re-importing
+      // an Excel file must compare and update only Excel-owned option data.
+      const effectiveSupplierId = existing ? existing.supplier_id : item.supplier_id;
       const storedRoomsByName = new Map(
         storedRooms.map((room) => [normalizeName(room.room_type, { keepGeneric: true }), room]),
       );
@@ -691,7 +709,7 @@ async function importHotelOptions(req, res) {
         const storedRoom = storedRoomsByName.get(
           normalizeName(room.room_type, { keepGeneric: true }),
         );
-        if (!room.product_ids.length && storedRoom && !supplierChanged) {
+        if (storedRoom) {
           room.product_ids = (storedRoomProducts.get(storedRoom.id) || []).map(
             (product) => product.product_id,
           );
@@ -717,7 +735,7 @@ async function importHotelOptions(req, res) {
       const next = {
         option_year: item.option_year,
         option_code: item.option_code,
-        supplier_id: item.supplier_id,
+        supplier_id: effectiveSupplierId,
         product_id: primaryProductId,
         hotel_name: item.hotel_name,
         room_type: primaryRoom?.room_type || null,
@@ -737,7 +755,7 @@ async function importHotelOptions(req, res) {
             crypto.createHash("sha256").update(key).digest("hex"),
             optionYear,
             item.option_code,
-            item.supplier_id,
+            effectiveSupplierId,
             primaryProductId,
             item.region,
             item.location,
@@ -760,7 +778,7 @@ async function importHotelOptions(req, res) {
             crypto.createHash("sha256").update(key).digest("hex"),
             optionYear,
             item.option_code,
-            item.supplier_id,
+            effectiveSupplierId,
             primaryProductId,
             item.region,
             item.location,
@@ -798,7 +816,9 @@ async function importHotelOptions(req, res) {
         if (room.is_active && !incomingNames.has(normalizeName(room.room_type, { keepGeneric: true })))
           await connection.execute("UPDATE hotel_option_rooms SET is_active=0 WHERE id=?", [room.id]);
       }
-      const changes = previous ? changesBetween(previous, next) : null;
+      const changes = previous
+        ? changesBetween(excelImportSnapshot(previous), excelImportSnapshot(next))
+        : null;
       const resultRow = {
         ...item,
         id: optionId,

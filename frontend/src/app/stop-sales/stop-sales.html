@@ -1,0 +1,136 @@
+<main class="ss-shell">
+  <a class="ss-back" routerLink="/contract">&larr; Contract Module</a>
+
+  <header class="ss-hero">
+    <div>
+      <p>SALES RESTRICTION</p>
+      <h1>Stop Sale Monitoring</h1>
+      <span>Compare supplier files, review calendar changes, and track manual Jambix updates.</span>
+    </div>
+    <aside><strong>{{ queueJobs.length }}</strong><span>pending files</span></aside>
+  </header>
+
+  <nav class="ss-tabs" aria-label="Stop Sale navigation">
+    <button [class.active]="tab === 'scan'" (click)="selectTab('scan')">Scan</button>
+    <button [class.active]="tab === 'queue'" (click)="selectTab('queue')">Pending Queue <b>{{ queueJobs.length }}</b></button>
+    <button [class.active]="tab === 'reports'" (click)="selectTab('reports')">Stop Sale Report</button>
+    <button [class.active]="tab === 'settings'" (click)="selectTab('settings')">Settings</button>
+  </nav>
+
+  <div class="ss-feedback error" *ngIf="error">{{ error }}</div>
+  <div class="ss-feedback success" *ngIf="message">{{ message }}</div>
+
+  <section class="ss-panel" *ngIf="tab === 'scan'">
+    <header class="ss-section-head">
+      <div><span>01</span><h2>Scan Stop Sale folders</h2><p>Only folders configured as INFO_STOP_SALES are included.</p></div>
+    </header>
+
+    <div class="ss-scan-form">
+      <label><span>Scan mode</span><select [(ngModel)]="scanMode"><option value="CUSTOM">Custom range</option><option value="AUTO">Since last checkpoint</option></select></label>
+      <label *ngIf="scanMode === 'CUSTOM'"><span>Start</span><input type="datetime-local" [(ngModel)]="scanStart" /></label>
+      <label *ngIf="scanMode === 'CUSTOM'"><span>End</span><input type="datetime-local" [(ngModel)]="scanEnd" /></label>
+      <button class="ss-primary" type="button" [disabled]="busy || !sources.length" (click)="startScan()">{{ busy ? 'Working…' : 'Start scan' }}</button>
+    </div>
+
+    <article class="ss-scan-status" *ngIf="currentScan as scan">
+      <div><span>Status</span><strong [attr.data-status]="scan.status">{{ scan.status }}</strong></div>
+      <div><span>Files found</span><strong>{{ scan.total_files }}</strong></div>
+      <div><span>New files</span><strong>{{ scan.new_files }}</strong></div>
+      <div><span>Warnings</span><strong>{{ scan.warning_count }}</strong></div>
+    </article>
+
+    <div class="ss-file-list" *ngIf="results.length">
+      <article *ngFor="let result of results; trackBy: trackById">
+        <div class="ss-file-icon">{{ (result.extension || '?').toUpperCase() }}</div>
+        <div><strong>{{ result.file_name }}</strong><span>{{ result.date_modified_utc | date:'dd MMM yyyy HH:mm':'UTC' }} · {{ result.file_size | number }} bytes</span></div>
+        <button class="ss-secondary" type="button" [disabled]="busy" (click)="addToQueue(result)">Add to queue</button>
+      </article>
+    </div>
+    <div class="ss-empty" *ngIf="!results.length && currentScan && !['QUEUED','RUNNING'].includes(currentScan.status)">No files found in this scan window.</div>
+  </section>
+
+  <section class="ss-panel" *ngIf="tab === 'queue' && !detail">
+    <header class="ss-section-head">
+      <div><span>02</span><h2>Pending Queue</h2><p>Select a file to match its supplier and compare it with the active baseline.</p></div>
+      <button class="ss-secondary" type="button" (click)="loadJobs()">Refresh</button>
+    </header>
+
+    <div class="ss-queue">
+      <article *ngFor="let job of queueJobs; trackBy: trackById">
+        <div class="ss-queue-status" [attr.data-status]="job.status">{{ job.status.replaceAll('_', ' ') }}</div>
+        <div class="ss-queue-copy">
+          <strong>{{ job.file_name }}</strong>
+          <span>{{ job.company_name || 'Supplier not matched' }}<ng-container *ngIf="job.supplier_location"> · {{ job.supplier_location }}</ng-container></span>
+          <small>{{ job.date_modified_utc | date:'dd MMM yyyy HH:mm':'UTC' }} · {{ job.extension?.toUpperCase() }}</small>
+        </div>
+        <button class="ss-primary" type="button" (click)="openJob(job)">Process</button>
+      </article>
+      <div class="ss-empty" *ngIf="!queueJobs.length">Pending Queue is empty.</div>
+    </div>
+  </section>
+
+  <section class="ss-workspace" *ngIf="tab === 'queue' && detail as view">
+    <header class="ss-workspace-head">
+      <button class="ss-secondary" type="button" (click)="closeJob()">&larr; Queue</button>
+      <div><span>{{ view.job.status.replaceAll('_', ' ') }}</span><h2>{{ view.job.file_name }}</h2><p>{{ view.baseline ? 'Compared with ' + (view.baseline.uploaded_file_name || view.baseline.file_name) : 'No active baseline yet' }}</p></div>
+      <button class="ss-primary" type="button" [disabled]="busy || view.job.status !== 'READY_FOR_JAMBIX'" (click)="completeJob()">Complete</button>
+    </header>
+
+    <div class="ss-workspace-grid">
+      <aside class="ss-card ss-setup">
+        <h3>File setup</h3>
+        <label><span>Supplier</span><div class="ss-search"><input [(ngModel)]="supplierQuery" (keyup.enter)="searchSuppliers()" placeholder="Search supplier" /><button (click)="searchSuppliers()">Search</button></div></label>
+        <div class="ss-search-results" *ngIf="suppliers.length">
+          <button *ngFor="let supplier of suppliers" (click)="chooseSupplier(supplier)"><strong>{{ supplier.company_name }}</strong><span>{{ supplier.location || 'No location' }}</span></button>
+        </div>
+        <div class="ss-selected" *ngIf="view.job.supplier_id"><span>Selected supplier</span><strong>{{ view.job.company_name }}</strong></div>
+        <div class="ss-upload-box">
+          <span>File to compare</span>
+          <strong *ngIf="view.job.uploaded_file_name">{{ view.job.uploaded_file_name }}</strong>
+          <small *ngIf="view.job.uploaded_file_size">{{ view.job.uploaded_file_size | number }} bytes</small>
+          <input type="file" accept=".xlsx,.xls,.pdf,.png,.jpg,.jpeg,.eml,.msg" (change)="selectComparisonFile($event)" />
+          <button class="ss-secondary" type="button" [disabled]="busy || !pendingUploadFile" (click)="uploadComparisonFile()">Upload selected file</button>
+        </div>
+        <label><span>Note</span><textarea rows="3" [(ngModel)]="view.job.note"></textarea></label>
+        <button class="ss-primary full" type="button" [disabled]="busy || !view.job.supplier_id || !view.job.uploaded_file_name" (click)="processJob()">{{ busy ? 'Comparing…' : 'Compare with previous file' }}</button>
+      </aside>
+    </div>
+
+    <section class="ss-card ss-calendar">
+      <header>
+        <div><h3>Automatic Stop Sale diff</h3><p>Generated directly from changed room/date cells in the old and new files.</p></div>
+        <div class="ss-month"><button (click)="changeMonth(-1)">&lsaquo;</button><input type="month" [(ngModel)]="calendarMonth" /><button (click)="changeMonth(1)">&rsaquo;</button></div>
+      </header>
+      <div class="ss-legend"><span class="added">New</span><span class="removed">Removed</span><span class="updated">Changed</span></div>
+      <div class="ss-calendar-scroll" *ngIf="calendarRows.length">
+        <table>
+          <thead><tr><th>Product</th><th *ngFor="let day of calendarDays; trackBy: trackByDate"><small>{{ day.weekday }}</small>{{ day.day }}</th></tr></thead>
+          <tbody><tr *ngFor="let row of calendarRows; trackBy: trackByKey"><th><strong>{{ row.label }}</strong><small>{{ row.status.replace('_', ' ') }}</small></th><td *ngFor="let day of calendarDays; trackBy: trackByDate" [class]="calendarState(row, day.date)" [title]="calendarTitle(row, day.date)"></td></tr></tbody>
+        </table>
+      </div>
+      <div class="ss-empty compact" *ngIf="!calendarRows.length">No room/date calendar change was detected. For the first file, this is expected because it becomes the baseline.</div>
+    </section>
+
+  </section>
+
+  <section class="ss-panel" *ngIf="tab === 'reports'">
+    <header class="ss-section-head"><div><span>03</span><h2>Stop Sale Report</h2><p>Latest completed baseline per supplier.</p></div><strong>{{ reports.length }} suppliers</strong></header>
+    <div class="ss-report-table">
+      <table><thead><tr><th>Supplier</th><th>In Dropbox/Email</th><th>In Jambix</th><th>User who update</th><th>Last differences</th><th>Note</th></tr></thead>
+      <tbody><tr *ngFor="let report of reports"><td><strong>{{ report.company_name }}</strong></td><td>{{ report.in_dropbox_email | date:'dd MMM yyyy':'UTC' }}</td><td>{{ report.in_jambix | date:'dd MMM yyyy':'UTC' }}</td><td>{{ report.user_who_update }}</td><td>{{ report.detected_change_count }}</td><td>{{ report.note || '—' }}</td></tr></tbody></table>
+      <div class="ss-empty" *ngIf="!reports.length">No completed Stop Sale baseline yet.</div>
+    </div>
+  </section>
+
+  <section class="ss-panel" *ngIf="tab === 'settings'">
+    <header class="ss-section-head"><div><span>04</span><h2>Scan folders</h2><p>Configure folders for this server. The year is appended between base path and target folder.</p></div></header>
+    <form class="ss-source-form" (ngSubmit)="createSource()">
+      <label><span>Server ID</span><input [(ngModel)]="sourceForm.server_id" name="serverId" /></label>
+      <label><span>Year</span><input type="number" [(ngModel)]="sourceForm.year" name="year" /></label>
+      <label class="wide"><span>Base path</span><input [(ngModel)]="sourceForm.base_path" name="basePath" placeholder="C:\\Dropbox" /></label>
+      <label class="wide"><span>Target folder</span><input [(ngModel)]="sourceForm.target_folder" name="targetFolder" placeholder="INFO STOP SALES" /></label>
+      <button class="ss-primary" type="submit" [disabled]="busy">Add folder</button>
+    </form>
+    <div class="ss-sources"><article *ngFor="let source of sources; trackBy: trackById"><div><strong>{{ source.target_folder }}</strong><span>{{ source.base_path }}\{{ source.year }}\{{ source.target_folder }}</span></div><em [class.on]="source.enabled">{{ source.enabled ? 'Active' : 'Disabled' }}</em><button class="ss-secondary" (click)="toggleSource(source)">{{ source.enabled ? 'Disable' : 'Enable' }}</button><button class="ss-danger" (click)="deleteSource(source)">Delete</button></article></div>
+  </section>
+</main>
