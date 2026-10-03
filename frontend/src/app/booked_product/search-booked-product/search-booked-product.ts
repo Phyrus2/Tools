@@ -146,7 +146,8 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
 
   // --- Export & copy state ---
   exporting: ExportKind | null = null;
-  exportVariant = EXPORT_TEMPLATES[0].id;
+  // Standard template is switched off for now, so Complete is the default.
+  exportVariant = 'unit-price';
   exportError: string | null = null;
   copyFeedback = false;
   private copyFeedbackTimeout?: ReturnType<typeof setTimeout>;
