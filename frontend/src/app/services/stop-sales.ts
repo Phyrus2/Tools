@@ -33,11 +33,19 @@ export interface StopSaleScanResult {
   file_size: number;
   processed: number | boolean;
   pending_id: number | null;
+  parent_path?: string | null;
+  base_path?: string | null;
+  year?: number | null;
+  target_folder?: string | null;
+  job_id?: number | null;
+  job_status?: string | null;
 }
 
 export interface StopSaleJob {
   id: number;
   scan_result_id: number;
+  /** 0 for the first supplier of a file; 1, 2... when one file covers several hotels. */
+  split_index?: number;
   supplier_id: number | null;
   company_name: string | null;
   supplier_location: string | null;
@@ -55,6 +63,15 @@ export interface StopSaleJob {
   note: string | null;
   completed_at: string | null;
   completed_by_name: string | null;
+  processed_at: string | null;
+  parent_path?: string | null;
+  base_path?: string | null;
+  source_year?: number | null;
+  target_folder?: string | null;
+  source_mode?: 'SCAN' | 'UPLOAD' | null;
+  source_file_name?: string | null;
+  /** When the supplier updated the file (folder "updated on 02 Oct", "as of" in the name). */
+  update_date?: string | null;
   source_diff: SourceDiff[];
 }
 
@@ -84,9 +101,23 @@ export interface StopSaleAction {
   product_id: number | null;
   product_name: string;
   restriction_status: 'STOP_SALE' | 'ON_REQUEST';
-  change: 'ADDED' | 'REMOVED' | 'UPDATED' | 'UNCHANGED';
+  change: 'ADDED' | 'REMOVED' | 'UPDATED' | 'UNCHANGED' | 'CURRENT';
   start_date: string;
   end_date: string;
+}
+
+export interface StopSaleFileExtraction {
+  supported: boolean;
+  detected_days: number;
+  rooms: number;
+  legend: Record<string, 'STOP_SALE' | 'ON_REQUEST' | 'OPEN'> | null;
+  warnings: string[];
+}
+
+export interface StopSaleExtraction {
+  current: StopSaleFileExtraction | null;
+  baseline: StopSaleFileExtraction | null;
+  warnings: string[];
 }
 
 export interface StopSaleDetail {
@@ -96,7 +127,9 @@ export interface StopSaleDetail {
   baseline_items: StopSaleItem[];
   comparison: {
     actions: StopSaleAction[];
-    summary: { added_days: number; removed_days: number; updated_days?: number; unchanged_days: number };
+    summary: { added_days: number; removed_days: number; updated_days?: number; unchanged_days: number; current_days?: number };
+    extraction?: StopSaleExtraction | null;
+    preview?: boolean;
   };
 }
 
@@ -182,6 +215,23 @@ export class StopSalesService {
     const form = new FormData();
     form.append('file', file);
     return this.http.post(`${this.base}/jobs/${id}/upload`, form);
+  }
+
+  /** Hide a file from the scan results; the file on the drive is not touched. */
+  removeScanResult(scanResultId: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/scan-results/${scanResultId}`);
+  }
+
+  deleteJob(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/jobs/${id}`);
+  }
+
+  addSupplierJob(id: number): Observable<{ success: true; job_id: number }> {
+    return this.http.post<{ success: true; job_id: number }>(`${this.base}/jobs/${id}/suppliers`, {});
+  }
+
+  clearUpload(id: number): Observable<unknown> {
+    return this.http.delete(`${this.base}/jobs/${id}/upload`);
   }
 
   processJob(id: number): Observable<unknown> {

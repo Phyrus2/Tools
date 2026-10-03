@@ -18,6 +18,8 @@
     "db:restore": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/server/restore-database.ps1"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.100",
+    "@tesseract.js-data/eng": "^1.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
@@ -25,6 +27,8 @@
     "jspdf-autotable": "^5.0.8",
     "multer": "^2.3.0",
     "mysql2": "^3.23.2",
+    "pdfjs-dist": "^4.10.38",
+    "tesseract.js": "^7.0.0",
     "xlsx": "^0.18.5"
   }
 }

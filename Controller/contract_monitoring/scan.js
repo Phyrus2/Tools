@@ -445,7 +445,53 @@ async function listStopSaleResults(req, res) {
   const id = parseId(req.params.scanId);
   if (!id || !(await stopSaleScanExists(id)))
     return res.status(404).json({ success: false, message: "Scan Stop Sale tidak ditemukan." });
-  return listResults(req, res);
+  const { page, limit, offset } = pagination(req.query);
+  try {
+    // Office/LibreOffice lock files (".~lock.x.xlsx#", "~$x.xlsx") are not supplier files.
+    // An email is left out when its supplier folder already has a PDF/Excel file.
+    const [[countRow]] = await pool.execute(
+      `SELECT COUNT(*) AS total FROM contract_scan_run_results rr
+         JOIN contract_scan_results r ON r.id = rr.scan_result_id
+        WHERE rr.scan_run_id = ?
+          AND r.file_name NOT LIKE '.~lock.%' AND r.file_name NOT LIKE '~$%'
+          AND NOT (LOWER(r.extension) IN ('eml', '.eml', 'msg', '.msg') AND EXISTS (
+            SELECT 1 FROM contract_scan_run_results rr2
+              JOIN contract_scan_results r2 ON r2.id = rr2.scan_result_id
+             WHERE rr2.scan_run_id = rr.scan_run_id AND r2.parent_path = r.parent_path
+               AND LOWER(r2.extension) IN ('pdf', '.pdf', 'xls', '.xls', 'xlsx', '.xlsx', 'xlsm', '.xlsm', 'csv', '.csv')
+               AND r2.file_name NOT LIKE '.~lock.%' AND r2.file_name NOT LIKE '~$%'
+               AND NOT EXISTS (SELECT 1 FROM stop_sale_removed_results gone WHERE gone.scan_result_id = r2.id)))
+          AND NOT EXISTS (SELECT 1 FROM stop_sale_removed_results removed WHERE removed.scan_result_id = r.id)`,
+      [id],
+    );
+    // job_id/job_status let the UI disable "Add to queue" for files already queued.
+    const [rows] = await pool.query(
+      `SELECT r.id, r.full_path, r.parent_path, r.file_name, r.extension,
+              CAST(r.date_modified_utc AS CHAR) AS date_modified_utc, r.file_size,
+              r.processed, s.year, s.base_path, s.target_folder, s.module_key,
+              ssj.id AS job_id, ssj.status AS job_status
+         FROM contract_scan_run_results rr
+         JOIN contract_scan_results r ON r.id = rr.scan_result_id
+         JOIN contract_scan_sources s ON s.id = r.source_id
+         LEFT JOIN stop_sale_jobs ssj ON ssj.scan_result_id = r.id AND ssj.split_index = 0
+        WHERE rr.scan_run_id = ?
+          AND r.file_name NOT LIKE '.~lock.%' AND r.file_name NOT LIKE '~$%'
+          AND NOT (LOWER(r.extension) IN ('eml', '.eml', 'msg', '.msg') AND EXISTS (
+            SELECT 1 FROM contract_scan_run_results rr2
+              JOIN contract_scan_results r2 ON r2.id = rr2.scan_result_id
+             WHERE rr2.scan_run_id = rr.scan_run_id AND r2.parent_path = r.parent_path
+               AND LOWER(r2.extension) IN ('pdf', '.pdf', 'xls', '.xls', 'xlsx', '.xlsx', 'xlsm', '.xlsm', 'csv', '.csv')
+               AND r2.file_name NOT LIKE '.~lock.%' AND r2.file_name NOT LIKE '~$%'
+               AND NOT EXISTS (SELECT 1 FROM stop_sale_removed_results gone WHERE gone.scan_result_id = r2.id)))
+          AND NOT EXISTS (SELECT 1 FROM stop_sale_removed_results removed WHERE removed.scan_result_id = r.id)
+        ORDER BY r.parent_path, r.date_modified_utc DESC, r.id DESC LIMIT ? OFFSET ?`,
+      [id, limit, offset],
+    );
+    return res.json({ success: true, page, limit, total: countRow.total, results: rows });
+  } catch (error) {
+    console.error("List stop-sale scan results error:", error);
+    return res.status(500).json({ success: false, message: "Gagal mengambil hasil scan." });
+  }
 }
 
 async function getScan(req, res) {

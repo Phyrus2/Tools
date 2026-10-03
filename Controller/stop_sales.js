@@ -2,9 +2,17 @@ const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const multer = require("multer");
-const XLSX = require("xlsx");
 const pool = require("../Database/connection");
 const { normalizeName, parseCategories } = require("../Utils/contract_monitoring");
+const { EXTRACTOR_VERSION, extractStopSales, updateDateIn } = require("../Services/stop_sales/extractor");
+const {
+  compareSnapshots,
+  comparisonFromSummary,
+  contiguousRanges,
+  dateRange,
+  fromSnapshot,
+  toSnapshot,
+} = require("../Services/stop_sales/compare");
 const {
   badRequest,
   dateValue,
@@ -76,12 +84,14 @@ function serializeJob(row) {
 async function jobRow(id, connection = pool) {
   const [rows] = await connection.execute(
     `SELECT j.*, r.full_path, r.parent_path, r.file_name, r.extension,
+            src.base_path, src.year AS source_year, src.target_folder,
             CAST(r.date_modified_utc AS CHAR) AS date_modified_utc,
             r.file_size, HEX(r.fingerprint) AS fingerprint,
             s.company_name, s.location AS supplier_location, s.category_supplier,
             u.fullname AS completed_by_name
        FROM stop_sale_jobs j
        JOIN contract_scan_results r ON r.id = j.scan_result_id
+       JOIN contract_scan_sources src ON src.id = r.source_id
        LEFT JOIN suppliers s ON s.supplier_id = j.supplier_id
        LEFT JOIN users u ON u.id = j.completed_by
       WHERE j.id = ?`,
@@ -109,150 +119,6 @@ async function itemsForJob(id, connection = pool) {
   }));
 }
 
-function cellMap(filePath) {
-  const workbook = XLSX.readFile(filePath, { cellDates: true, cellFormula: true, cellStyles: true });
-  const result = new Map();
-  for (const sheetName of workbook.SheetNames) {
-    const sheet = workbook.Sheets[sheetName];
-    for (const [address, cell] of Object.entries(sheet)) {
-      if (address.startsWith("!")) continue;
-      result.set(`${sheetName}!${address}`, {
-        sheet: sheetName,
-        cell: address,
-        raw: cell.v,
-        type: cell.t || null,
-        numberFormat: cell.z || null,
-        value: cell.w ?? (cell.v === undefined ? null : String(cell.v)),
-        formula: cell.f || null,
-        style: cell.s || null,
-        styleSignature: cell.s ? JSON.stringify(cell.s) : null,
-      });
-    }
-  }
-  return result;
-}
-
-function dateFromCell(cell) {
-  if (!cell) return null;
-  if (cell.raw instanceof Date && !Number.isNaN(cell.raw.getTime()))
-    return cell.raw.toISOString().slice(0, 10);
-  if (typeof cell.raw === "number" && cell.numberFormat && XLSX.SSF.is_date(cell.numberFormat)) {
-    const parsed = XLSX.SSF.parse_date_code(cell.raw);
-    if (parsed) return `${parsed.y}-${String(parsed.m).padStart(2, "0")}-${String(parsed.d).padStart(2, "0")}`;
-  }
-  const text = String(cell.value || "").trim();
-  if (!text || !/[0-9]/.test(text) || /^\d{1,2}$/.test(text)) return null;
-  const iso = /^(20\d{2})[-/]([01]?\d)[-/]([0-3]?\d)$/.exec(text);
-  if (iso) return `${iso[1]}-${iso[2].padStart(2, "0")}-${iso[3].padStart(2, "0")}`;
-  const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
-}
-
-const MONTH_NAMES = new Map([
-  ["jan", 1], ["january", 1], ["januari", 1], ["feb", 2], ["february", 2], ["februari", 2],
-  ["mar", 3], ["march", 3], ["maret", 3], ["apr", 4], ["april", 4], ["may", 5], ["mei", 5],
-  ["jun", 6], ["june", 6], ["juni", 6], ["jul", 7], ["july", 7], ["juli", 7],
-  ["aug", 8], ["august", 8], ["agu", 8], ["agustus", 8], ["sep", 9], ["september", 9],
-  ["oct", 10], ["october", 10], ["okt", 10], ["oktober", 10], ["nov", 11], ["november", 11],
-  ["dec", 12], ["december", 12], ["des", 12], ["desember", 12],
-]);
-
-function monthYearFromText(value) {
-  const text = String(value || "").toLowerCase();
-  const year = /(?:19|20)\d{2}/.exec(text)?.[0];
-  const monthEntry = [...MONTH_NAMES].find(([name]) => new RegExp(`\\b${name}\\b`, "i").test(text));
-  return year && monthEntry ? { year: Number(year), month: monthEntry[1] } : null;
-}
-
-function isMarkedCell(cell) {
-  if (!cell) return false;
-  const text = String(cell.value ?? "").trim();
-  if (text && !/^(?:-|n\/a|na)$/i.test(text)) return true;
-  const fill = cell.style?.fill;
-  const color = fill?.fgColor?.rgb || fill?.fgColor?.indexed || fill?.fgColor?.theme;
-  return Boolean(fill && fill.patternType && fill.patternType !== "none" && color !== undefined);
-}
-
-function cellByPosition(map, sheet, row, column) {
-  return map.get(`${sheet}!${XLSX.utils.encode_cell({ r: row, c: column })}`) || null;
-}
-
-function findDateHeader(before, after, sheet, row, column) {
-  for (let headerRow = row - 1; headerRow >= Math.max(0, row - 40); headerRow -= 1) {
-    const headerCell = cellByPosition(after, sheet, headerRow, column)
-      || cellByPosition(before, sheet, headerRow, column);
-    const date = dateFromCell(headerCell);
-    if (date) return date;
-    const day = Number(String(headerCell?.value || "").trim());
-    if (Number.isInteger(day) && day >= 1 && day <= 31) {
-      for (let contextRow = headerRow; contextRow >= Math.max(0, headerRow - 8); contextRow -= 1) {
-        for (let contextColumn = column; contextColumn >= Math.max(0, column - 40); contextColumn -= 1) {
-          const context = cellByPosition(after, sheet, contextRow, contextColumn)
-            || cellByPosition(before, sheet, contextRow, contextColumn);
-          const monthYear = monthYearFromText(context?.value);
-          if (!monthYear) continue;
-          const candidate = new Date(Date.UTC(monthYear.year, monthYear.month - 1, day));
-          if (candidate.getUTCMonth() === monthYear.month - 1)
-            return candidate.toISOString().slice(0, 10);
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function findRoomLabel(before, after, sheet, row, column) {
-  for (let labelColumn = column - 1; labelColumn >= Math.max(0, column - 15); labelColumn -= 1) {
-    const cell = cellByPosition(after, sheet, row, labelColumn)
-      || cellByPosition(before, sheet, row, labelColumn);
-    const value = String(cell?.value || "").trim();
-    if (value && !dateFromCell(cell) && /[a-z]/i.test(value)) return value;
-  }
-  return `Row ${row + 1}`;
-}
-
-function compareExcel(oldPath, newPath) {
-  const before = oldPath ? cellMap(oldPath) : new Map();
-  const after = cellMap(newPath);
-  const keys = [...new Set([...before.keys(), ...after.keys()])].sort();
-  const changes = [];
-  const calendarChanges = [];
-  for (const key of keys) {
-    const oldCell = before.get(key) || null;
-    const newCell = after.get(key) || null;
-    const oldValue = oldCell?.formula ? `=${oldCell.formula}` : oldCell?.value ?? null;
-    const newValue = newCell?.formula ? `=${newCell.formula}` : newCell?.value ?? null;
-    if (oldValue === newValue && oldCell?.styleSignature === newCell?.styleSignature) continue;
-    const formatOnly = oldValue === newValue && oldCell && newCell;
-    changes.push({
-      sheet: (newCell || oldCell).sheet,
-      cell: (newCell || oldCell).cell,
-      before: formatOnly ? `${oldValue ?? ""} [previous format]` : oldValue,
-      after: formatOnly ? `${newValue ?? ""} [new format]` : newValue,
-      change: formatOnly ? "FORMAT_CHANGED" : oldCell && newCell ? "UPDATED" : newCell ? "ADDED" : "REMOVED",
-    });
-    const position = XLSX.utils.decode_cell((newCell || oldCell).cell);
-    const date = findDateHeader(before, after, (newCell || oldCell).sheet, position.r, position.c);
-    if (date) {
-      const oldMarked = isMarkedCell(oldCell);
-      const newMarked = isMarkedCell(newCell);
-      if (oldMarked || newMarked) {
-        calendarChanges.push({
-          sheet: (newCell || oldCell).sheet,
-          cell: (newCell || oldCell).cell,
-          room: findRoomLabel(before, after, (newCell || oldCell).sheet, position.r, position.c),
-          date,
-          change: !oldMarked && newMarked ? "ADDED" : oldMarked && !newMarked ? "REMOVED" : "UPDATED",
-          before: oldValue,
-          after: newValue,
-        });
-      }
-    }
-    if (changes.length >= 500) break;
-  }
-  return { sourceDiff: changes, calendarChanges };
-}
-
 function fileHash(filePath) {
   return new Promise((resolve, reject) => {
     const digest = crypto.createHash("sha256");
@@ -261,33 +127,6 @@ function fileHash(filePath) {
     stream.on("error", reject);
     stream.on("end", () => resolve(digest.digest("hex")));
   });
-}
-
-function compareSourceFiles(baselinePath, currentPath, extension) {
-  const ext = String(extension || path.extname(currentPath).slice(1)).toLowerCase();
-  if (["xlsx", "xls"].includes(ext)) return compareExcel(baselinePath, currentPath);
-  return {
-    sourceDiff: [{
-      change: baselinePath ? "FILE_CHANGED" : "FIRST_FILE",
-      sheet: null,
-      cell: null,
-      before: baselinePath ? path.basename(baselinePath) : null,
-      after: path.basename(currentPath),
-      note: "Format ini memerlukan review visual/OCR untuk menghasilkan calendar otomatis.",
-    }],
-    calendarChanges: [],
-  };
-}
-
-function dateRange(start, end) {
-  const dates = [];
-  let cursor = new Date(`${start}T00:00:00Z`);
-  const finish = new Date(`${end}T00:00:00Z`);
-  for (let guard = 0; cursor <= finish && guard < 4000; guard += 1) {
-    dates.push(cursor.toISOString().slice(0, 10));
-    cursor = new Date(cursor.getTime() + 86400000);
-  }
-  return dates;
 }
 
 function comparisonKey(item) {
@@ -309,24 +148,6 @@ function daySets(items) {
     for (const date of dateRange(item.start_date, item.end_date)) groups.get(key).dates.add(date);
   }
   return groups;
-}
-
-function contiguousRanges(dates) {
-  const sorted = [...dates].sort();
-  if (!sorted.length) return [];
-  const result = [];
-  let start = sorted[0];
-  let previous = sorted[0];
-  for (const date of sorted.slice(1)) {
-    const expected = new Date(`${previous}T00:00:00Z`).getTime() + 86400000;
-    if (new Date(`${date}T00:00:00Z`).getTime() !== expected) {
-      result.push({ start_date: start, end_date: previous });
-      start = date;
-    }
-    previous = date;
-  }
-  result.push({ start_date: start, end_date: previous });
-  return result;
 }
 
 function compareItems(baselineItems, currentItems) {
@@ -366,6 +187,123 @@ function compareItems(baselineItems, currentItems) {
   };
 }
 
+function extractionSummary(result) {
+  if (!result) return null;
+  return {
+    supported: result.supported,
+    detected_days: result.entries.length,
+    rooms: [...new Set(result.entries.map((entry) => entry.room))].length,
+    legend: result.legend || null,
+    warnings: result.warnings,
+  };
+}
+
+// A manual upload wins; otherwise the file found by the folder scan is used directly.
+function sourceFile(job) {
+  if (job.uploaded_path && fs.existsSync(job.uploaded_path))
+    return { mode: "UPLOAD", path: job.uploaded_path, name: job.uploaded_file_name || path.basename(job.uploaded_path) };
+  if (job.full_path && fs.existsSync(job.full_path))
+    return { mode: "SCAN", path: job.full_path, name: job.file_name || path.basename(job.full_path) };
+  return null;
+}
+
+// Identifies one version of a file, so a saved or cached extraction is only reused for it.
+function sourceKey(filePath) {
+  try {
+    const stat = fs.statSync(filePath);
+    return `${EXTRACTOR_VERSION}|${filePath}|${stat.size}|${stat.mtimeMs}`;
+  } catch {
+    return null;
+  }
+}
+
+// Extraction can take seconds (OCR, Google Sheet download). The preview and Compare read
+// the same file, so concurrent and repeated reads share one result.
+const extractionCache = new Map();
+function readStopSales(filePath, fileName) {
+  const key = sourceKey(filePath);
+  if (!key) return extractStopSales(filePath, fileName);
+  if (!extractionCache.has(key)) {
+    const pending = extractStopSales(filePath, fileName);
+    extractionCache.set(key, pending);
+    pending.catch(() => extractionCache.delete(key));
+    while (extractionCache.size > 30) extractionCache.delete(extractionCache.keys().next().value);
+  }
+  return extractionCache.get(key);
+}
+
+// When the supplier updated this file: "... - updated on 02 Oct" in the folder name, an
+// "as of" date in the file name, or else the date the file was last modified.
+function updateDate(job) {
+  const modified = job.date_modified_utc ? new Date(`${String(job.date_modified_utc).replace(" ", "T")}Z`) : null;
+  const reference = modified && !Number.isNaN(modified.getTime()) ? modified : new Date();
+  const names = [...String(job.parent_path || "").split(/[\\/]/).reverse(), job.file_name, job.uploaded_file_name];
+  for (const name of names) {
+    const date = updateDateIn(name, reference);
+    if (date) return date;
+  }
+  return modified && !Number.isNaN(modified.getTime()) ? modified.toISOString().slice(0, 10) : null;
+}
+
+function serializeJobWithSource(job) {
+  const source = sourceFile(job);
+  return {
+    ...serializeJob(job),
+    source_mode: source?.mode || null,
+    source_file_name: source?.name || null,
+    update_date: updateDate(job),
+  };
+}
+
+// Reads the source file right away so its stop sales are visible before a
+// supplier is chosen or Compare is run. Nothing is compared yet (all CURRENT).
+async function buildPreviewSummary(filePath, fileName, fromDate = null) {
+  try {
+    const current = await readStopSales(filePath, fileName);
+    const { context } = compareSnapshots([], current.entries, { hasBaseline: false, fromDate });
+    return {
+      version: 2,
+      extractor_version: EXTRACTOR_VERSION,
+      preview: true,
+      update_date: fromDate,
+      source_key: sourceKey(filePath),
+      snapshot: toSnapshot(current.entries),
+      calendar_changes: [],
+      current_stop_sales: context,
+      extraction: {
+        current: extractionSummary(current),
+        baseline: null,
+        warnings: ["Preview: belum dibandingkan dengan baseline. Pilih supplier lalu klik Compare."],
+      },
+    };
+  } catch (error) {
+    console.error("Stop-sale preview error:", error);
+    return {
+      version: 2,
+      extractor_version: EXTRACTOR_VERSION,
+      preview: true,
+      calendar_changes: [],
+      current_stop_sales: [],
+      extraction: { current: null, baseline: null, warnings: [`Preview gagal: ${error.message}`] },
+    };
+  }
+}
+
+// Jobs without a summary (new from scan, or older uploads) get a preview generated and saved.
+async function ensurePreview(job) {
+  let summary = jsonValue(job.comparison_summary, null);
+  const source = sourceFile(job);
+  const stalePreview = summary?.preview && summary.extractor_version !== EXTRACTOR_VERSION;
+  if ((!(summary?.version >= 2) || stalePreview) && !job.processed_at && source) {
+    summary = await buildPreviewSummary(source.path, source.name, updateDate(job));
+    await pool.execute(
+      "UPDATE stop_sale_jobs SET comparison_summary = ? WHERE id = ? AND processed_at IS NULL",
+      [JSON.stringify(summary), job.id],
+    );
+  }
+  return summary;
+}
+
 async function createJob(req, res) {
   const scanResultId = parseId(req.params.scanResultId);
   if (!scanResultId) return badRequest(res, new Error("Hasil scan tidak valid."));
@@ -378,13 +316,82 @@ async function createJob(req, res) {
     );
     if (!rows.length) return res.status(404).json({ success: false, message: "File Stop Sale tidak ditemukan." });
     const [result] = await pool.execute(
-      "INSERT INTO stop_sale_jobs (scan_result_id) VALUES (?) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
+      "INSERT INTO stop_sale_jobs (scan_result_id, split_index) VALUES (?, 0) ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)",
       [scanResultId],
     );
+    // Read the file in the background so opening the job does not wait for it.
+    jobRow(result.insertId).then((job) => job && ensurePreview(job))
+      .catch((error) => console.error("Stop-sale preview warm-up error:", error));
     return res.status(result.affectedRows === 1 ? 201 : 200).json({ success: true, job_id: result.insertId });
   } catch (error) {
     console.error("Create stop-sale job error:", error);
     return res.status(500).json({ success: false, message: "Gagal menambahkan file ke queue." });
+  }
+}
+
+// A folder such as "K CLUB & KANVA UBUD" covers two hotels: the same file is queued
+// again as a separate job so each supplier gets its own supplier, baseline and compare.
+async function addSupplierJob(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return badRequest(res, new Error("Job tidak valid."));
+  try {
+    const job = await jobRow(id);
+    if (!job) return res.status(404).json({ success: false, message: "Job tidak ditemukan." });
+    const [[next]] = await pool.execute(
+      "SELECT COALESCE(MAX(split_index), 0) + 1 AS value FROM stop_sale_jobs WHERE scan_result_id = ?",
+      [job.scan_result_id],
+    );
+    if (next.value > 9) return badRequest(res, new Error("File ini sudah dipakai untuk terlalu banyak supplier."));
+    const [result] = await pool.execute(
+      "INSERT INTO stop_sale_jobs (scan_result_id, split_index) VALUES (?, ?)",
+      [job.scan_result_id, next.value],
+    );
+    jobRow(result.insertId).then((created) => created && ensurePreview(created))
+      .catch((error) => console.error("Stop-sale preview warm-up error:", error));
+    return res.status(201).json({ success: true, job_id: result.insertId });
+  } catch (error) {
+    console.error("Add stop-sale supplier job error:", error);
+    return res.status(500).json({ success: false, message: "Gagal menambahkan supplier untuk file ini." });
+  }
+}
+
+// Removes a job from the Pending Queue (and its manual upload). Completed jobs are the
+// supplier's history/baseline and stay.
+async function deleteJob(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return badRequest(res, new Error("Job tidak valid."));
+  try {
+    const job = await jobRow(id);
+    if (!job) return res.status(404).json({ success: false, message: "Job tidak ditemukan." });
+    if (job.is_active_baseline || job.status === "COMPLETED")
+      return res.status(409).json({ success: false, message: "Job yang sudah Complete tidak bisa dihapus dari queue." });
+    await pool.execute("DELETE FROM stop_sale_jobs WHERE id = ? AND is_active_baseline = 0 AND status <> 'COMPLETED'", [id]);
+    await removeManagedFile(job.uploaded_path);
+    return res.json({ success: true, message: "Job dihapus dari Pending Queue." });
+  } catch (error) {
+    console.error("Delete stop-sale job error:", error);
+    return res.status(500).json({ success: false, message: "Gagal menghapus job dari queue." });
+  }
+}
+
+// Hides a file from the scan results (the file on the drive is not touched).
+async function removeScanResult(req, res) {
+  const scanResultId = parseId(req.params.scanResultId);
+  if (!scanResultId) return badRequest(res, new Error("Hasil scan tidak valid."));
+  try {
+    const [[queued]] = await pool.execute(
+      "SELECT COUNT(*) AS total FROM stop_sale_jobs WHERE scan_result_id = ? AND status <> 'COMPLETED' AND is_active_baseline = 0",
+      [scanResultId],
+    );
+    if (queued.total) return res.status(409).json({ success: false, message: "File masih ada di Pending Queue. Hapus dari queue dulu." });
+    await pool.execute(
+      "INSERT IGNORE INTO stop_sale_removed_results (scan_result_id, removed_by) VALUES (?, ?)",
+      [scanResultId, req.admin?.id || null],
+    );
+    return res.json({ success: true, message: "File dihapus dari hasil scan." });
+  } catch (error) {
+    console.error("Remove stop-sale scan result error:", error);
+    return res.status(500).json({ success: false, message: "Gagal menghapus file dari hasil scan." });
   }
 }
 
@@ -396,12 +403,14 @@ async function listJobs(req, res) {
     const where = statuses.length ? `WHERE j.status IN (${statuses.map(() => "?").join(",")})` : "";
     const [[count]] = await pool.execute(`SELECT COUNT(*) AS total FROM stop_sale_jobs j ${where}`, statuses);
     const [rows] = await pool.query(
-      `SELECT j.*, r.file_name, r.full_path, r.extension,
+      `SELECT j.*, r.file_name, r.full_path, r.parent_path, r.extension,
+              src.base_path, src.year AS source_year, src.target_folder,
               CAST(r.date_modified_utc AS CHAR) AS date_modified_utc, r.file_size,
               s.company_name, s.location AS supplier_location, s.category_supplier,
               u.fullname AS completed_by_name
          FROM stop_sale_jobs j
          JOIN contract_scan_results r ON r.id = j.scan_result_id
+         JOIN contract_scan_sources src ON src.id = r.source_id
          LEFT JOIN suppliers s ON s.supplier_id = j.supplier_id
          LEFT JOIN users u ON u.id = j.completed_by
          ${where}
@@ -436,33 +445,14 @@ async function getJob(req, res) {
         baselineItems = await itemsForJob(rows[0].id);
       }
     }
-    const storedSummary = jsonValue(job.comparison_summary, null);
-    const automaticActions = (storedSummary?.calendar_changes || []).map((item) => ({
-      product_id: null,
-      product_name: item.room,
-      restriction_status: "STOP_SALE",
-      change: item.change,
-      start_date: item.date,
-      end_date: item.date,
-      sheet: item.sheet,
-      cell: item.cell,
-      before: item.before,
-      after: item.after,
-    }));
-    const comparison = automaticActions.length
-      ? {
-          actions: automaticActions,
-          summary: {
-            added_days: automaticActions.filter((item) => item.change === "ADDED").length,
-            removed_days: automaticActions.filter((item) => item.change === "REMOVED").length,
-            updated_days: automaticActions.filter((item) => item.change === "UPDATED").length,
-            unchanged_days: 0,
-          },
-        }
+    const storedSummary = await ensurePreview(job);
+    // Summaries from the old cell-diff compare (no version) are not trusted; re-run Compare.
+    const comparison = storedSummary?.version >= 2
+      ? comparisonFromSummary(storedSummary)
       : compareItems(baselineItems, items);
     return res.json({
       success: true,
-      job: serializeJob(job),
+      job: serializeJobWithSource(job),
       items,
       baseline,
       baseline_items: baselineItems,
@@ -522,6 +512,11 @@ async function uploadJobFile(req, res) {
     );
     if (oldUploadPath && path.resolve(oldUploadPath) !== path.resolve(req.file.path))
       await removeManagedFile(oldUploadPath);
+    const preview = await buildPreviewSummary(req.file.path, req.file.originalname, updateDate(job));
+    await pool.execute(
+      "UPDATE stop_sale_jobs SET comparison_summary = ? WHERE id = ? AND processed_at IS NULL",
+      [JSON.stringify(preview), id],
+    );
     return res.json({
       success: true,
       message: "File Stop Sale siap dibandingkan.",
@@ -534,6 +529,29 @@ async function uploadJobFile(req, res) {
   }
 }
 
+async function clearJobUpload(req, res) {
+  const id = parseId(req.params.id);
+  if (!id) return badRequest(res, new Error("Job tidak valid."));
+  try {
+    const job = await jobRow(id);
+    if (!job || job.is_active_baseline || job.status === "COMPLETED")
+      return res.status(409).json({ success: false, message: "Job tidak dapat diubah." });
+    await pool.execute(
+      `UPDATE stop_sale_jobs
+          SET uploaded_path = NULL, uploaded_file_name = NULL, uploaded_mime_type = NULL,
+              uploaded_file_size = NULL, status = 'NEW', source_diff = NULL,
+              comparison_summary = NULL, processed_at = NULL
+        WHERE id = ?`,
+      [id],
+    );
+    await removeManagedFile(job.uploaded_path);
+    return res.json({ success: true, message: "Upload manual dihapus, kembali memakai file hasil scan." });
+  } catch (error) {
+    console.error("Clear stop-sale upload error:", error);
+    return res.status(500).json({ success: false, message: "Gagal menghapus upload manual." });
+  }
+}
+
 async function processJob(req, res) {
   const id = parseId(req.params.id);
   if (!id) return badRequest(res, new Error("Job tidak valid."));
@@ -543,7 +561,7 @@ async function processJob(req, res) {
     if (!job.supplier_id) return badRequest(res, new Error("Pilih supplier sebelum Process."));
     await pool.execute("UPDATE stop_sale_jobs SET status = 'PROCESSING' WHERE id = ?", [id]);
     const [baselines] = await pool.execute(
-      `SELECT j.id, j.baseline_path, HEX(r.fingerprint) AS fingerprint
+      `SELECT j.id, j.baseline_path, j.comparison_summary, HEX(r.fingerprint) AS fingerprint
          FROM stop_sale_jobs j JOIN contract_scan_results r ON r.id = j.scan_result_id
         WHERE j.supplier_id = ? AND j.is_active_baseline = 1 AND j.id <> ? LIMIT 1`,
       [job.supplier_id, id],
@@ -551,39 +569,58 @@ async function processJob(req, res) {
     const baseline = baselines[0] || null;
     const baselinePath = baseline?.baseline_path && fs.existsSync(baseline.baseline_path)
       ? baseline.baseline_path : null;
-    if (!job.uploaded_path || !fs.existsSync(job.uploaded_path))
-      throw new Error("Upload file Stop Sale sebelum menjalankan Compare.");
-    if (baselinePath && await fileHash(baselinePath) === await fileHash(job.uploaded_path)) {
+    const source = sourceFile(job);
+    if (!source) throw new Error("Upload file Stop Sale: file hasil scan tidak bisa diakses dari server.");
+    if (baselinePath && await fileHash(baselinePath) === await fileHash(source.path)) {
       await pool.execute("UPDATE stop_sale_jobs SET status = 'DUPLICATE', processed_at = CURRENT_TIMESTAMP(3) WHERE id = ?", [id]);
       return res.json({ success: true, status: "DUPLICATE", source_diff: [] });
     }
-    const compared = baselinePath
-      ? compareSourceFiles(
-          baselinePath,
-          job.uploaded_path,
-          path.extname(job.uploaded_file_name || job.uploaded_path).slice(1),
-        )
-      : {
-          sourceDiff: [{
-            change: baseline ? "BASELINE_FILE_MISSING" : "FIRST_FILE",
-            sheet: null,
-            cell: null,
-            before: null,
-            after: job.uploaded_file_name || path.basename(job.uploaded_path),
-            note: baseline
-              ? "Baseline metadata ditemukan tetapi file baseline tidak tersedia."
-              : "File pertama akan menjadi baseline setelah Complete.",
-          }],
-          calendarChanges: [],
-        };
-    const sourceDiff = compared.sourceDiff;
-    const status = baseline ? (baselinePath ? "READY_FOR_JAMBIX" : "NEEDS_REVIEW") : "READY_FOR_JAMBIX";
+    // The preview already read this exact file; reuse it instead of reading it again.
+    const preview = jsonValue(job.comparison_summary, null);
+    const current = preview?.preview && preview.snapshot && preview.extraction?.current
+      && preview.source_key === sourceKey(source.path)
+      ? {
+        supported: preview.extraction.current.supported,
+        entries: fromSnapshot(preview.snapshot),
+        warnings: preview.extraction.current.warnings || [],
+        legend: preview.extraction.current.legend,
+      }
+      : await readStopSales(source.path, source.name);
+    // Prefer what the baseline file said when it was compared (stored snapshot);
+    // re-reading it could give different data (live Google Sheet) and repeats OCR.
+    const baselineSnapshot = jsonValue(baseline?.comparison_summary, null)?.snapshot;
+    const previous = baselineSnapshot
+      ? { supported: true, entries: fromSnapshot(baselineSnapshot), warnings: [], legend: null }
+      : baselinePath ? await readStopSales(baselinePath) : null;
+    const fromDate = updateDate(job);
+    const { changes, context } = compareSnapshots(previous?.entries || [], current.entries, {
+      fromDate,
+      hasBaseline: Boolean(previous),
+      incremental: job.document_type === "INCREMENTAL",
+    });
+    const warnings = [];
+    if (baseline && !previous) warnings.push("Baseline metadata ditemukan tetapi file baseline tidak tersedia.");
+    if (!baseline) warnings.push("Belum ada baseline: stop sale di file ini ditampilkan sebagai kondisi saat ini, bukan perubahan.");
+    if (previous && !previous.supported) warnings.push("File baseline tidak bisa dibaca otomatis, hasil compare tidak bisa dipercaya.");
+    const needsReview = !current.supported || (previous && !previous.supported) || (baseline && !previous);
+    const status = needsReview ? "NEEDS_REVIEW" : "READY_FOR_JAMBIX";
     const summary = {
+      version: 2,
       baseline_job_id: baseline?.id || null,
-      source_changes: sourceDiff.length,
-      baseline_available: Boolean(baselinePath),
-      calendar_changes: compared.calendarChanges,
+      baseline_available: Boolean(previous),
+      update_date: fromDate,
+      source_mode: source.mode,
+      snapshot: toSnapshot(current.entries),
+      has_changes: changes.length > 0,
+      calendar_changes: changes,
+      current_stop_sales: context,
+      extraction: {
+        current: extractionSummary(current),
+        baseline: extractionSummary(previous),
+        warnings,
+      },
     };
+    const sourceDiff = changes;
     await pool.execute(
       `UPDATE stop_sale_jobs SET status = ?, source_diff = ?, comparison_summary = ?,
               processed_at = CURRENT_TIMESTAMP(3)
@@ -672,15 +709,17 @@ async function completeJob(req, res) {
     const job = await jobRow(id, connection);
     if (!job) return res.status(404).json({ success: false, message: "Job tidak ditemukan." });
     if (!job.supplier_id) throw new Error("Supplier wajib dipilih.");
-    if (job.status !== "READY_FOR_JAMBIX") throw new Error("Jalankan Compare sebelum Complete.");
-    if (!job.uploaded_path || !fs.existsSync(job.uploaded_path))
-      throw new Error("File upload tidak lagi tersedia.");
+    // NEEDS_REVIEW (e.g. image/scanned file) can be completed after a manual check.
+    if (!["READY_FOR_JAMBIX", "NEEDS_REVIEW"].includes(job.status))
+      throw new Error("Jalankan Compare sebelum Complete.");
+    const source = sourceFile(job);
+    if (!source) throw new Error("File Stop Sale tidak lagi tersedia.");
     await fs.promises.mkdir(BASELINE_ROOT, { recursive: true });
-    const extension = String(path.extname(job.uploaded_file_name || job.uploaded_path).slice(1) || "bin")
+    const extension = String(path.extname(source.name).slice(1) || "bin")
       .replace(/[^a-z0-9]/gi, "").toLowerCase();
     const baselinePath = path.join(BASELINE_ROOT, `supplier-${job.supplier_id}-job-${id}.${extension}`);
     temporaryPath = path.join(BASELINE_ROOT, `.pending-${id}-${crypto.randomUUID()}.${extension}`);
-    await fs.promises.copyFile(job.uploaded_path, temporaryPath);
+    await fs.promises.copyFile(source.path, temporaryPath);
     await fs.promises.rename(temporaryPath, baselinePath);
     temporaryPath = null;
     createdBaselinePath = baselinePath;
@@ -800,4 +839,8 @@ module.exports = {
   searchSuppliers,
   updateJob,
   uploadJobFile: [stopSaleUpload.single("file"), uploadJobFile],
+  clearJobUpload,
+  addSupplierJob,
+  deleteJob,
+  removeScanResult,
 };
