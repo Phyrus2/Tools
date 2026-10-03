@@ -52,7 +52,7 @@ export class Profile {
     this.auth.updateProfile(value.fullname, value.username, value.currentPassword).subscribe({
       next: (user) => {
         this.profileForm.reset({ fullname: user.fullname, username: user.username, currentPassword: '' });
-        this.profileMessage.set('Profil berhasil diperbarui. Sesi lain telah dikeluarkan.');
+        this.profileMessage.set('Profile updated. Other sessions have been signed out.');
         this.savingProfile.set(false);
       },
       error: (error: HttpErrorResponse) => {
@@ -69,7 +69,7 @@ export class Profile {
     }
     const value = this.passwordForm.getRawValue();
     if (value.newPassword !== value.confirmation) {
-      this.passwordError.set('Konfirmasi password baru tidak sama.');
+      this.passwordError.set('The new password confirmation does not match.');
       return;
     }
     this.savingPassword.set(true);
@@ -78,7 +78,7 @@ export class Profile {
     this.auth.changePassword(value.currentPassword, value.newPassword).subscribe({
       next: () => {
         this.passwordForm.reset({ currentPassword: '', newPassword: '', confirmation: '' });
-        this.passwordMessage.set('Password berhasil diganti. Sesi lain telah dikeluarkan.');
+        this.passwordMessage.set('Password changed. Other sessions have been signed out.');
         this.savingPassword.set(false);
       },
       error: (error: HttpErrorResponse) => {
@@ -89,6 +89,6 @@ export class Profile {
   }
 
   private apiError(error: HttpErrorResponse): string {
-    return typeof error.error?.message === 'string' ? error.error.message : 'Permintaan gagal. Coba kembali.';
+    return typeof error.error?.message === 'string' ? error.error.message : 'Request failed. Please try again.';
   }
 }

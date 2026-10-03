@@ -14,12 +14,15 @@ import {
   StopSaleSupplier,
   StopSalesService,
 } from '../services/stop-sales';
+import { confirmDialog } from '../shared/confirm-dialog';
+import { DatePicker } from '../shared/date-picker/date-picker';
+import { TimePicker } from '../shared/time-picker/time-picker';
 
 type StopSaleTab = 'scan' | 'queue' | 'reports' | 'settings';
 
 @Component({
   selector: 'app-stop-sales',
-  imports: [CommonModule, FormsModule, RouterLink],
+  imports: [CommonModule, FormsModule, RouterLink, DatePicker, TimePicker],
   templateUrl: './stop-sales.html',
   styleUrl: './stop-sales.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -61,6 +64,27 @@ export class StopSales implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     if (this.pollHandle) clearTimeout(this.pollHandle);
+  }
+
+  // scanStart / scanEnd stay "YYYY-MM-DDTHH:mm"; the shared pickers edit the date and time halves.
+  get scanStartDate(): string { return this.scanStart.slice(0, 10); }
+  get scanStartTime(): string { return this.scanStart.slice(11, 16); }
+  get scanEndDate(): string { return this.scanEnd.slice(0, 10); }
+  get scanEndTime(): string { return this.scanEnd.slice(11, 16); }
+  setScanStart(date: string, time: string): void { if (date) this.scanStart = `${date}T${time || '00:00'}`; }
+  setScanEnd(date: string, time: string): void { if (date) this.scanEnd = `${date}T${time || '00:00'}`; }
+
+  readonly monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  get calendarMonthIndex(): number { return Number(this.calendarMonth.slice(5, 7)) - 1; }
+  get calendarYear(): number { return Number(this.calendarMonth.slice(0, 4)); }
+  get calendarYearOptions(): number[] {
+    const thisYear = new Date().getFullYear();
+    const from = Math.min(thisYear - 3, this.calendarYear);
+    const to = Math.max(thisYear + 5, this.calendarYear);
+    return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+  }
+  setCalendarMonth(year: number | string, monthIndex: number | string): void {
+    this.calendarMonth = `${year}-${String(Number(monthIndex) + 1).padStart(2, '0')}`;
   }
 
   get queueJobs(): StopSaleJob[] {
@@ -141,7 +165,7 @@ export class StopSales implements OnInit, OnDestroy {
   createSource(): void {
     this.run(
       this.api.createSource(this.sourceForm),
-      'Folder Stop Sale ditambahkan.',
+      'Stop Sale folder added.',
       () => {
         this.sourceForm = { ...this.sourceForm, base_path: '', target_folder: '' };
         this.loadSources();
@@ -150,12 +174,18 @@ export class StopSales implements OnInit, OnDestroy {
   }
 
   toggleSource(source: StopSaleSource): void {
-    this.run(this.api.updateSource(source), 'Status folder diperbarui.', () => this.loadSources());
+    this.run(this.api.updateSource(source), 'Folder status updated.', () => this.loadSources());
   }
 
-  deleteSource(source: StopSaleSource): void {
-    if (!window.confirm(`Hapus konfigurasi folder "${source.target_folder}"? File fisik tidak dihapus.`)) return;
-    this.run(this.api.deleteSource(source.id), 'Konfigurasi folder dihapus.', () => this.loadSources());
+  async deleteSource(source: StopSaleSource): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Delete folder configuration?',
+      text: `"${source.target_folder}" will be removed from the list. The physical files will not be deleted.`,
+      confirmText: 'Yes, delete',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.run(this.api.deleteSource(source.id), 'Folder configuration deleted.', () => this.loadSources());
   }
 
   startScan(): void {
@@ -166,7 +196,7 @@ export class StopSales implements OnInit, OnDestroy {
       : { mode: 'CUSTOM' as const, start: this.scanStart, end: this.scanEnd };
     this.api.startScan(body).pipe(finalize(() => { this.busy = false; this.render(); })).subscribe({
       next: (response) => {
-        this.message = 'Scan Stop Sale dimulai.';
+        this.message = 'Stop Sale scan started.';
         this.refreshScan(response.scan_id);
       },
       error: (error) => this.fail(error),
@@ -201,24 +231,36 @@ export class StopSales implements OnInit, OnDestroy {
         // Mark it locally so the button is disabled without re-running the scan.
         result.job_id = response.job_id;
         result.job_status = result.job_status || 'NEW';
-        this.message = 'File ditambahkan ke Stop Sale Queue.';
+        this.message = 'File added to the Stop Sale queue.';
         this.loadJobs();
       },
       error: (error) => this.fail(error),
     });
   }
 
-  removeResult(result: StopSaleScanResult): void {
+  async removeResult(result: StopSaleScanResult): Promise<void> {
     if (result.job_id && result.job_status !== 'COMPLETED') return;
-    if (!window.confirm(`Hapus "${result.file_name}" dari hasil scan?\nFile di drive tidak ikut terhapus.`)) return;
-    this.run(this.api.removeScanResult(result.id), 'File dihapus dari hasil scan.', () => {
+    const confirmed = await confirmDialog({
+      title: 'Remove from scan results?',
+      text: `"${result.file_name}" will be removed from the scan results. The file on the drive will not be deleted.`,
+      confirmText: 'Yes, delete',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.run(this.api.removeScanResult(result.id), 'File removed from the scan results.', () => {
       this.results = this.results.filter((item) => item.id !== result.id);
     });
   }
 
-  removeJob(job: StopSaleJob): void {
-    if (!window.confirm(`Hapus "${job.file_name}"${job.company_name ? ` (${job.company_name})` : ''} dari Pending Queue?`)) return;
-    this.run(this.api.deleteJob(job.id), 'Job dihapus dari Pending Queue.', () => {
+  async removeJob(job: StopSaleJob): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Remove from the pending queue?',
+      text: `"${job.file_name}"${job.company_name ? ` (${job.company_name})` : ''} will be removed from the pending queue.`,
+      confirmText: 'Yes, delete',
+      danger: true,
+    });
+    if (!confirmed) return;
+    this.run(this.api.deleteJob(job.id), 'Job removed from the pending queue.', () => {
       this.jobs = this.jobs.filter((item) => item.id !== job.id);
       // The file can be added to the queue again from the scan results.
       for (const result of this.results) if (result.job_id === job.id) { result.job_id = null; result.job_status = null; }
@@ -306,7 +348,7 @@ export class StopSales implements OnInit, OnDestroy {
 
   uploadComparisonFile(): void {
     if (!this.detail || !this.pendingUploadFile) {
-      this.error = 'Pilih file Stop Sale terlebih dahulu.';
+      this.error = 'Choose a Stop Sale file first.';
       return;
     }
     const id = this.detail.job.id;
@@ -320,7 +362,7 @@ export class StopSales implements OnInit, OnDestroy {
         this.detail = detail;
         this.pendingUploadFile = null;
         this.showDefaultMonth(detail);
-        this.message = 'File Stop Sale berhasil di-upload. Preview stop sale sudah tampil di kalender.';
+        this.message = 'Stop Sale file uploaded. The stop sale preview is now shown in the calendar.';
       },
       error: (error) => this.fail(error),
     });
@@ -328,11 +370,11 @@ export class StopSales implements OnInit, OnDestroy {
 
   processJob(): void {
     if (!this.detail?.job.supplier_id) {
-      this.error = 'Pilih supplier terlebih dahulu.';
+      this.error = 'Select a supplier first.';
       return;
     }
     if (!this.detail.job.source_mode) {
-      this.error = 'File hasil scan tidak bisa diakses. Upload file Stop Sale secara manual.';
+      this.error = 'The scanned file cannot be accessed. Upload the Stop Sale file manually.';
       return;
     }
     const job = this.detail.job;
@@ -354,20 +396,25 @@ export class StopSales implements OnInit, OnDestroy {
         const changes = detail.comparison.actions.filter((action) => action.change === 'ADDED' || action.change === 'REMOVED');
         this.showDefaultMonth(detail);
         this.message = !detail.baseline
-          ? 'File pertama diproses tanpa baseline: stop sale ditampilkan sebagai kondisi saat ini.'
+          ? 'First file processed without a baseline: stop sales are shown as the current state.'
           : changes.length
-            ? `Ditemukan ${changes.length} perubahan stop sale dibanding baseline.`
-            : 'Tidak ada perubahan stop sale dibanding baseline.';
+            ? `Found ${changes.length} stop sale ${changes.length === 1 ? 'change' : 'changes'} compared with the baseline.`
+            : 'No stop sale changes compared with the baseline.';
       },
       error: (error) => this.fail(error),
     });
   }
 
-  completeJob(): void {
+  async completeJob(): Promise<void> {
     if (!this.detail) return;
-    if (!window.confirm('Pastikan semua perubahan sudah diinput pada Jambix. Complete sekarang?')) return;
+    const confirmed = await confirmDialog({
+      title: 'Complete now?',
+      text: 'Make sure every change has been entered in Jambix.',
+      confirmText: 'Yes, complete',
+    });
+    if (!confirmed || !this.detail) return;
     const id = this.detail.job.id;
-    this.run(this.api.completeJob(id), 'Stop Sale selesai dan menjadi baseline aktif.', () => {
+    this.run(this.api.completeJob(id), 'Stop Sale completed and set as the active baseline.', () => {
       this.closeJob();
       this.loadJobs();
       this.loadReports();
@@ -413,7 +460,7 @@ export class StopSales implements OnInit, OnDestroy {
       next: (response) => {
         this.loadJobs();
         this.openJob({ ...job, id: response.job_id, supplier_id: null, company_name: null });
-        this.message = 'File yang sama ditambahkan untuk supplier lain. Pilih suppliernya lalu Compare.';
+        this.message = 'The same file was added for another supplier. Select the supplier, then compare.';
       },
       error: (error) => this.fail(error),
     });
@@ -431,7 +478,7 @@ export class StopSales implements OnInit, OnDestroy {
       next: (detail) => {
         this.detail = detail;
         this.showDefaultMonth(detail);
-        this.message = 'Kembali memakai file hasil scan.';
+        this.message = 'Switched back to the scanned file.';
       },
       error: (error) => this.fail(error),
     });
@@ -476,7 +523,7 @@ export class StopSales implements OnInit, OnDestroy {
   }
 
   calendarTitle(row: { actions: StopSaleAction[] }, date: string): string {
-    if (this.isPast(date)) return `Sudah lewat (file di-update ${this.detail?.job.update_date})`;
+    if (this.isPast(date)) return `Past (file updated ${this.detail?.job.update_date})`;
     const action = this.actionAt(row, date);
     if (!action) return 'Open';
     const labels: Record<string, string> = {
@@ -502,6 +549,7 @@ export class StopSales implements OnInit, OnDestroy {
   private run(request: ReturnType<StopSalesService['deleteSource']>, message: string, next?: () => void): void {
     this.clearFeedback();
     this.busy = true;
+    this.render();
     request.pipe(finalize(() => { this.busy = false; this.render(); })).subscribe({
       next: () => { this.message = message; next?.(); },
       error: (error) => this.fail(error),
@@ -509,7 +557,7 @@ export class StopSales implements OnInit, OnDestroy {
   }
 
   private fail(error: any): void {
-    this.error = error?.error?.message || error?.message || 'Terjadi kesalahan.';
+    this.error = error?.error?.message || error?.message || 'Something went wrong.';
     this.busy = false;
     this.render();
   }

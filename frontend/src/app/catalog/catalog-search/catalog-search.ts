@@ -13,6 +13,7 @@ import {
   SupplierSearchResult,
 } from '../../services/catalog-search';
 import { AuthService } from '../../auth/auth.service';
+import { confirmDialog } from '../../shared/confirm-dialog';
 
 @Component({
   selector: 'app-catalog-search',
@@ -200,8 +201,13 @@ export class CatalogSearch implements OnInit, OnDestroy {
       });
   }
 
-  reactivateSupplier(row: SupplierSearchResult): void {
-    if (!window.confirm(`Reactivate ${row.company_name}?`)) return;
+  async reactivateSupplier(row: SupplierSearchResult): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Reactivate supplier?',
+      text: row.company_name,
+      confirmText: 'Yes, reactivate',
+    });
+    if (!confirmed) return;
     this.catalogSearch.updateSupplierStatus(row.supplier_id, { status: 'Active' }).subscribe({
       next: () => this.search(this.pagination.page),
       error: () => {

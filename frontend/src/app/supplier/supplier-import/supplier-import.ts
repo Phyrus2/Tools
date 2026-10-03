@@ -12,6 +12,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { confirmDialog } from '../../shared/confirm-dialog';
 
 class Paginator<T> {
   page = 1;
@@ -216,16 +217,19 @@ export class SupplierImport implements OnInit {
       );
     }
 
-    undoLatestImport(): void {
+    async undoLatestImport(): Promise<void> {
       if (!this.latestImport?.canUndo || this.undoing) {
         return;
       }
 
-      const approved = window.confirm(
-        `Undo the ${this.latestImport.category} category added by the ${this.latestImport.fileName} import? Suppliers will not be deleted.`,
-      );
+      const approved = await confirmDialog({
+        title: 'Undo latest import?',
+        text: `The ${this.latestImport.category} category added by the ${this.latestImport.fileName} import will be removed. Suppliers will not be deleted.`,
+        confirmText: 'Yes, undo',
+        danger: true,
+      });
 
-      if (!approved) {
+      if (!approved || !this.latestImport || this.undoing) {
         return;
       }
 

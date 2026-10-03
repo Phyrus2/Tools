@@ -165,7 +165,7 @@
           /></svg
       ></span>
       <span class="summary-label">New</span><strong>{{ result.summary.inserted }}</strong
-      ><small>Lihat daftar ›</small>
+      ><small>View list ›</small>
     </button>
     <button [disabled]="!result.summary.updated" (click)="openImportSection('UPDATED')">
       <span class="summary-icon updated"
@@ -185,7 +185,7 @@
           /></svg
       ></span>
       <span class="summary-label">Updated</span><strong>{{ result.summary.updated }}</strong
-      ><small>Lihat perubahan ›</small>
+      ><small>View changes ›</small>
     </button>
     <button [disabled]="!result.summary.unchanged" (click)="openImportSection('UNCHANGED')">
       <span class="summary-icon unchanged"
@@ -199,7 +199,7 @@
           /></svg
       ></span>
       <span class="summary-label">Unchanged</span><strong>{{ result.summary.unchanged }}</strong
-      ><small>Lihat daftar ›</small>
+      ><small>View list ›</small>
     </button>
     <button
       class="skipped"
@@ -222,7 +222,7 @@
           /></svg
       ></span>
       <span class="summary-label">Skipped</span><strong>{{ result.summary.skipped }}</strong
-      ><small>Lihat alasan ›</small>
+      ><small>View reasons ›</small>
     </button>
   </section>
 
@@ -816,7 +816,7 @@
           </svg>
         </button>
         <div class="empty small" *ngIf="supplierQuery && !supplierResults.length">
-          Tidak ada supplier ditemukan.
+          No suppliers found.
         </div>
       </div>
     </div>

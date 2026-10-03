@@ -15,14 +15,34 @@
     </svg>
   </button>
 
-  <div class="date-picker__popover" *ngIf="open" role="dialog" aria-label="Date calendar">
+  <div
+    class="date-picker__popover"
+    [class.date-picker__popover--up]="openUpward"
+    [class.date-picker__popover--right]="alignRight"
+    *ngIf="open"
+    role="dialog" aria-label="Date calendar">
     <div class="date-picker__header">
       <button type="button" class="date-picker__nav" (click)="previousMonth()" aria-label="Previous month">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="m12 5-5 5 5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
         </svg>
       </button>
-      <strong>{{ monthNames[viewDate.getMonth()] }} {{ viewDate.getFullYear() }}</strong>
+      <div class="date-picker__period">
+        <select aria-label="Month" (change)="setMonth($any($event.target).value)">
+          <option
+            *ngFor="let name of monthNames; let index = index"
+            [value]="index"
+            [selected]="index === viewDate.getMonth()"
+          >
+            {{ name }}
+          </option>
+        </select>
+        <select aria-label="Year" (change)="setYear($any($event.target).value)">
+          <option *ngFor="let year of yearOptions" [value]="year" [selected]="year === viewDate.getFullYear()">
+            {{ year }}
+          </option>
+        </select>
+      </div>
       <button type="button" class="date-picker__nav" (click)="nextMonth()" aria-label="Next month">
         <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
           <path d="m8 5 5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />

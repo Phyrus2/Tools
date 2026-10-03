@@ -203,7 +203,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
             console.log('📤 Search Params:', params);
 
             if (!params) {
-              console.log('⚠️ Params kosong / invalid');
+              console.log('⚠️ Empty or invalid params');
 
               this.loading = false;
               this.cdr.markForCheck();
@@ -218,7 +218,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
             console.log('📥 API Response:', response);
 
             if (!response) {
-              console.log('⚠️ Response kosong');
+              console.log('⚠️ Empty response');
               this.loading = false;
               this.cdr.markForCheck();
               return;
@@ -934,7 +934,7 @@ export class SearchBookedProduct implements OnInit, OnDestroy {
         end_date: this.formatDateForExport((row as any).end_date) as any,
       }));
     } catch (err) {
-      console.error('❌ Gagal mengambil semua data untuk export:', err);
+      console.error('❌ Failed to fetch all data for export:', err);
       this.exportError = 'Unable to retrieve data from the server for export.';
       this.exporting = null;
       this.cdr.markForCheck();

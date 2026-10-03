@@ -65,6 +65,16 @@
   animation: calendar-in 0.14s ease-out;
 }
 
+.date-picker__popover--up {
+  top: auto;
+  bottom: calc(100% + 0.5rem);
+}
+
+.date-picker__popover--right {
+  right: 0;
+  left: auto;
+}
+
 @keyframes calendar-in {
   from {
     opacity: 0;
@@ -83,6 +93,40 @@
     color: #253e37;
     font-size: 0.9rem;
     text-align: center;
+  }
+}
+
+.date-picker__period {
+  display: flex;
+  min-width: 0;
+  gap: 0.35rem;
+
+  select {
+    min-width: 0;
+    height: 34px;
+    padding: 0 0.4rem;
+    border: 1px solid #ddd5c1;
+    border-radius: 7px;
+    background: #fff;
+    color: #253e37;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:first-child {
+      flex: 1.5;
+    }
+
+    &:last-child {
+      flex: 1;
+    }
+
+    &:hover,
+    &:focus {
+      border-color: #35564d;
+      outline: none;
+    }
   }
 }
 

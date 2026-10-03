@@ -10,6 +10,7 @@ import {
   PermissionDefinition,
   UserManagementService,
 } from '../services/user-management';
+import { confirmDialog } from '../shared/confirm-dialog';
 
 @Component({
   selector: 'app-user-management',
@@ -156,7 +157,7 @@ export class UserManagement {
     this.clearNotices();
     this.api.createUser(payload).subscribe({
       next: (response) => {
-        this.message.set('User berhasil dibuat.');
+        this.message.set('User created.');
         this.createOpen.set(false);
         this.saving.set(false);
         this.reload(response.userId);
@@ -175,7 +176,7 @@ export class UserManagement {
     this.clearNotices();
     this.api.updateUser(user.id, this.editForm.getRawValue()).subscribe({
       next: () => {
-        this.message.set('Profil user berhasil diperbarui. Sesi user telah direset.');
+        this.message.set('User profile updated. The user\'s sessions have been reset.');
         this.saving.set(false);
         this.reload(user.id);
       },
@@ -190,7 +191,7 @@ export class UserManagement {
     this.clearNotices();
     this.api.updatePermissions(user.id, [...this.editPermissions()]).subscribe({
       next: () => {
-        this.message.set('Akses halaman berhasil diperbarui. User harus login kembali.');
+        this.message.set('Page access updated. The user must log in again.');
         this.saving.set(false);
         this.reload(user.id);
       },
@@ -198,18 +199,24 @@ export class UserManagement {
     });
   }
 
-  resetPassword(): void {
+  async resetPassword(): Promise<void> {
     const user = this.selectedUser();
     if (!user || !this.canEdit(user) || this.passwordForm.invalid || this.saving()) {
       this.passwordForm.markAllAsTouched();
       return;
     }
-    if (!confirm(`Reset password untuk ${user.fullname}? Semua sesinya akan dikeluarkan.`)) return;
+    const confirmed = await confirmDialog({
+      title: 'Reset password?',
+      text: `The password for ${user.fullname} will be reset and all of their sessions will be signed out.`,
+      confirmText: 'Yes, reset',
+      danger: true,
+    });
+    if (!confirmed || this.saving()) return;
     this.saving.set(true);
     this.clearNotices();
     this.api.resetPassword(user.id, this.passwordForm.getRawValue().password).subscribe({
       next: () => {
-        this.message.set('Password berhasil direset dan seluruh sesi user telah dihapus.');
+        this.message.set('Password reset and all of the user\'s sessions were removed.');
         this.passwordForm.reset({ password: '' });
         this.saving.set(false);
       },
@@ -217,15 +224,21 @@ export class UserManagement {
     });
   }
 
-  revokeSessions(): void {
+  async revokeSessions(): Promise<void> {
     const user = this.selectedUser();
     if (!user || this.isSelf(user) || !this.canEdit(user) || this.saving()) return;
-    if (!confirm(`Keluarkan semua sesi milik ${user.fullname}?`)) return;
+    const confirmed = await confirmDialog({
+      title: 'Sign out all sessions?',
+      text: `All sessions belonging to ${user.fullname} will be signed out.`,
+      confirmText: 'Yes, sign out',
+      danger: true,
+    });
+    if (!confirmed || this.saving()) return;
     this.saving.set(true);
     this.clearNotices();
     this.api.logoutSessions(user.id).subscribe({
       next: () => {
-        this.message.set('Semua sesi user berhasil dikeluarkan.');
+        this.message.set('All of the user\'s sessions were signed out.');
         this.saving.set(false);
       },
       error: (error: HttpErrorResponse) => this.handleSaveError(error),
@@ -243,6 +256,6 @@ export class UserManagement {
   }
 
   private apiError(error: HttpErrorResponse): string {
-    return typeof error.error?.message === 'string' ? error.error.message : 'Permintaan gagal. Coba kembali.';
+    return typeof error.error?.message === 'string' ? error.error.message : 'Request failed. Please try again.';
   }
 }

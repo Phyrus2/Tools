@@ -33,6 +33,7 @@ import {
   SignedStatus,
   SupplierRecommendation,
 } from '../services/contract-monitoring';
+import { confirmDialog } from '../shared/confirm-dialog';
 
 type WorkspaceTab = 'scan' | 'queue' | 'reports' | 'settings';
 
@@ -247,15 +248,17 @@ export class ContractMonitoring implements OnInit, OnDestroy {
       .subscribe({ next: () => this.loadSources(), error: (error) => this.fail(error) });
   }
 
-  deleteSource(source: ScanSource): void {
-    if (
-      !window.confirm(
-        `Delete the "${source.target_folder}" configuration? The physical folder and its files will not be deleted.`,
-      )
-    )
-      return;
+  async deleteSource(source: ScanSource): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Delete folder configuration?',
+      text: `"${source.target_folder}" will be removed from the scan list. The physical folder and its files will not be deleted.`,
+      confirmText: 'Yes, delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     this.clearFeedback();
     this.busy = true;
+    this.render();
     this.api
       .deleteSource(source.id)
       .pipe(
@@ -1166,8 +1169,14 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     this.render();
   }
 
-  removeQueueFile(item: PendingFileItem): void {
-    if (!window.confirm(`Remove ${item.file_name} from this supplier queue?`)) return;
+  async removeQueueFile(item: PendingFileItem): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Remove file from queue?',
+      text: `${item.file_name} will be removed from this supplier queue.`,
+      confirmText: 'Yes, remove',
+      danger: true,
+    });
+    if (!confirmed) return;
     this.api.removePendingSupplier(item.id, item.pending_supplier_id).subscribe({
       next: (response) => {
         this.message = response.message;
@@ -1210,15 +1219,17 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     });
   }
 
-  deleteManagementGroup(group: ManagementGroup): void {
-    if (
-      !window.confirm(
-        `Delete management group ${group.name}? Its membership history will also be removed.`,
-      )
-    )
-      return;
+  async deleteManagementGroup(group: ManagementGroup): Promise<void> {
+    const confirmed = await confirmDialog({
+      title: 'Delete management group?',
+      text: `${group.name} and its membership history will be removed.`,
+      confirmText: 'Yes, delete',
+      danger: true,
+    });
+    if (!confirmed) return;
     this.clearFeedback();
     this.busy = true;
+    this.render();
     this.api
       .deleteGroup(group.id)
       .pipe(

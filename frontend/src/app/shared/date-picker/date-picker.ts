@@ -12,6 +12,10 @@ import {
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 
+// Room the popover needs (px); used to decide which way it opens.
+const POPOVER_HEIGHT = 400;
+const POPOVER_WIDTH = 310;
+
 interface CalendarDay {
   date: Date;
   iso: string;
@@ -38,6 +42,8 @@ export class DatePicker implements OnChanges {
   @Output() readonly valueChange = new EventEmitter<string>();
 
   open = false;
+  openUpward = false;
+  alignRight = false;
   viewDate = this.startOfMonth(new Date());
 
   readonly weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -85,7 +91,11 @@ export class DatePicker implements OnChanges {
     const mondayOffset = (firstDay.getDay() + 6) % 7;
     const gridStart = new Date(year, month, 1 - mondayOffset);
 
-    return Array.from({ length: 42 }, (_, index) => {
+    // Five rows are enough unless the month spills into a sixth week.
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = mondayOffset + daysInMonth > 35 ? 42 : 35;
+
+    return Array.from({ length: cells }, (_, index) => {
       const date = new Date(
         gridStart.getFullYear(),
         gridStart.getMonth(),
@@ -103,13 +113,43 @@ export class DatePicker implements OnChanges {
     });
   }
 
+  /** Years offered in the header dropdown: the min/max bounds when set, otherwise ten years either side of today. */
+  get yearOptions(): number[] {
+    const thisYear = new Date().getFullYear();
+    const viewYear = this.viewDate.getFullYear();
+    const minYear = this.parseIso(this.min)?.getFullYear() ?? Math.min(thisYear - 10, viewYear);
+    const maxYear = this.parseIso(this.max)?.getFullYear() ?? Math.max(thisYear + 10, viewYear);
+    const from = Math.min(minYear, viewYear);
+    const to = Math.max(maxYear, viewYear);
+    return Array.from({ length: to - from + 1 }, (_, index) => from + index);
+  }
+
+  setMonth(month: string): void {
+    this.viewDate = new Date(this.viewDate.getFullYear(), Number(month), 1);
+  }
+
+  setYear(year: string): void {
+    this.viewDate = new Date(Number(year), this.viewDate.getMonth(), 1);
+  }
+
   toggle(): void {
     this.open = !this.open;
 
     if (this.open) {
       const selected = this.parseIso(this.value);
       this.viewDate = this.startOfMonth(selected ?? new Date());
+      this.placePopover();
     }
+  }
+
+  /** Open upward / right-aligned when the popover would not fit below or beside the field. */
+  private placePopover(): void {
+    const rect = this.elementRef.nativeElement.getBoundingClientRect();
+    const headerBottom = Math.max(0, document.querySelector('app-header')?.getBoundingClientRect().bottom ?? 0);
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top - headerBottom;
+    this.openUpward = below < POPOVER_HEIGHT && above > below;
+    this.alignRight = rect.left + POPOVER_WIDTH > window.innerWidth - 16 && rect.right - POPOVER_WIDTH >= 0;
   }
 
   previousMonth(): void {

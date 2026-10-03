@@ -19,10 +19,10 @@ function responseMessage(body: unknown, fallback: string): string {
 }
 
 function successFallback(method: string, url: string): string {
-  if (url.endsWith('/auth/login')) return 'Login berhasil.';
-  if (url.endsWith('/auth/logout')) return 'Berhasil logout.';
-  if (method === 'DELETE') return 'Data berhasil dihapus.';
-  return 'Permintaan berhasil diproses.';
+  if (url.endsWith('/auth/login')) return 'Logged in successfully.';
+  if (url.endsWith('/auth/logout')) return 'Logged out successfully.';
+  if (method === 'DELETE') return 'Data deleted successfully.';
+  return 'Request processed successfully.';
 }
 
 function showSuccess(message: string): void {
@@ -30,7 +30,7 @@ function showSuccess(message: string): void {
     toast: true,
     position: 'top-end',
     icon: 'success',
-    title: 'Berhasil',
+    title: 'Success',
     text: message,
     showConfirmButton: false,
     timer: 2200,
@@ -41,7 +41,7 @@ function showSuccess(message: string): void {
 function showError(error: HttpErrorResponse): void {
   const message = responseMessage(
     error.error,
-    error.status === 0 ? 'Server tidak dapat dihubungi. Periksa koneksi lalu coba kembali.' : 'Permintaan gagal. Coba kembali.',
+    error.status === 0 ? 'Cannot reach the server. Check your connection and try again.' : 'Request failed. Please try again.',
   );
   const key = `${error.status}:${message}`;
   const now = Date.now();
@@ -50,9 +50,9 @@ function showError(error: HttpErrorResponse): void {
   lastErrorAt = now;
   void Swal.fire({
     icon: 'error',
-    title: 'Request gagal',
+    title: 'Request failed',
     text: message,
-    confirmButtonText: 'Tutup',
+    confirmButtonText: 'Close',
     confirmButtonColor: '#35564d',
   });
 }
