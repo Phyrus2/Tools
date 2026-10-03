@@ -1,20 +1,20 @@
 <main class="analytics-shell supplier-analytics">
-  <button class="back-link" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
+  <button class="ui-back" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <span>{{ backLabel }}</span>
   </button>
   <ng-container *ngIf="data as report"
-    ><header class="analytics-header">
-      <div>
-        <p class="eyebrow">Supplier Performance</p>
+    ><header class="ui-hero">
+      <div class="ui-hero__copy">
+        <p class="ui-hero__eyebrow"><i></i> Supplier Performance</p>
         <h1>{{ report.supplier.company_name }}</h1>
-        <p class="subtitle">
+        <p class="ui-hero__lead">
           {{ location() }} · <span class="tag">{{ report.supplier.status }}</span>
         </p>
       </div>
-      <form class="date-range" (ngSubmit)="applyRange()">
+      <form class="ui-hero__aside date-range" (ngSubmit)="applyRange()">
         <label
           >From<app-date-picker
             [value]="dateFrom"
@@ -58,7 +58,7 @@
     <section class="panel record-panel">
       <header class="record-panel__header">
         <div><h2>Supplier Data</h2><p>All supplier fields stored in the database.</p></div>
-        <div class="record-actions">
+        <div class="ui-hero__aside record-actions">
           <button type="button" class="record-button record-button--secondary" *ngIf="editingRecord" (click)="cancelRecordEdit()" [disabled]="savingRecord">Cancel</button>
           <button type="button" class="record-button" *ngIf="!editingRecord" (click)="startRecordEdit()">Edit data</button>
           <button type="button" class="record-button" *ngIf="editingRecord" (click)="saveRecord()" [disabled]="savingRecord">{{ savingRecord ? 'Saving...' : 'Save changes' }}</button>

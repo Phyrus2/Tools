@@ -1,21 +1,21 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600&family=Inter:wght@400;500;600;700&display=swap');
 
 :host {
-  --paper: #f6f3ea;
-  --surface: #fffdf8;
-  --surface-muted: #f1eee5;
-  --line: #ded7c6;
-  --strong: #c8bea5;
-  --ink: #20261f;
-  --soft: #66705f;
-  --forest: #35564d;
-  --deep: #253e37;
-  --gold: #a97e37;
+  --paper: var(--ui-page);
+  --surface: var(--ui-surface);
+  --surface-muted: var(--ui-surface-sunken);
+  --line: var(--ui-line);
+  --strong: var(--ui-line-strong);
+  --ink: var(--ui-ink);
+  --soft: var(--ui-ink-soft);
+  --forest: var(--ui-primary);
+  --deep: var(--ui-primary-deep);
+  --gold: var(--ui-accent);
   display: block;
   min-height: calc(100dvh - 72px);
   color: var(--ink);
   background: radial-gradient(circle at 90% 0, rgba(53, 86, 77, .09), transparent 27rem), var(--paper);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ui-font-body);
 }
 
 * { box-sizing: border-box; }

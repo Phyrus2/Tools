@@ -1,20 +1,23 @@
 <main class="ss-shell">
-  <a class="ss-back" routerLink="/contract" aria-label="Kembali ke Contract Module"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>Contract Module</a>
+  <a class="ui-back" routerLink="/contract" aria-label="Back to Contract Module">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" /></svg>
+    <span>Back to Contract Module</span>
+  </a>
 
-  <header class="ss-hero">
-    <div class="ss-hero-copy">
-      <span class="ss-eyebrow"><i></i> Revenue operations</span>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Revenue operations</p>
       <h1>Stop Sale <em>Monitoring</em></h1>
-      <p>Deteksi perubahan ketersediaan, bandingkan dengan baseline, dan perbarui Jambix dalam satu alur kerja.</p>
-      <div class="ss-hero-meta"><span><i class="pulse"></i> {{ sources.length }} folder terhubung</span><span>Server {{ serverId }}</span></div>
+      <p class="ui-hero__lead">Deteksi perubahan ketersediaan, bandingkan dengan baseline, dan perbarui Jambix dalam satu alur kerja.</p>
+      <div class="ui-hero__meta"><span><i class="ui-hero__pulse"></i> {{ sources.length }} folder terhubung</span><span>Server {{ serverId }}</span></div>
     </div>
-    <div class="ss-hero-stats" aria-label="Ringkasan stop sale">
-      <article><span class="stat-icon queue"><svg viewBox="0 0 24 24"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 13h7M9 17h5"/></svg></span><div><strong>{{ queueJobs.length }}</strong><small>Perlu diproses</small></div></article>
-      <article><span class="stat-icon report"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg></span><div><strong>{{ reports.length }}</strong><small>Baseline aktif</small></div></article>
+    <div class="ui-hero__aside ui-hero__stats" aria-label="Ringkasan stop sale">
+      <article><span class="ui-hero__stat-icon is-warm"><svg viewBox="0 0 24 24"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 13h7M9 17h5"/></svg></span><div><strong>{{ queueJobs.length }}</strong><small>Perlu diproses</small></div></article>
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg></span><div><strong>{{ reports.length }}</strong><small>Baseline aktif</small></div></article>
     </div>
   </header>
 
-  <nav class="ss-tabs" aria-label="Navigasi Stop Sale" role="tablist">
+  <nav class="ui-tabs" aria-label="Navigasi Stop Sale" role="tablist">
     <button role="tab" [attr.aria-selected]="tab === 'scan'" [class.active]="tab === 'scan'" (click)="selectTab('scan')"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></svg><span>Scan terbaru</span></button>
     <button role="tab" [attr.aria-selected]="tab === 'queue'" [class.active]="tab === 'queue'" (click)="selectTab('queue')"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>Antrean</span><b *ngIf="queueJobs.length">{{ queueJobs.length }}</b></button>
     <button role="tab" [attr.aria-selected]="tab === 'reports'" [class.active]="tab === 'reports'" (click)="selectTab('reports')"><svg viewBox="0 0 24 24"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg><span>Laporan</span></button>

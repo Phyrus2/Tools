@@ -1,21 +1,20 @@
 <main class="contract-shell">
-  <a class="back-link" routerLink="/" aria-label="Back to home">
+  <a class="ui-back" routerLink="/" aria-label="Back to home">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" />
     </svg>
     <span>Back to home</span>
   </a>
 
-  <header class="contract-header">
-    <div>
-      <p>OPERATIONS DATABASE</p>
-      <h1>Contract Module</h1>
-      <span>Manage supplier contracts, hotel options, and future stop-sale operations.</span>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Operations Database</p>
+      <h1>Contract <em>Module</em></h1>
+      <p class="ui-hero__lead">Manage supplier contracts, hotel options, and future stop-sale operations.</p>
     </div>
-    <aside>
-      <strong>{{ toolCount }}</strong>
-      <span>available {{ toolCount === 1 ? 'tool' : 'tools' }}</span>
-    </aside>
+    <div class="ui-hero__aside ui-hero__stats">
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></span><div><strong>{{ toolCount }}</strong><small>available {{ toolCount === 1 ? 'tool' : 'tools' }}</small></div></article>
+    </div>
   </header>
 
   <section class="module-intro">

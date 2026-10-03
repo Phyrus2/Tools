@@ -1,13 +1,15 @@
 <main class="users-shell">
-  <section class="users-heading">
-    <div>
-      <p>ACCESS CONTROL</p>
-      <h1>User Management</h1>
-      <span>Create accounts, control page access, and revoke active sessions.</span>
+  <section class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Access Control</p>
+      <h1>User <em>Management</em></h1>
+      <p class="ui-hero__lead">Create accounts, control page access, and revoke active sessions.</p>
     </div>
-    <button type="button" class="primary-button" (click)="toggleCreate()">
-      {{ createOpen() ? 'Close form' : 'Create user' }}
-    </button>
+    <div class="ui-hero__aside">
+      <button type="button" class="primary-button" (click)="toggleCreate()">
+        {{ createOpen() ? 'Close form' : 'Create user' }}
+      </button>
+    </div>
   </section>
 
   <div class="notice notice--success" *ngIf="message()">{{ message() }}</div>

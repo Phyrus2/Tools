@@ -1,0 +1,17 @@
+@if (auth.user()) {
+  <footer class="app-footer">
+    <div class="app-footer__inner">
+      <a class="brand" routerLink="/" aria-label="Database Tools home">
+        <span class="brand__mark" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="brand__copy"><strong>Database Tools</strong><small>Internal workspace</small></span>
+      </a>
+
+      <nav aria-label="Footer navigation">
+        <a routerLink="/">Home</a>
+        <a routerLink="/profile">My Profile</a>
+      </nav>
+
+      <p class="app-footer__legal">&copy; {{ year }} Database Tools &middot; For internal use only</p>
+    </div>
+  </footer>
+}

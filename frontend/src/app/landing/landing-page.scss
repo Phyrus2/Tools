@@ -1,22 +1,22 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap');
 
 :host {
-  --hub-paper: #f6f3ea;
-  --hub-surface: #fffdf8;
-  --hub-hairline: #ddd5c1;
-  --hub-hairline-strong: #c7bc9f;
-  --hub-ink: #20261f;
-  --hub-ink-soft: #5c6455;
-  --hub-ink-faint: #93998a;
-  --hub-forest: #35564d;
-  --hub-forest-deep: #253e37;
-  --hub-forest-wash: #e8efec;
-  --hub-gold: #a97e37;
-  --hub-gold-wash: #f4ead6;
-  --hub-blue: #375d8a;
-  --hub-blue-wash: #e6edf4;
-  --hub-plum: #76536d;
-  --hub-plum-wash: #f0e7ed;
+  --hub-paper: var(--ui-page);
+  --hub-surface: var(--ui-surface);
+  --hub-hairline: var(--ui-line);
+  --hub-hairline-strong: var(--ui-line-strong);
+  --hub-ink: var(--ui-ink);
+  --hub-ink-soft: var(--ui-ink-soft);
+  --hub-ink-faint: var(--ui-ink-faint);
+  --hub-forest: var(--ui-primary);
+  --hub-forest-deep: var(--ui-primary-deep);
+  --hub-forest-wash: var(--ui-primary-soft);
+  --hub-gold: var(--ui-accent);
+  --hub-gold-wash: var(--ui-accent-soft);
+  --hub-blue: var(--ui-blue);
+  --hub-blue-wash: var(--ui-blue-soft);
+  --hub-plum: var(--ui-plum);
+  --hub-plum-wash: var(--ui-plum-soft);
 
   display: block;
   min-height: calc(100dvh - 72px);
@@ -25,12 +25,7 @@
     radial-gradient(circle at 82% 5%, rgba(53, 86, 77, 0.1), transparent 28rem),
     linear-gradient(135deg, transparent 0 68%, rgba(169, 126, 55, 0.045) 68% 82%, transparent 82%),
     var(--hub-paper);
-  font-family:
-    'Inter',
-    -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    sans-serif;
+  font-family: var(--ui-font-body);
 }
 
 * {
@@ -38,7 +33,6 @@
 }
 
 .hub-shell {
-  min-height: calc(100dvh - 72px);
   display: flex;
   flex-direction: column;
 }
@@ -439,17 +433,6 @@ a.hub-app:hover .hub-app__arrow {
   font-weight: 600;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-}
-
-.hub-footer {
-  margin-top: auto;
-  padding-right: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
-  padding-left: max(1.75rem, calc((100vw - 1280px) / 2 + 1.75rem));
-  display: flex;
-  justify-content: space-between;
-  color: var(--hub-ink-faint);
-  border-top: 1px solid rgba(199, 188, 159, 0.55);
-  font-size: 0.7rem;
 }
 
 @media (max-width: 900px) {

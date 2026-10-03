@@ -1,5 +1,5 @@
 <main class="analytics-shell dashboard-analytics">
-  <a class="back-link" routerLink="/" aria-label="Back to home">
+  <a class="ui-back" routerLink="/" aria-label="Back to home">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path
         d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17"
@@ -12,13 +12,13 @@
     <span>Back to home</span>
   </a>
   <ng-container *ngIf="data as report">
-    <header class="analytics-header">
-      <div>
-        <p class="eyebrow">Reservation Analytics</p>
-        <h1>Booking Dashboard</h1>
-        <p class="header-subtitle">Monitor booking, supplier, product, and travel region performance.</p>
+    <header class="ui-hero">
+      <div class="ui-hero__copy">
+        <p class="ui-hero__eyebrow"><i></i> Reservation Analytics</p>
+        <h1>Booking <em>Dashboard</em></h1>
+        <p class="ui-hero__lead">Monitor booking, supplier, product, and travel region performance.</p>
       </div>
-      <form class="date-range" (ngSubmit)="applyRange()">
+      <form class="ui-hero__aside date-range" (ngSubmit)="applyRange()">
         <label
           >From<app-date-picker
             [value]="dateFrom"

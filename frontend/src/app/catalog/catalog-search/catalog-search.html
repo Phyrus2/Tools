@@ -1,19 +1,17 @@
 <main class="catalog-shell">
-  <a class="bp-back-link" routerLink="/search-module" aria-label="Back to Search Module">
+  <a class="ui-back" routerLink="/search-module" aria-label="Back to Search Module">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
     <span>Back to Search Module</span>
   </a>
 
-  <header class="catalog-header">
-    <p class="catalog-eyebrow">Master Database</p>
-    <h1>Search {{ modeTitle }}</h1>
-    <p>
-      {{ mode === 'supplier'
-        ? 'Search suppliers by name, category, or location.'
-        : 'Search products by name, category, details, or location.' }}
-    </p>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Master Database</p>
+      <h1>Search <em>{{ modeTitle }}</em></h1>
+      <p class="ui-hero__lead">{{ mode === 'supplier' ? 'Search suppliers by name, category, or location.' : 'Search products by name, category, details, or location.' }}</p>
+    </div>
   </header>
 
   <section class="search-panel" aria-labelledby="search-mode-title">
@@ -205,8 +203,8 @@
       </article>
     </div>
 
-    <div class="supplier-status-modal-backdrop" *ngIf="statusSupplier as supplier" (click)="closeInactiveSupplier()">
-      <section class="supplier-status-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="supplier-status-modal-backdrop" *ngIf="statusSupplier as supplier">
+      <section class="supplier-status-modal" role="dialog" aria-modal="true">
         <header><div><small>SUPPLIER STATUS</small><h2>Set supplier inactive</h2></div><button type="button" (click)="closeInactiveSupplier()">&times;</button></header>
         <p class="supplier-status-warning">Contracts linked to <strong>{{ supplier.company_name }}</strong> will immediately show this supplier as inactive.</p>
         <label><span>Original supplier name</span><input [value]="supplier.company_name" disabled /></label>

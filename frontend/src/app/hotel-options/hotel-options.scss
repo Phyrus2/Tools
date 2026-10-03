@@ -3,28 +3,28 @@
 :host {
   /* ---------- design tokens ---------- */
   /* surface */
-  --paper: #f5f4ee;
-  --surface: #ffffff;
-  --surface-sunk: #f1efe6;
-  --line: #e3e0d2;
-  --line-strong: #cfccba;
+  --paper: var(--ui-page);
+  --surface: var(--ui-surface);
+  --surface-sunk: var(--ui-surface-sunken);
+  --line: var(--ui-line);
+  --line-strong: var(--ui-line-strong);
 
   /* text */
-  --ink: #1e2620;
-  --muted: #666f61;
-  --faint: #99998a;
+  --ink: var(--ui-ink);
+  --muted: var(--ui-ink-soft);
+  --faint: var(--ui-ink-faint);
 
   /* brand — pine + brass, carried over from the previous identity */
-  --pine: #2e4a3f;
-  --pine-deep: #1b2b24;
-  --pine-soft: #e6efe9;
-  --pine-soft-line: #bfd7c8;
-  --brass: #ab7a3d;
-  --brass-soft: #f5ead3;
-  --rust: #9c4a34;
-  --rust-soft: #f6e3dc;
-  --blue: #375d8a;
-  --blue-soft: #e6edf5;
+  --pine: var(--ui-primary);
+  --pine-deep: var(--ui-primary-deep);
+  --pine-soft: var(--ui-primary-soft);
+  --pine-soft-line: var(--ui-primary-line);
+  --brass: var(--ui-accent);
+  --brass-soft: var(--ui-accent-soft);
+  --rust: var(--ui-danger);
+  --rust-soft: var(--ui-danger-soft);
+  --blue: var(--ui-blue);
+  --blue-soft: var(--ui-blue-soft);
 
   /* scale */
   --r-sm: 8px;
@@ -39,7 +39,7 @@
   min-height: 100dvh;
   color: var(--ink);
   background: var(--paper);
-  font-family: Inter, sans-serif;
+  font-family: var(--ui-font-body);
   font-size: 15px;
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -78,25 +78,6 @@ h3 {
   gap: 1.5rem;
   padding-bottom: 1.75rem;
   border-bottom: 1px solid var(--line);
-}
-
-.back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  margin-bottom: 0.75rem;
-  color: var(--muted);
-  font-size: 0.85rem;
-  font-weight: 600;
-  text-decoration: none;
-  transition:
-    color 0.15s var(--ease),
-    gap 0.15s var(--ease);
-}
-
-.back-link:hover {
-  gap: 0.5rem;
-  color: var(--pine);
 }
 
 .page-heading {

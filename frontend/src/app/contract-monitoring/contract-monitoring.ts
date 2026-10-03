@@ -4,6 +4,8 @@ import {
   ChangeDetectionStrategy,
   ChangeDetectorRef,
   Component,
+  ElementRef,
+  HostListener,
   OnDestroy,
   OnInit,
 } from '@angular/core';
@@ -151,7 +153,27 @@ export class ContractMonitoring implements OnInit, OnDestroy {
     private readonly catalog: CatalogSearchService,
     private readonly cdr: ChangeDetectorRef,
     private readonly router: Router,
+    private readonly host: ElementRef<HTMLElement>,
   ) {}
+
+  /** Filter dropdowns are native <details>: close the open ones when a click lands outside them. */
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    this.closeFilterDropdowns(event.target as Node | null);
+  }
+
+  @HostListener('document:keydown.escape')
+  onEscape(): void {
+    this.closeFilterDropdowns(null);
+  }
+
+  private closeFilterDropdowns(keepOpenFor: Node | null): void {
+    this.host.nativeElement
+      .querySelectorAll<HTMLDetailsElement>('details.cm-multi-filter[open], details.rp-filter[open]')
+      .forEach((dropdown) => {
+        if (!keepOpenFor || !dropdown.contains(keepOpenFor)) dropdown.open = false;
+      });
+  }
 
   ngOnInit(): void {
     this.loadSources();

@@ -1,18 +1,20 @@
 <main class="directory-shell">
-  <a class="back-link" routerLink="/" aria-label="Back to home">
+  <a class="ui-back" routerLink="/" aria-label="Back to home">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" />
     </svg>
     <span>Back to home</span>
   </a>
 
-  <header class="directory-header">
-    <div>
-      <p>{{ data.eyebrow }}</p>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> {{ data.eyebrow }}</p>
       <h1>{{ data.title }}</h1>
-      <span>{{ data.description }}</span>
+      <p class="ui-hero__lead">{{ data.description }}</p>
     </div>
-    <aside><strong>{{ data.tools.length }}</strong><span>{{ data.tools.length === 1 ? 'tool' : 'tools' }} available</span></aside>
+    <div class="ui-hero__aside ui-hero__stats">
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></span><div><strong>{{ data.tools.length }}</strong><small>{{ data.tools.length === 1 ? 'tool' : 'tools' }} available</small></div></article>
+    </div>
   </header>
 
   <section class="directory-intro">

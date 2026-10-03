@@ -1,19 +1,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
 
 :host {
-  --paper: #f6f3ea; --surface: #fffdf8; --line: #ddd5c1; --line-strong: #c7bc9f;
-  --ink: #20261f; --soft: #5c6455; --forest: #35564d; --forest-deep: #253e37;
-  --gold: #a97e37; --blue: #375d8a; --plum: #76536d;
+  --paper: var(--ui-page); --surface: var(--ui-surface); --line: var(--ui-line); --line-strong: var(--ui-line-strong);
+  --ink: var(--ui-ink); --soft: var(--ui-ink-soft); --forest: var(--ui-primary); --forest-deep: var(--ui-primary-deep);
+  --gold: var(--ui-accent); --blue: var(--ui-blue); --plum: var(--ui-plum);
   display: block; min-height: 100dvh; color: var(--ink);
   background: radial-gradient(circle at 86% 4%, rgba(53, 86, 77, 0.1), transparent 31rem), var(--paper);
-  font-family: Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ui-font-body);
 }
 * { box-sizing: border-box; }
-.directory-shell { width: min(1280px, 100%); min-height: 100dvh; margin: 0 auto; padding: 2rem 1.75rem 4rem; }
-.back-link { display: inline-flex; align-items: center; gap: 0.35rem; margin-bottom: 1.2rem; color: var(--forest); font-size: 0.78rem; font-weight: 600; text-decoration: none; }
-.back-link svg { width: 18px; height: 18px; }
-.back-link path { stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.back-link:hover { gap: 0.5rem; }
+.directory-shell { width: min(1280px, 100%); margin: 0 auto; padding: 2rem 1.75rem 4rem; }
 .directory-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 2rem; padding: 0.35rem 0 1.75rem; border-bottom: 1px solid var(--line-strong); }
 .directory-header p, .directory-intro > span { margin: 0 0 0.45rem; color: var(--gold); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.15em; }
 .directory-header h1 { margin: 0 0 0.5rem; color: var(--forest-deep); font: 600 clamp(2.2rem, 5vw, 3.7rem)/1.05 Fraunces, serif; letter-spacing: -0.04em; }

@@ -1,6 +1,6 @@
 <div class="bp-app">
 
-  <a class="bp-back-link" routerLink="/import-module" aria-label="Back to Import Module">
+  <a class="ui-back" routerLink="/import-module" aria-label="Back to Import Module">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
@@ -8,9 +8,12 @@
   </a>
 
   <!-- HEADER -->
-  <header class="bp-masthead">
-    <h1 class="bp-masthead__title">Product Import</h1>
-    <p class="bp-masthead__subtitle">Upload an Excel file containing product data.</p>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Import Module</p>
+      <h1>Product <em>Import</em></h1>
+      <p class="ui-hero__lead">Upload an Excel file containing product data.</p>
+    </div>
   </header>
   <p class="bp-alert bp-alert--success" *ngIf="manualMessage && !manualOpen">{{ manualMessage }}</p>
 
@@ -135,8 +138,8 @@
   <!-- DETAIL MODAL — isi berganti sesuai activeSection -->
   <!-- ================================================= -->
 
-  <div class="bp-modal-overlay" *ngIf="activeSection" (click)="closeSection()">
-    <div class="bp-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="bp-modal-overlay" *ngIf="activeSection">
+    <div class="bp-modal" role="dialog" aria-modal="true">
 
       <header class="bp-modal__header">
         <h2 *ngIf="activeSection === 'new'">New products</h2>
@@ -312,8 +315,8 @@
     </div>
   </div>
 
-  <div class="bp-modal-overlay" *ngIf="manualOpen" (click)="closeManual()">
-    <div class="bp-modal bp-manual-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="bp-modal-overlay" *ngIf="manualOpen">
+    <div class="bp-modal bp-manual-modal" role="dialog" aria-modal="true">
       <header class="bp-modal__header"><h2>Add product manually</h2><button type="button" class="bp-modal__close" (click)="closeManual()">&times;</button></header>
       <div class="bp-modal__body bp-manual-form">
         <label><span>Supplier ID *</span><input type="number" min="1" [(ngModel)]="manualForm.supplier_id" /></label>

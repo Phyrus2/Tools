@@ -1,12 +1,12 @@
 <main class="profile-shell">
-  <section class="profile-heading">
-    <div class="profile-avatar" aria-hidden="true">
-      <svg viewBox="0 0 32 32"><circle cx="16" cy="11" r="6"/><path d="M5.5 28c1.1-6.5 4.6-10 10.5-10s9.4 3.5 10.5 10"/></svg>
-    </div>
-    <div>
-      <p>MY PROFILE</p>
+  <section class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> My Profile</p>
       <h1>{{ auth.user()?.fullname }}</h1>
-      <span>{{ '@' + auth.user()?.username }} &middot; {{ auth.user()?.role }}</span>
+      <p class="ui-hero__lead">{{ '@' + auth.user()?.username }}</p>
+    </div>
+    <div class="ui-hero__aside ui-hero__stats">
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4.5 20c.8-4.5 3.3-7 7.5-7s6.7 2.5 7.5 7"/></svg></span><div><strong>{{ auth.user()?.role }}</strong><small>Account role</small></div></article>
     </div>
   </section>
 

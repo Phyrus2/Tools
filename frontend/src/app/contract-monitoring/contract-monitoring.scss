@@ -9,25 +9,25 @@
 
 /* ---------- Tokens ---------- */
 :host {
-  --page: #f3f1ea;
-  --surface: #ffffff;
-  --surface-alt: #f8f6f0;
-  --ink: #1d241f;
-  --soft: #5c665e;
-  --faint: #8b948b;
-  --line: #e2ded0;
-  --line-strong: #cec7ae;
+  --page: var(--ui-page);
+  --surface: var(--ui-surface);
+  --surface-alt: var(--ui-surface-soft);
+  --ink: var(--ui-ink);
+  --soft: var(--ui-ink-soft);
+  --faint: var(--ui-ink-faint);
+  --line: var(--ui-line);
+  --line-strong: var(--ui-line-strong);
 
-  --brand: #2f5346;
-  --brand-dark: #1f382e;
-  --brand-soft: #e7efe9;
+  --brand: var(--ui-primary);
+  --brand-dark: var(--ui-primary-deep);
+  --brand-soft: var(--ui-primary-soft);
 
-  --amber: #a5793a;
-  --amber-soft: #f6ecd9;
-  --blue: #3c6690;
-  --blue-soft: #e8eff5;
-  --red: #a3473b;
-  --red-soft: #f8e7e3;
+  --amber: var(--ui-accent);
+  --amber-soft: var(--ui-accent-soft);
+  --blue: var(--ui-blue);
+  --blue-soft: var(--ui-blue-soft);
+  --red: var(--ui-danger);
+  --red-soft: var(--ui-danger-soft);
 
   --r-s: 8px;
   --r-m: 12px;
@@ -39,7 +39,7 @@
   min-height: 100dvh;
   background: var(--page);
   color: var(--ink);
-  font: 400 14px/1.5 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font: 400 14px/1.5 var(--ui-font-body);
   -webkit-font-smoothing: antialiased;
 }
 
@@ -62,8 +62,7 @@ table { width: 100%; border-collapse: collapse; }
 .cm-topbar {
   display: grid;
   grid-template-columns: 1fr auto;
-  grid-template-areas: "back   back"
-                        "title server";
+  grid-template-areas: "title server";
   column-gap: 1.5rem;
   row-gap: 1.1rem;
   padding: 1.4rem 1.6rem 1.6rem;
@@ -76,23 +75,6 @@ table { width: 100%; border-collapse: collapse; }
 .cm-eyebrow { margin: 0 0 0.35rem; color: var(--amber); font-size: 0.76rem; font-weight: 700; letter-spacing: 0.03em; }
 .cm-topbar h1 { margin: 0; font: 650 clamp(1.7rem, 3vw, 2.35rem)/1.1 'Fraunces', Georgia, serif; letter-spacing: -0.02em; color: var(--brand-dark); }
 .cm-topbar > div > p:last-child { margin: 0.6rem 0 0; max-width: 58ch; color: var(--soft); font-size: 0.9rem; line-height: 1.55; }
-
-.cm-back {
-  grid-area: back;
-  justify-self: start;
-  display: inline-flex;
-  align-items: center;
-  padding: 0.5rem 0.9rem;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  color: var(--soft);
-  background: var(--surface-alt);
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-decoration: none;
-  transition: background .15s, border-color .15s, color .15s, transform .15s;
-}
-.cm-back:hover { color: var(--brand-dark); background: var(--brand-soft); border-color: var(--line-strong); transform: translateX(-2px); }
 
 .cm-server {
   grid-area: server;
@@ -110,38 +92,8 @@ table { width: 100%; border-collapse: collapse; }
 }
 .cm-server::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--brand); box-shadow: 0 0 0 3px rgba(47, 83, 70, .15); }
 
-.cm-tabs {
-  position: sticky;
-  top: 0.6rem;
-  z-index: 30;
-  display: flex;
-  gap: 0.2rem;
-  margin: 1rem 0 1.25rem;
-  padding: 0.3rem;
-  overflow-x: auto;
-  border: 1px solid var(--line);
-  border-radius: var(--r-m);
-  background: rgba(255, 255, 255, 0.92);
-  backdrop-filter: blur(10px);
-  box-shadow: var(--shadow);
-}
-.cm-tabs button {
-  flex: 0 0 auto;
-  padding: 0.65rem 1rem;
-  border: 0;
-  border-radius: var(--r-s);
-  color: var(--soft);
-  background: transparent;
-  font-size: 0.85rem;
-  font-weight: 650;
-  transition: background .15s, color .15s;
-}
-.cm-tabs button:hover { color: var(--brand-dark); }
-.cm-tabs button.active { color: var(--brand-dark); background: var(--brand-soft); }
-.cm-tabs span {
-  display: inline-grid; min-width: 19px; height: 19px; margin-left: 0.35rem;
-  place-items: center; border-radius: 999px; color: #fff; background: var(--brand); font-size: 0.7rem;
-}
+/* Tab bar look comes from .ui-tabs in styles.scss; this page only keeps it pinned while scrolling. */
+.cm-tabs { position: sticky; top: 0.6rem; z-index: 30; backdrop-filter: blur(10px); }
 
 .cm-feedback {
   position: sticky; top: 4.4rem; z-index: 29;
@@ -1189,12 +1141,10 @@ textarea { min-height: 0; resize: vertical; }
 
 @media (max-width: 760px) {
   .cm-shell { padding: 1rem 0.75rem 3rem; }
-  .cm-topbar { grid-template-columns: 1fr; grid-template-areas: "back" "title" "server"; padding: 1.1rem; border-radius: var(--r-m); }
+  .cm-topbar { grid-template-columns: 1fr; grid-template-areas: "title" "server"; padding: 1.1rem; border-radius: var(--r-m); }
   .cm-server { justify-self: start; }
   .cm-topbar h1 { font-size: 1.55rem; }
-  .cm-back, .cm-server { padding: 0.45rem 0.75rem; font-size: 0.74rem; }
-  .cm-tabs { border-radius: var(--r-m); }
-  .cm-tabs button { min-height: 46px; padding: 0 0.8rem; }
+  .cm-server { padding: 0.45rem 0.75rem; font-size: 0.74rem; }
   .cm-scan-card, .cm-run, .cm-panel, .cm-editor { padding: 1rem; border-radius: var(--r-m); }
   .cm-section-title, .cm-panel-head { flex-direction: column; }
   .cm-metrics { grid-template-columns: 1fr 1fr; }

@@ -6,54 +6,26 @@
 // ============================================================
 
 .dashboard-analytics {
-  --ink: #20261f;
-  --soft: #5c6455;
-  --line: #ddd5c1;
-  --bg: #f6f3ea;
-  --surface: #fffdf8;
-  --surface-soft: #faf8f1;
-  --primary: #35564d;
-  --primary-dark: #253e37;
-  --primary-soft: #e8efec;
-  --accent: #a97e37;
-  --accent-soft: #f4ead6;
+  --ink: var(--ui-ink);
+  --soft: var(--ui-ink-soft);
+  --line: var(--ui-line);
+  --bg: var(--ui-page);
+  --surface: var(--ui-surface);
+  --surface-soft: var(--ui-surface-soft);
+  --primary: var(--ui-primary);
+  --primary-dark: var(--ui-primary-deep);
+  --primary-soft: var(--ui-primary-soft);
+  --accent: var(--ui-accent);
+  --accent-soft: var(--ui-accent-soft);
 
   max-width: 1280px;
   margin: 0 auto;
   padding: 2rem 1.75rem 4rem;
   background: var(--bg);
   color: var(--ink);
-  font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--ui-font-body);
   box-shadow: 0 0 0 100vmax var(--bg); // "melebar" ke kiri-kanan tanpa ubah layout
   clip-path: inset(0 -100vmax);
-
-  // ---------- back link ----------
-  .back-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 1.1rem;
-    border: 1px solid var(--line);
-    border-radius: 10px;
-    color: var(--ink);
-    background: var(--surface);
-    font-size: 0.8rem;
-    font-weight: 600;
-    text-decoration: none;
-    transition: border-color 0.15s ease, color 0.15s ease;
-    margin-bottom: 0.5rem;
-
-    svg {
-      width: 17px;
-      height: 17px;
-      flex: 0 0 auto;
-    }
-
-    &:hover {
-      border-color: var(--primary);
-      color: var(--primary);
-    }
-  }
 
   // ---------- header ----------
   .analytics-header {
@@ -748,7 +720,7 @@
 }
 .dashboard-analytics .metric-body strong small {
   color: var(--faint);
-  font-family: 'DM Sans', sans-serif;
+  font-family: var(--ui-font-body);
   font-size: .76rem;
   font-weight: 600;
   letter-spacing: 0;

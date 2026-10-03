@@ -1,17 +1,17 @@
 <main class="analytics-shell booked-detail">
-  <button class="back-link" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
+  <button class="ui-back" type="button" (click)="goBack()" [attr.aria-label]="backLabel">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
     <span>{{ backLabel }}</span>
   </button>
 
   <ng-container *ngIf="data as record">
-    <header class="analytics-header booked-detail__header">
-      <div>
-        <p class="eyebrow">Booked Product Detail</p>
+    <header class="ui-hero">
+      <div class="ui-hero__copy">
+        <p class="ui-hero__eyebrow"><i></i> Booked Product Detail</p>
         <h1>{{ record.product_name || record.master_product_name }}</h1>
-        <p class="subtitle">Booking #{{ record.id }} &middot; {{ record.dossier_name || record.dossier_id }}</p>
+        <p class="ui-hero__lead">Booking #{{ record.id }} &middot; {{ record.dossier_name || record.dossier_id }}</p>
       </div>
-      <div class="record-actions">
+      <div class="ui-hero__aside record-actions">
         <button type="button" class="record-button record-button--secondary" *ngIf="editing && canEdit" (click)="cancelEdit()" [disabled]="saving">Cancel</button>
         <button type="button" class="record-button" *ngIf="!editing && canEdit" (click)="startEdit()">Edit data</button>
         <button type="button" class="record-button" *ngIf="editing && canEdit" (click)="save()" [disabled]="saving">{{ saving ? 'Saving...' : 'Save changes' }}</button>

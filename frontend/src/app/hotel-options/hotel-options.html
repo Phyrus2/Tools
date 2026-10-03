@@ -1,37 +1,17 @@
 <main class="shell">
-  <header class="page-header">
-    <div class="page-heading">
-      <a class="back-link" routerLink="/contract">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M15 6l-6 6 6 6"
-            stroke="currentColor"
-            stroke-width="2.2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        Contract Module
-      </a>
-      <p class="page-eyebrow">Hotel inventory</p>
-      <h1>Hotel Options {{ year }}</h1>
-      <p class="page-desc">
-        Link every hotel option to its Jambix supplier and room product, with changes tracked
-        automatically after every Excel import.
-      </p>
+  <a class="ui-back" routerLink="/contract" aria-label="Back to Contract Module">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" /></svg>
+    <span>Back to Contract Module</span>
+  </a>
+
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Hotel inventory</p>
+      <h1>Hotel Options <em>{{ year }}</em></h1>
+      <p class="ui-hero__lead">Link every hotel option to its Jambix supplier and room product, with changes tracked automatically after every Excel import.</p>
     </div>
-    <div class="page-meta">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-        <path
-          d="M4 21V9l8-6 8 6v12"
-          stroke="currentColor"
-          stroke-width="1.8"
-          stroke-linejoin="round"
-        />
-        <path d="M9 21v-7h6v7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
-      </svg>
-      <strong>{{ total }}</strong>
-      <span>options for {{ year }}</span>
+    <div class="ui-hero__aside ui-hero__stats">
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V9l8-6 8 6v12"/><path d="M9 21v-7h6v7"/></svg></span><div><strong>{{ total }}</strong><small>options for {{ year }}</small></div></article>
     </div>
   </header>
 
@@ -458,8 +438,8 @@
   </section>
 </main>
 
-<div class="modal-backdrop" *ngIf="optionForm as form" (click)="closeOptionForm()">
-  <section class="modal option-form-modal" (click)="$event.stopPropagation()">
+<div class="modal-backdrop" *ngIf="optionForm as form">
+  <section class="modal option-form-modal">
     <header class="modal-head">
       <div>
         <span>{{ editItem ? 'EDIT HOTEL OPTION' : 'ADD HOTEL OPTION' }}</span>
@@ -725,8 +705,8 @@
   </section>
 </div>
 
-<div class="modal-backdrop" *ngIf="importSection" (click)="importSection = null">
-  <section class="modal import-detail" (click)="$event.stopPropagation()">
+<div class="modal-backdrop" *ngIf="importSection">
+  <section class="modal import-detail">
     <header class="modal-head">
       <div>
         <span>IMPORT RESULT</span>
@@ -776,8 +756,8 @@
   </section>
 </div>
 
-<div class="modal-backdrop" *ngIf="linkItem" (click)="closeLink()">
-  <section class="modal" (click)="$event.stopPropagation()">
+<div class="modal-backdrop" *ngIf="linkItem">
+  <section class="modal">
     <header class="modal-head">
       <div>
         <span>Link Jambix data</span>
@@ -911,8 +891,8 @@
   </section>
 </div>
 
-<div class="modal-backdrop" *ngIf="historyItem" (click)="historyItem = null">
-  <section class="modal" (click)="$event.stopPropagation()">
+<div class="modal-backdrop" *ngIf="historyItem">
+  <section class="modal">
     <header class="modal-head">
       <div>
         <span>Update history</span>

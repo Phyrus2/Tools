@@ -1,27 +1,27 @@
 <main class="cm-shell">
-  <header class="cm-topbar">
-    <a class="cm-back" routerLink="/contract" aria-label="Back to Module">← Contract Module</a>
-    <div>
-      <p class="cm-eyebrow">Contract Operations</p>
-      <h1>Contract Update Monitoring</h1>
-      <p>Scan folders, confirm suppliers, and update contract reports in one workflow.</p>
+  <a class="ui-back" routerLink="/contract" aria-label="Back to Contract Module">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" /></svg>
+    <span>Back to Contract Module</span>
+  </a>
+
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Contract Operations</p>
+      <h1>Contract Update <em>Monitoring</em></h1>
+      <p class="ui-hero__lead">Scan folders, confirm suppliers, and update contract reports in one workflow.</p>
+      <div class="ui-hero__meta"><span><i class="ui-hero__pulse"></i> {{ sources.length }} {{ sources.length === 1 ? 'folder' : 'folders' }} connected</span><span>Server {{ serverId }}</span></div>
     </div>
-    <span class="cm-server">Server · {{ serverId }}</span>
+    <div class="ui-hero__aside ui-hero__stats" aria-label="Contract monitoring summary">
+      <article><span class="ui-hero__stat-icon is-warm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2h9l4 4v16H6z"/><path d="M14 2v5h5M9 13h7M9 17h5"/></svg></span><div><strong>{{ queueTotal }}</strong><small>Pending queue</small></div></article>
+      <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg></span><div><strong>{{ reportTotal }}</strong><small>Contract reports</small></div></article>
+    </div>
   </header>
 
-  <nav class="cm-tabs" aria-label="Contract monitoring navigation">
-    <button type="button" [class.active]="tab === 'scan'" (click)="selectTab('scan')">
-      Scan workspace
-    </button>
-    <button type="button" [class.active]="tab === 'queue'" (click)="selectTab('queue')">
-      Pending queue <span>{{ queueTotal }}</span>
-    </button>
-    <button type="button" [class.active]="tab === 'reports'" (click)="selectTab('reports')">
-      Contract report
-    </button>
-    <button type="button" [class.active]="tab === 'settings'" (click)="selectTab('settings')">
-      Folder settings
-    </button>
+  <nav class="ui-tabs cm-tabs" aria-label="Contract monitoring navigation" role="tablist">
+    <button type="button" role="tab" [attr.aria-selected]="tab === 'scan'" [class.active]="tab === 'scan'" (click)="selectTab('scan')"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4M11 8v6M8 11h6"/></svg><span>Scan workspace</span></button>
+    <button type="button" role="tab" [attr.aria-selected]="tab === 'queue'" [class.active]="tab === 'queue'" (click)="selectTab('queue')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg><span>Pending queue</span><b *ngIf="queueTotal">{{ queueTotal }}</b></button>
+    <button type="button" role="tab" [attr.aria-selected]="tab === 'reports'" [class.active]="tab === 'reports'" (click)="selectTab('reports')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V9M10 19V5M16 19v-7M22 19V2"/></svg><span>Contract report</span></button>
+    <button type="button" role="tab" [attr.aria-selected]="tab === 'settings'" [class.active]="tab === 'settings'" (click)="selectTab('settings')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h6l2 2h10v10H3z"/></svg><span>Folder settings</span></button>
   </nav>
 
   <section class="cm-feedback cm-feedback--error" *ngIf="error">
@@ -898,13 +898,11 @@
   <div
     class="cm-management-modal-backdrop"
     *ngIf="queueManagementOpen"
-    (click)="closeQueueManagement()"
   >
     <section
       class="cm-management-modal"
       role="dialog"
       aria-modal="true"
-      (click)="$event.stopPropagation()"
     >
       <header>
         <div>
@@ -1096,8 +1094,8 @@
       </div>
     </div>
 
-    <div class="cm-manual-modal-backdrop" *ngIf="oneTimeItem as candidate" (click)="closeOneTimeSupplier()">
-      <section class="cm-manual-modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="cm-manual-modal-backdrop" *ngIf="oneTimeItem as candidate">
+      <section class="cm-manual-modal" role="dialog" aria-modal="true">
         <header><div><p>ADD SKIPPED ROW</p><h2>Add as one-time supplier</h2><span>{{ candidate.supplier_name }} · {{ candidate.sheet_name }} row {{ candidate.row_number }}</span></div><button type="button" (click)="closeOneTimeSupplier()">&times;</button></header>
         <p class="cm-one-time-reason">{{ candidate.reason }}</p>
         <div class="cm-manual-search"><label><span>Search supplier database</span><div><input [(ngModel)]="oneTimeSupplierQuery" (keyup.enter)="searchOneTimeSuppliers()" /><button type="button" (click)="searchOneTimeSuppliers()">Search</button></div></label></div>
@@ -1110,12 +1108,11 @@
       </section>
     </div>
 
-    <div class="cm-review-modal-backdrop" *ngIf="reportReviewSection" (click)="closeReportReview()">
+    <div class="cm-review-modal-backdrop" *ngIf="reportReviewSection">
       <section
         class="cm-review-modal"
         role="dialog"
         aria-modal="true"
-        (click)="$event.stopPropagation()"
       >
         <header>
           <div>
@@ -1184,13 +1181,11 @@
     <div
       class="cm-manual-modal-backdrop"
       *ngIf="reportManualItem as manualItem"
-      (click)="closeManualImport()"
     >
       <section
         class="cm-manual-modal"
         role="dialog"
         aria-modal="true"
-        (click)="$event.stopPropagation()"
       >
         <header>
           <div>
@@ -1653,8 +1648,8 @@
       </button>
     </div>
 
-    <div class="cm-report-edit-backdrop" *ngIf="reportEdit as edit" (click)="closeReportEdit()">
-      <section class="cm-report-edit" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <div class="cm-report-edit-backdrop" *ngIf="reportEdit as edit">
+      <section class="cm-report-edit" role="dialog" aria-modal="true">
         <header><div><small>CONTRACT REPORT</small><h2>{{ edit.report_type === 'ONE_TIME_SUPPLIER' ? 'Add contract' : 'Edit contract' }}</h2></div><button type="button" (click)="closeReportEdit()">&times;</button></header>
         <div class="cm-report-edit-grid">
           <label class="cm-wide"><span>Supplier</span><div class="cm-report-supplier-search"><input [(ngModel)]="reportEditSupplierQuery" (keyup.enter)="searchReportEditSupplier()" /><button type="button" (click)="searchReportEditSupplier()">Search</button></div></label>

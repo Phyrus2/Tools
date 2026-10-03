@@ -1,5 +1,5 @@
 <section class="bp-app" [formGroup]="form">
-  <a class="bp-back-link" routerLink="/search-module" aria-label="Back to Search Module">
+  <a class="ui-back" routerLink="/search-module" aria-label="Back to Search Module">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path
         d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17"
@@ -12,12 +12,11 @@
     <span>Back to Search Module</span>
   </a>
 
-  <header class="bp-masthead">
-    <p class="bp-masthead__eyebrow">Operations Database</p>
-    <h1 class="bp-masthead__title">Search Booked Product</h1>
-    <p class="bp-masthead__subtitle">
-      Search by product name, supplier, location, or booking notes.
-    </p>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Operations Database</p>
+      <h1>Search <em>Booked Product</em></h1>
+      <p class="ui-hero__lead">Search by product name, supplier, location, or booking notes.</p>
     <div class="bp-data-freshness" *ngIf="lastImport; else noImportHistory">
       <svg class="bp-data-freshness__icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <rect
@@ -68,6 +67,7 @@
         </div>
       </div>
     </ng-template>
+    </div>
   </header>
 
   <form class="bp-search-row" (ngSubmit)="onSubmit()">
@@ -557,8 +557,8 @@
     </button>
   </footer>
 
-  <div class="bp-drawer-overlay" *ngIf="selectedItem" (click)="closeDetail()">
-    <aside class="bp-drawer" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="bp-drawer-overlay" *ngIf="selectedItem">
+    <aside class="bp-drawer" role="dialog" aria-modal="true">
       <header class="bp-drawer__header">
         <div>
           <span class="bp-drawer__eyebrow">Booked product</span>

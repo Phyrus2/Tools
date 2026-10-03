@@ -1,15 +1,13 @@
 <main class="hub-shell">
   <div class="hub-content">
-    <section class="hub-hero" aria-labelledby="hub-title">
-      <div>
-        <p class="hub-eyebrow">Operations Database</p>
-        <h1 id="hub-title">Choose a module</h1>
-        <p class="hub-lead">
-          Start from a module, then open the focused workflow you need.
-        </p>
+    <section class="ui-hero" aria-labelledby="hub-title">
+      <div class="ui-hero__copy">
+        <p class="ui-hero__eyebrow"><i></i> Operations Database</p>
+        <h1 id="hub-title">Choose a <em>module</em></h1>
+        <p class="ui-hero__lead">Start from a module, then open the focused workflow you need.</p>
       </div>
-      <div class="hub-hero__ornament" aria-hidden="true">
-        <span>{{ availableModuleCount() }}</span><small>available {{ availableModuleCount() === 1 ? 'module' : 'modules' }}</small>
+      <div class="ui-hero__aside ui-hero__stats">
+        <article><span class="ui-hero__stat-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg></span><div><strong>{{ availableModuleCount() }}</strong><small>available {{ availableModuleCount() === 1 ? 'module' : 'modules' }}</small></div></article>
       </div>
     </section>
 
@@ -107,8 +105,4 @@
       </div>
     </section>
   </div>
-
-  <footer class="hub-footer">
-    <span>Database Tools</span><span>Internal workspace</span>
-  </footer>
 </main>

@@ -1,6 +1,6 @@
 <div class="bp-app">
 
-  <a class="bp-back-link" routerLink="/import-module" aria-label="Back to Import Module">
+  <a class="ui-back" routerLink="/import-module" aria-label="Back to Import Module">
     <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
       <path d="M12.5 4.5 7 10l5.5 5.5M7.5 10H17" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" />
     </svg>
@@ -8,17 +8,19 @@
   </a>
 
   <!-- HEADER -->
-  <header class="bp-masthead">
-    <h1 class="bp-masthead__title">Booked Product Import</h1>
-    <p class="bp-masthead__subtitle">Upload an Excel file containing booked product data.</p>
-    <p class="bp-data-freshness" *ngIf="lastImport; else noImportHistory">
-      Data last updated:
-      <strong>{{ lastImport.importedAt | date: 'dd/MM/yyyy HH:mm' }}</strong>
-      from {{ lastImport.fileName }} ({{ lastImport.totalRows }} rows)
-    </p>
-    <ng-template #noImportHistory>
-      <p class="bp-data-freshness">No data update history yet.</p>
-    </ng-template>
+  <header class="ui-hero">
+    <div class="ui-hero__copy">
+      <p class="ui-hero__eyebrow"><i></i> Import Module</p>
+      <h1>Booked Product <em>Import</em></h1>
+      <p class="ui-hero__lead">Upload an Excel file containing booked product data.</p>
+      <div class="ui-hero__meta" *ngIf="lastImport; else noImportHistory">
+        <span><i class="ui-hero__pulse"></i> Data last updated <strong>{{ lastImport.importedAt | date: 'dd/MM/yyyy HH:mm' }}</strong></span>
+        <span>{{ lastImport.fileName }} ({{ lastImport.totalRows }} rows)</span>
+      </div>
+      <ng-template #noImportHistory>
+        <div class="ui-hero__meta"><span>No data update history yet.</span></div>
+      </ng-template>
+    </div>
   </header>
 
   <!-- IMPORT FORM -->
@@ -142,8 +144,8 @@
   <!-- DETAIL MODAL — isi berganti sesuai activeSection -->
   <!-- ================================================= -->
 
-  <div class="bp-modal-overlay" *ngIf="activeSection" (click)="closeSection()">
-    <div class="bp-modal bp-modal--wide" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+  <div class="bp-modal-overlay" *ngIf="activeSection">
+    <div class="bp-modal bp-modal--wide" role="dialog" aria-modal="true">
 
       <header class="bp-modal__header">
         <h2 *ngIf="activeSection === 'new'">New bookings</h2>
@@ -340,14 +342,12 @@
   <div
     class="bp-modal-overlay bp-modal-overlay--manual"
     *ngIf="manualForm as form"
-    (click)="closeManualProduct()"
   >
     <div
       class="bp-modal bp-modal--form"
       role="dialog"
       aria-modal="true"
       aria-labelledby="manualProductTitle"
-      (click)="$event.stopPropagation()"
     >
       <header class="bp-modal__header">
         <div>

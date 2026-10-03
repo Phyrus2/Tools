@@ -1,34 +1,30 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;500;600;700&display=swap');
 
 :host {
-  --page: #f6f3ea;
-  --surface: #fffdf8;
-  --surface-soft: #faf8f1;
-  --ink: #20261f;
-  --soft: #5c6455;
-  --faint: #93998a;
-  --line: #ddd5c1;
-  --line-strong: #c7bc9f;
-  --primary: #35564d;
-  --primary-deep: #253e37;
-  --primary-soft: #e8efec;
-  --accent: #a97e37;
+  --page: var(--ui-page);
+  --surface: var(--ui-surface);
+  --surface-soft: var(--ui-surface-soft);
+  --ink: var(--ui-ink);
+  --soft: var(--ui-ink-soft);
+  --faint: var(--ui-ink-faint);
+  --line: var(--ui-line);
+  --line-strong: var(--ui-line-strong);
+  --primary: var(--ui-primary);
+  --primary-deep: var(--ui-primary-deep);
+  --primary-soft: var(--ui-primary-soft);
+  --accent: var(--ui-accent);
   display: block;
   min-height: calc(100dvh - 68px);
   color: var(--ink);
   background: var(--page);
   color-scheme: light;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--ui-font-body);
 }
 
 * { box-sizing: border-box; }
 button, input { font: inherit; }
 
 .analytics-shell { width: 100%; max-width: 1280px; margin: 0 auto; padding: 2rem 1.75rem 4rem; }
-.back-link { display: inline-flex; align-items: center; gap: .5rem; margin: 0 0 .5rem; padding: .6rem 1.1rem; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); background: var(--surface); font-size: .8rem; font-weight: 600; text-decoration: none; cursor: pointer; transition: border-color .15s ease, color .15s ease, background-color .15s ease, transform .15s ease; }
-.back-link svg { width: 17px; height: 17px; flex: 0 0 auto; }
-.back-link:hover { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); transform: translateX(-2px); }
-.back-link:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .analytics-header { min-height: 128px; display: flex; justify-content: space-between; align-items: flex-end; gap: 2rem; margin: 0 0 2.25rem; padding: .35rem 0 1.75rem; border-bottom: 1px solid var(--line); }
 .analytics-header > div:first-child { padding-left: 1.1rem; border-left: 3px solid var(--accent); }
 .eyebrow { margin: 0 0 .45rem; color: var(--accent); font-size: .72rem; font-weight: 700; letter-spacing: .15em; text-transform: uppercase; }

@@ -1,49 +1,246 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,650&family=Inter:wght@400;500;600;700;800&display=swap');
+
+/* Canonical Bali Passion design tokens. Feature styles keep local aliases, but
+   all visual decisions now originate here so the product evolves as one UI. */
+:root {
+  color-scheme: light;
+  --ui-page: #f3f6f4;
+  --ui-surface: #ffffff;
+  --ui-surface-soft: #f8faf9;
+  --ui-surface-sunken: #edf2ef;
+  --ui-ink: #17231f;
+  --ui-ink-soft: #637169;
+  --ui-ink-faint: #8d9993;
+  --ui-line: #dce5e0;
+  --ui-line-strong: #c4d3cc;
+  --ui-primary: #1f6b55;
+  --ui-primary-deep: #174c3e;
+  --ui-primary-soft: #e7f3ee;
+  --ui-primary-line: #b8d8cb;
+  --ui-accent: #b67b20;
+  --ui-accent-soft: #fff3db;
+  --ui-blue: #3974a8;
+  --ui-blue-soft: #e8f1f8;
+  --ui-plum: #76558b;
+  --ui-plum-soft: #f1eaf5;
+  --ui-danger: #c85a4b;
+  --ui-danger-soft: #fcedea;
+  --ui-success: #2b7a58;
+  --ui-success-soft: #e7f5ed;
+  --ui-font-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --ui-font-display: 'Fraunces', Georgia, serif;
+  --ui-radius-sm: 9px;
+  --ui-radius-md: 13px;
+  --ui-radius-lg: 18px;
+  --ui-radius-xl: 24px;
+  --ui-shadow-sm: 0 2px 8px rgba(23, 76, 62, .045);
+  --ui-shadow-md: 0 12px 32px rgba(23, 76, 62, .085);
+  --ui-shadow-lg: 0 24px 60px rgba(23, 76, 62, .14);
+  --ui-focus-ring: 0 0 0 3px rgba(31, 107, 85, .15);
+  --ui-content-width: 1280px;
+  --ui-header-height: 72px;
+  --ui-ease: cubic-bezier(.2, .8, .2, 1);
+}
+
 html,
+body { min-height: 100%; margin: 0; }
+html { background: var(--ui-page); }
 body {
-  min-height: 100%;
-  margin: 0;
+  color: var(--ui-ink);
+  background:
+    radial-gradient(circle at 4% 0, rgba(31, 107, 85, .065), transparent 30rem),
+    radial-gradient(circle at 96% 7%, rgba(182, 123, 32, .055), transparent 28rem),
+    var(--ui-page);
+  font-family: var(--ui-font-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button, input, select, textarea { font-family: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+::selection { color: var(--ui-surface); background: var(--ui-primary); }
+:focus-visible { outline-color: var(--ui-primary); }
+* { scrollbar-color: var(--ui-line-strong) transparent; scrollbar-width: thin; }
+*::-webkit-scrollbar { width: 9px; height: 9px; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { border: 2px solid transparent; border-radius: 99px; background: var(--ui-line-strong); background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background-color: var(--ui-primary); }
+
+/* App frame: the routed page fills the space between header and footer, so the
+   footer rests at the bottom of the viewport on short pages. */
+app-root { display: flex; min-height: 100dvh; flex-direction: column; }
+app-root > router-outlet + * { flex: 1 0 auto; min-height: 0 !important; }
+
+/* The one back button. It always sits above the page title card, never inside
+   it. The app-root prefix outranks element rules in feature styles. */
+app-root :is(a, button).ui-back {
+  display: inline-flex; align-items: center; gap: .45rem; margin: 0 0 1rem;
+  padding: .5rem .85rem .5rem .65rem; border: 1px solid var(--ui-line-strong); border-radius: var(--ui-radius-sm);
+  color: var(--ui-primary-deep); background: var(--ui-surface); box-shadow: var(--ui-shadow-sm);
+  font: 700 .78rem/1.2 var(--ui-font-body); letter-spacing: 0; text-decoration: none; cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease, transform .15s ease;
+}
+app-root .ui-back svg { width: 17px; height: 17px; flex: 0 0 auto; fill: none; }
+app-root .ui-back svg path { stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+app-root :is(a, button).ui-back:hover { border-color: var(--ui-primary); color: var(--ui-primary-deep); background: var(--ui-primary-soft); transform: translateX(-2px); }
+app-root :is(a, button).ui-back:focus-visible { outline: 2px solid var(--ui-primary) !important; outline-offset: 2px; border-radius: var(--ui-radius-sm); }
+
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* --------------------------------------------------------------------------
+   Page frame and title card. The Stop Sale workspace is the reference design:
+   every page uses the same backdrop, content width and .ui-hero markup.
+   The app-root prefix outranks element rules in feature styles.
+   -------------------------------------------------------------------------- */
+app-root > router-outlet + * {
+  background:
+    radial-gradient(circle at 4% 0%, rgba(50, 139, 108, .08), transparent 28rem),
+    radial-gradient(circle at 96% 8%, rgba(222, 107, 89, .06), transparent 24rem),
+    var(--ui-page) !important;
 }
 
-body {
-  background: #f6f3ea;
+app-root :is(.ss-shell, .contract-shell, .directory-shell, .hub-content, .cm-shell, .shell, .catalog-shell, .bp-app, .users-shell, .profile-shell, .analytics-shell) {
+  box-sizing: border-box;
+  width: min(1380px, 100%) !important;
+  max-width: none !important;
+  margin: 0 auto !important;
+  padding: 1.5rem 2rem 4rem !important;
 }
 
-.bp-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  margin-bottom: 1rem;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid #c7bc9f;
-  border-radius: 6px;
-  background: #fffdf8;
-  color: #35564d;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  font-size: 0.82rem;
-  font-weight: 600;
-  line-height: 1.2;
-  text-decoration: none;
-  transition:
-    color 0.15s ease,
-    border-color 0.15s ease,
-    background-color 0.15s ease,
-    transform 0.15s ease;
+app-root :is(header, section).ui-hero {
+  position: relative; display: flex; min-height: 220px; align-items: flex-end; justify-content: space-between; gap: 2rem;
+  margin: 0 0 1.35rem; padding: 2.2rem 2.4rem; border: 0; border-radius: var(--ui-radius-xl);
+  color: #fff;
+  /* Ring and peach disc are painted as gradients so popovers inside the card are not clipped. */
+  background:
+    radial-gradient(circle at calc(100% - 35px) calc(100% + 10px), rgba(255, 184, 142, .13) 105px, transparent 106px),
+    radial-gradient(circle at calc(90% - 195px) -40px, transparent 194px, rgba(255,255,255,.12) 194px 195px, rgba(255,255,255,.045) 195px 250px, rgba(255,255,255,.02) 250px 305px, transparent 305px),
+    linear-gradient(122deg, var(--ui-primary-deep) 0%, var(--ui-primary) 100%);
+  box-shadow: var(--ui-shadow-lg);
+}
+app-root .ui-hero .ui-hero__copy { min-width: 0; padding: 0; border: 0; }
+app-root .ui-hero .ui-hero__eyebrow { display: flex; align-items: center; gap: .5rem; margin: 0 0 .8rem; color: #b8d9cd; font: 800 .67rem/1.4 var(--ui-font-body); letter-spacing: .14em; text-transform: uppercase; }
+app-root .ui-hero .ui-hero__eyebrow i { width: 19px; height: 2px; flex: 0 0 auto; border-radius: 2px; background: #eeaa82; }
+app-root .ui-hero h1 { max-width: none; margin: 0; color: #fff; font-family: var(--ui-font-display); font-size: clamp(2.15rem, 4vw, 3.65rem); font-weight: 700; letter-spacing: -.055em; line-height: 1.05; }
+app-root .ui-hero h1 em { color: #a9d4c3; font-style: normal; font-weight: 500; }
+app-root .ui-hero .ui-hero__lead { max-width: 620px; margin: .8rem 0 0; color: #c9ddd6; font-size: .9rem; line-height: 1.6; }
+app-root .ui-hero .ui-hero__lead a { color: #fff; font-weight: 700; }
+app-root .ui-hero .ui-hero__meta { display: flex; flex-wrap: wrap; gap: .5rem 1.2rem; margin: 1.35rem 0 0; color: #b8cfc7; font-size: .68rem; font-weight: 600; }
+app-root .ui-hero .ui-hero__meta span { display: flex; align-items: center; gap: .42rem; color: inherit; font-size: inherit; }
+app-root .ui-hero .ui-hero__meta strong { color: #fff; }
+app-root .ui-hero .ui-hero__pulse { width: 7px; height: 7px; border-radius: 50%; background: #71d39f; box-shadow: 0 0 0 4px rgba(113,211,159,.13); }
+app-root .ui-hero .ui-hero__aside { flex: 0 0 auto; }
+app-root .ui-hero .ui-hero__stats { display: grid; grid-auto-columns: minmax(158px, 1fr); grid-auto-flow: column; gap: .75rem; }
+app-root .ui-hero .ui-hero__stats article { display: flex; align-items: center; gap: .8rem; margin: 0; padding: 1rem; border: 1px solid rgba(255,255,255,.13); border-radius: 14px; background: rgba(255,255,255,.08); backdrop-filter: blur(8px); }
+app-root .ui-hero .ui-hero__stat-icon { display: grid; width: 40px; height: 40px; flex: 0 0 auto; place-items: center; border-radius: 11px; color: #aee1cc; background: rgba(101,210,164,.14); }
+app-root .ui-hero .ui-hero__stat-icon.is-warm { color: #ffd2bd; background: rgba(240,145,101,.16); }
+app-root .ui-hero .ui-hero__stat-icon svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+app-root .ui-hero .ui-hero__stats :is(strong, small) { display: block; }
+app-root .ui-hero .ui-hero__stats strong { color: #fff; font: 600 1.55rem/1 var(--ui-font-display); }
+app-root .ui-hero .ui-hero__stats small { margin-top: .27rem; color: #c6d9d2; font-size: .64rem; white-space: nowrap; }
+app-root .ui-hero :is(.primary-button, .record-button) { border-color: rgba(255,255,255,.22) !important; color: var(--ui-primary-deep) !important; background: #fff !important; box-shadow: 0 8px 20px rgba(8,39,30,.18) !important; }
+app-root .ui-hero :is(.primary-button, .record-button):hover:not(:disabled) { background: var(--ui-primary-soft) !important; }
+app-root .ui-hero .record-button.record-button--secondary { color: #fff !important; background: rgba(255,255,255,.1) !important; box-shadow: none !important; }
+
+@media (max-width: 800px) {
+  app-root :is(.ss-shell, .contract-shell, .directory-shell, .hub-content, .cm-shell, .shell, .catalog-shell, .bp-app, .users-shell, .profile-shell, .analytics-shell) { padding: 1rem 1rem 3rem !important; }
+  app-root :is(header, section).ui-hero { min-height: 0; align-items: stretch; flex-direction: column; padding: 1.6rem; }
+}
+@media (max-width: 560px) {
+  app-root :is(.ss-shell, .contract-shell, .directory-shell, .hub-content, .cm-shell, .shell, .catalog-shell, .bp-app, .users-shell, .profile-shell, .analytics-shell) { padding: .75rem .7rem 2.5rem !important; }
+  app-root :is(header, section).ui-hero { padding: 1.3rem; border-radius: 16px; }
+  app-root .ui-hero h1 { font-size: 2rem; }
+  app-root .ui-hero .ui-hero__lead { font-size: .76rem; }
+  app-root .ui-hero .ui-hero__stats { grid-auto-flow: row; }
 }
 
-.bp-back-link svg {
-  width: 17px;
-  height: 17px;
-  flex: 0 0 auto;
+/* Workflow tab bar, taken from the Stop Sale workspace. */
+app-root nav.ui-tabs { display: flex; gap: .35rem; margin: 1.35rem 0; padding: .35rem; overflow-x: auto; border: 1px solid var(--ui-line); border-radius: var(--ui-radius-md); background: rgba(255,255,255,.8); box-shadow: 0 4px 20px rgba(23,35,31,.035); }
+app-root .ui-tabs button { position: relative; display: inline-flex; min-height: 45px; flex: 0 0 auto; align-items: center; justify-content: center; gap: .5rem; padding: .65rem 1.15rem; border: 0; border-radius: var(--ui-radius-sm); color: #6e7b75; background: transparent; font: 700 .76rem/1.2 var(--ui-font-body); white-space: nowrap; cursor: pointer; transition: color .2s, background .2s, box-shadow .2s, transform .2s; }
+app-root .ui-tabs button:hover { color: var(--ui-primary); background: #f1f6f3; }
+app-root .ui-tabs button.active { color: var(--ui-primary-deep); background: #fff; box-shadow: 0 3px 12px rgba(27,70,57,.1); }
+app-root .ui-tabs button.active::after { position: absolute; right: 1rem; bottom: -6px; left: 1rem; height: 2px; border-radius: 4px; background: var(--ui-primary); content: ''; }
+app-root .ui-tabs button svg { width: 1rem; height: 1rem; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+app-root .ui-tabs button span { display: inline; min-width: 0; height: auto; margin: 0; color: inherit; background: none; font-size: inherit; }
+app-root .ui-tabs button b { display: grid; min-width: 19px; height: 19px; padding: 0 .3rem; place-items: center; border-radius: 99px; color: #fff; background: var(--ui-danger); font-size: .58rem; }
+@media (max-width: 560px) {
+  app-root nav.ui-tabs { position: sticky; z-index: 10; top: .4rem; justify-content: space-between; }
+  app-root .ui-tabs button { flex: 1; padding: .55rem .6rem; }
+  app-root .ui-tabs button span { display: none; }
 }
 
-.bp-back-link:hover {
-  border-color: #35564d;
-  background: #e8efec;
-  color: #253e37;
-  transform: translateX(-2px);
+/* Segmented navigation shared by the remaining pages. */
+:is(.year-switcher, .region-nav) {
+  gap: .35rem !important;
+  padding: .35rem !important;
+  border: 1px solid var(--ui-line) !important;
+  border-radius: var(--ui-radius-md) !important;
+  background: rgba(255,255,255,.86) !important;
+  box-shadow: var(--ui-shadow-sm) !important;
+}
+:is(.year-switcher, .region-nav) button {
+  min-height: 42px !important;
+  border: 0 !important;
+  border-radius: var(--ui-radius-sm) !important;
+}
+:is(.year-switcher, .region-nav) button:is(.active, [aria-current='page']) {
+  color: var(--ui-primary-deep) !important;
+  background: #fff !important;
+  box-shadow: 0 3px 12px rgba(23,76,62,.1) !important;
 }
 
-.bp-back-link:focus-visible {
-  outline: 2px solid #35564d;
-  outline-offset: 2px;
+/* One card language across modules, reports, settings and forms. */
+:is(
+  .hub-app,
+  .contract-card,
+  .directory-card,
+  .bp-panel,
+  .search-panel,
+  .result-card,
+  .metric,
+  .panel,
+  .profile-card,
+  .create-panel,
+  .workspace,
+  .toolbar,
+  .modal
+) {
+  border-color: var(--ui-line) !important;
+  border-radius: var(--ui-radius-lg) !important;
+  background-color: var(--ui-surface) !important;
+  box-shadow: var(--ui-shadow-sm) !important;
+}
+
+:is(.hub-app, .contract-card, .directory-card, .result-card, .metric):hover {
+  border-color: var(--ui-primary-line) !important;
+  box-shadow: var(--ui-shadow-md) !important;
+  transform: translateY(-3px);
+}
+
+:is(.hub-app__icon, .card-icon, .metric-icon, .profile-avatar, .import-icon) {
+  border-radius: var(--ui-radius-md) !important;
+}
+
+/* Inputs and buttons follow the same density and interaction feedback. */
+:is(.bp-app, .catalog-app, .analytics-shell, .dashboard-analytics, .users-shell, .profile-shell, .cm-shell, .shell) :is(input, select, textarea) {
+  border-color: var(--ui-line-strong) !important;
+  border-radius: var(--ui-radius-sm) !important;
+  background-color: #fff !important;
+}
+:is(.bp-app, .catalog-app, .analytics-shell, .dashboard-analytics, .users-shell, .profile-shell, .cm-shell, .shell) :is(input, select, textarea):focus {
+  border-color: var(--ui-primary) !important;
+  outline: 0 !important;
+  box-shadow: var(--ui-focus-ring) !important;
+}
+
+:is(.primary-button, .submit-button, .record-button, .btn-primary, .bp-button--primary, .search-button, .cm-primary) {
+  border-radius: var(--ui-radius-sm) !important;
+  border-color: var(--ui-primary) !important;
+  color: #fff !important;
+  background: var(--ui-primary) !important;
+  box-shadow: 0 6px 14px rgba(31,107,85,.16) !important;
+}
+:is(.primary-button, .submit-button, .record-button, .btn-primary, .bp-button--primary, .search-button, .cm-primary):hover:not(:disabled) {
+  background: var(--ui-primary-deep) !important;
+  box-shadow: 0 9px 20px rgba(31,107,85,.22) !important;
+  transform: translateY(-1px);
 }
